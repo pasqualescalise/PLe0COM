@@ -21,7 +21,6 @@ def get_register_string(regid):
         return 'sp'
     return 'r' + repr(regid)
 
-
 def save_regs(reglist):
     if len(reglist) == 0:
         return ''
@@ -32,7 +31,6 @@ def save_regs(reglist):
         res += get_register_string(reglist[i])
     res += '}\n'
     return res
-
 
 def restore_regs(reglist):
     if len(reglist) == 0:
@@ -45,25 +43,18 @@ def restore_regs(reglist):
     res += '}\n'
     return res
 
-
 def comment(cont):
     return '@ ' + cont + '\n'
-
 
 def codegen_append(vec, code):
     if type(code) is list:
         return [vec[0] + code[0], vec[1] + code[1]]
     return [vec[0] + code, vec[1]]
 
-
-# class RegisterAllocation:
-
-
 def enter_function_body(self, block):
     self.curfun = block
     self.spillvarloc = dict()
     self.spillvarloctop = -block.stackroom
-
 
 def gen_spill_load_if_necessary(self, var):
     self.dematerialize_spilled_var_if_necessary(var)
@@ -76,12 +67,10 @@ def gen_spill_load_if_necessary(self, var):
     res += '\t' + comment('<<- fill')
     return res
 
-
 def get_register_for_variable(self, var):
     self.materialize_spilled_var_if_necessary(var)
     res = get_register_string(self.vartoreg[var])
     return res
-
 
 def gen_spill_store_if_necessary(self, var):
     if not self.materialize_spilled_var_if_necessary(var):

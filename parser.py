@@ -157,7 +157,7 @@ class Parser:
 
         elif self.accept('callsym'):
             self.expect('ident')
-            function = symtab.find(self, self.value)
+            function_symbol = symtab.find(self, self.value)
             self.expect('lparen')
 
             # arguments
@@ -191,7 +191,7 @@ class Parser:
 
                 self.expect("rparen")
 
-            return ir.CallStat(call_expr=ir.CallExpr(function=function, parameters=parameters, symtab=symtab), returns=returns, symtab=symtab)
+            return ir.CallStat(call_expr=ir.CallExpr(function_symbol=function_symbol, parameters=parameters, symtab=symtab), function_symbol=function_symbol, returns=returns, symtab=symtab)
 
         elif self.accept('beginsym'):
             statement_list = ir.StatList(symtab=symtab)

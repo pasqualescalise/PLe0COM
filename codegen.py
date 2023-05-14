@@ -36,7 +36,6 @@ def symbol_codegen(self, regalloc):
     else:
         return '\t.equ ' + self.allocinfo.symname + ', ' + repr(self.allocinfo.fpreloff) + "\n"
 
-
 Symbol.codegen = symbol_codegen
 
 
@@ -55,7 +54,6 @@ def irnode_codegen(self, regalloc):
                 res[0] += "\t" + comment("node " + repr(id(node)) + " did not generate any code")
                 res[0] += "\t" + comment("exc: " + repr(e))
     return res
-
 
 IRNode.codegen = irnode_codegen
 
@@ -99,13 +97,11 @@ def block_codegen(self, regalloc):
 
     return res[0] + res[1]
 
-
 Block.codegen = block_codegen
 
 
 def deflist_codegen(self, regalloc):
     return ''.join([child.codegen(regalloc) for child in self.children])
-
 
 DefinitionList.codegen = deflist_codegen
 
@@ -114,7 +110,6 @@ def fun_codegen(self, regalloc):
     res = '\n' + self.symbol.name + ':\n'
     res += self.body.codegen(regalloc)
     return res
-
 
 FunctionDef.codegen = fun_codegen
 
@@ -166,7 +161,6 @@ def binstat_codegen(self, regalloc):
         raise Exception("operation " + repr(self.op) + " unexpected")
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
-
 BinStat.codegen = binstat_codegen
 
 
@@ -178,7 +172,6 @@ def print_codegen(self, regalloc):
     res += '\tbl __pl0_print\n'
     res += restore_regs(REGS_CALLERSAVE)
     return res
-
 
 PrintCommand.codegen = print_codegen
 
@@ -198,7 +191,6 @@ def read_codegen(self, regalloc):
     res += restore_regs(savedregs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
-
 
 ReadCommand.codegen = read_codegen
 
@@ -248,13 +240,11 @@ def branch_codegen(self, regalloc):
             return res
     return comment('impossible!')
 
-
 BranchStat.codegen = branch_codegen
 
 
 def emptystat_codegen(self, regalloc):
     return '\t' + comment('emptystat')
-
 
 EmptyStat.codegen = emptystat_codegen
 
@@ -275,7 +265,6 @@ def ldptrto_codegen(self, regalloc):
         trail += tmp
         res = '\tldr ' + rd + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
-
 
 LoadPtrToSym.codegen = ldptrto_codegen
 
@@ -312,7 +301,6 @@ def storestat_codegen(self, regalloc):
 
     return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
 
-
 StoreStat.codegen = storestat_codegen
 
 
@@ -348,7 +336,6 @@ def loadstat_codegen(self, regalloc):
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return [res, trail]
 
-
 LoadStat.codegen = loadstat_codegen
 
 
@@ -357,7 +344,6 @@ def savespacestat_codegen(self, regalloc):
     for param in range(self.number_of_returns):
         res += '\tpush {' + get_register_string(REG_SCRATCH) + '}\n'
     return res
-
 
 SaveSpaceStat.codegen = savespacestat_codegen
 
@@ -379,7 +365,6 @@ def loadimm_codegen(self, regalloc):
         res = '\tldr ' + rd + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
-
 LoadImmStat.codegen = loadimm_codegen
 
 
@@ -399,7 +384,6 @@ def unarystat_codegen(self, regalloc):
         raise Exception("operation " + repr(self.op) + " unexpected")
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
-
 
 UnaryStat.codegen = unarystat_codegen
 

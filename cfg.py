@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-__doc__ = '''Control Flow Graph implementation
-Includes cfg construction and liveness analysis.'''
+"""Control Flow Graph implementation
+Includes cfg construction and liveness analysis."""
 
 from functools import reduce
 

@@ -20,7 +20,6 @@ def get_node_list(root):
     root.navigate(register_nodes(node_list))
     return node_list
 
-
 def get_symbol_tables(root):
     """Get a list of all symtabs in the AST"""
 
@@ -43,7 +42,6 @@ def get_symbol_tables(root):
     root.navigate(register_nodes(node_list))
     return node_list
 
-
 def lowering(node):
     """Lowering action for a node
     (all high level nodes can be lowered to lower-level representation"""
@@ -59,7 +57,6 @@ def lowering(node):
             exit(1)
         pass  # lowering not yet implemented for this class
 
-
 def flattening(node):
     """Flattening action for a node
     (only StatList nodes are actually flattened)"""
@@ -74,7 +71,6 @@ def flattening(node):
             print('Cannot flatten', id(node), type(node), e)
             exit(1)
         pass  # this type of node cannot be flattened
-
 
 def dotty_wrapper(fout):
     """Main function for graphviz dot output generation"""
@@ -121,7 +117,6 @@ def dotty_wrapper(fout):
         return res
 
     return dotty_function
-
 
 def print_dotty(root, filename):
     """Print a graphviz dot representation to file"""

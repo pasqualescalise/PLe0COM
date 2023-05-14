@@ -59,7 +59,6 @@ def compile_program(text):
 
     return code
 
-
 def driver_main():
     from lexer import __test_program
     test_program=__test_program

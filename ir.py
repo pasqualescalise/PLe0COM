@@ -268,6 +268,40 @@ class IRNode:  # abstract
         else:
             return self.parent.get_function()
 
+    # XXX: added myself
+    def find_the_program(self):
+        if self.parent:
+            return self.parent.find_the_program()
+        else:
+            return self
+
+    # returns the FuncDef with the symbol specified, if it's reachable
+    # raises a RuntimeError if it doesn't find it
+    def get_function_definition(self, function_symbol):
+        function_definition = self.get_function()
+
+        # it's the main function
+        if function_definition == 'global':
+            program = self.find_the_program()
+            for definition in program.defs.children:
+                if type(definition) == FunctionDef and definition.symbol == function_symbol:
+                    return definition
+
+            if function_definition == 'global':
+                raise RuntimeError('Can\'t find function ' + str(function_symbol))
+
+        # it's the current function
+        if function_definition.symbol == function_symbol:
+            return function_definition
+
+        # it's one of the functions defined in the current function
+        for definition in function_definition.body.defs.children:
+            if type(definition) == FunctionDef and definition.symbol == function_symbol:
+                return definition
+
+        # it's a function defined in the parent
+        return function_definition.get_function_definition(function_symbol)
+
     def get_label(self):
         raise NotImplementedError
 
@@ -391,62 +425,26 @@ class UnExpr(Expr):
         statl = [self.children[1], stmt]
         return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
-def find_the_program(start):
-    if start.parent:
-        return find_the_program(start.parent)
-    else:
-        return start
-
-def recursive_find_function_definition(node, function_symbol):
-    function_definition = node.get_function()
-
-    # it's the main function
-    if function_definition == 'global':
-        program = find_the_program(node)
-        for definition in program.defs.children:
-            if type(definition) == FunctionDef and definition.symbol == function_symbol:
-                return definition
-
-        if function_definition == 'global':
-            raise RuntimeError('Can\'t find function ' + str(function_symbol))
-
-    # it's the current function
-    if function_definition.symbol == function_symbol:
-        return function_definition
-
-    # it's one of the functions defined in the current function
-    for definition in function_definition.body.defs.children:
-        if type(definition) == FunctionDef and definition.symbol == function_symbol:
-            return definition
-
-    # it's a function defined in the parent
-    return recursive_find_function_definition(function_definition, function_symbol)
-
-def find_function_definition(node, function_symbol, parameters):
-    function_definition = recursive_find_function_definition(node, function_symbol)
-    
-    if len(parameters) != len(function_definition.parameters):
-        raise RuntimeError('Not specified the right amount of parameters')
-
-    return function_definition
 
 class CallExpr(Expr):
-    def __init__(self, parent=None, function=None, parameters=None, symtab=None):
-        super().__init__(parent, [], symtab)
-        self.symbol = function
+    def __init__(self, parent=None, function_symbol=None, parameters=[], symtab=None):
+        super().__init__(parent, parameters, symtab)
+        self.function_symbol = function_symbol
 
-        if parameters:
-            self.children = parameters[:]
-        else:
-            self.children = []
+    # returns RuntimeError if the number of parameters or of returns is wrong
+    def check_parameters_and_returns(self):
+        # check that the number of parameters is correct
+        if len(self.children) != len(self.function_definition.parameters):
+            raise RuntimeError('Not specified the right amount of parameters')
 
-        for child in self.children:
-            child.parent = self
+        # check that the call asks for exactly as many as the function returns
+        # XXX: this makes impossible to ignore return values
+        if len(self.function_definition.returns) != len(self.parent.returns):
+            raise RuntimeError('Too few or too many values are being returned')
         
     def lower(self):
-        # this also checks that the number of parameters is correct
-        function_definition = find_function_definition(self, self.symbol, self.children)
-        self.parent.function_definition = function_definition
+        self.function_definition = self.get_function_definition(self.function_symbol)
+        self.check_parameters_and_returns()
 
         stats = self.children[:]
 
@@ -455,7 +453,7 @@ class CallExpr(Expr):
             stats.append(SaveSpaceStat(number_of_returns=len(self.parent.returns), symtab=self.symtab))
 
         function_definition_symbols = []
-        for symbol in function_definition.parameters:
+        for symbol in self.function_definition.parameters:
             if symbol.alloct == 'param':
                 function_definition_symbols.append(symbol)
 
@@ -506,13 +504,11 @@ class SaveSpaceStat(Stat): # low-level node
 class CallStat(Stat):
     """Procedure call"""
 
-    def __init__(self, parent=None, call_expr=None, symbol=None, returns=[], symtab=None):
+    def __init__(self, parent=None, call_expr=None, function_symbol=None, returns=[], symtab=None):
         super().__init__(parent, [], symtab)
         self.call = call_expr
         self.call.parent = self
-        self.symbol = self.call.symbol
-        self.returns = returns
-
+        self.function_symbol = function_symbol
         self.returns = returns
         for ret in self.returns:
             ret.parent = self
@@ -520,20 +516,15 @@ class CallStat(Stat):
     def collect_uses(self):
         return self.call.collect_uses() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
 
-    # XXX: this is heavily dependent on CallExpr and viceversa, maybe it would be better to just merge them in a single place
     def lower(self):
-        dest = self.symbol
-        bst = BranchStat(target=dest, symtab=self.symtab, returns=True, number_of_parameters=len(self.function_definition.parameters))
+        self.function_definition = self.get_function_definition(self.function_symbol)
+        branch = BranchStat(target=self.function_symbol, symtab=self.symtab, returns=True, number_of_parameters=len(self.function_definition.parameters))
 
-        # check that the call asks for exactly as many as the function returns
-        # XXX: this makes impossible to ignore return values
-        if len(self.function_definition.returns) != len(self.returns):
-            raise RuntimeError('Too few or too many values are being returned')
-
-        stats = [self.call, bst]
+        stats = [self.call, branch]
 
         # load the returned values in the correct symbols
         # first load the returned value in a temporary, then store its value in memory
+        # this must be done here because it happens after the branch
         for i in range(len(self.returns)):
             temp = new_temporary(self.symtab, self.function_definition.returns[i].stype)
             stats += [LoadStat(symbol=self.function_definition.returns[i], dest=temp, symtab=self.symtab)]
@@ -756,6 +747,7 @@ class ReadCommand(Stat):  # low-level node
     def human_repr(self):
         return 'read ' + repr(self.dest)
 
+
 class ReturnStat(Stat):
     def __init__(self, parent=None, children=[], symtab=None):
         super().__init__(parent, children, symtab)
@@ -781,6 +773,7 @@ class ReturnStat(Stat):
 
         stat_list = StatList(self.parent, stats, self.symtab)
         return self.parent.replace(self, stat_list)
+
 
 class BranchStat(Stat):  # low-level node
     def __init__(self, parent=None, cond=None, target=None, returns=False, negcond=False, number_of_parameters=0, symtab=None):
