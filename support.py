@@ -54,6 +54,9 @@ def lowering(node):
             print('Failed!')
     except Exception as e:
         print('Cannot lower', id(node), type(node), e)
+        # XXX: added myself
+        if type(e) == RuntimeError:
+            exit(1)
         pass  # lowering not yet implemented for this class
 
 
@@ -66,7 +69,10 @@ def flattening(node):
         if not check:
             print('Failed!')
     except Exception as e:
-        # print type(node), e
+        # XXX: added myself
+        if type(e) == RuntimeError:
+            print('Cannot flatten', id(node), type(node), e)
+            exit(1)
         pass  # this type of node cannot be flattened
 
 
@@ -105,7 +111,10 @@ def dotty_wrapper(fout):
         for d in attrs:
             node = getattr(irnode, d)
             if d == 'target':
-                res += repr(id(irnode)) + ' -> ' + repr(id(node.value)) + ' [label=' + node.name + '];\n'
+                if irnode.is_return:
+                    res += repr(id(irnode)) + ' -> ' + 'return;\n'
+                else:
+                    res += repr(id(irnode)) + ' -> ' + repr(id(node.value)) + ' [label=' + node.name + '];\n'
             else:
                 res += repr(id(irnode)) + ' -> ' + repr(id(node)) + ';\n'
         fout.write(res)

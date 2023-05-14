@@ -27,6 +27,3 @@ int main(int argc, char *argv[])
 {
   __pl0_start();
 }
-
-
-

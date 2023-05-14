@@ -110,22 +110,28 @@ TYPENAMES = {
     'function': FunctionType(),
 }
 
-ALLOC_CLASSES = ['global', 'auto', 'reg', 'imm']
+ALLOC_CLASSES = ['global', 'auto', 'reg', 'imm', 'param', 'return']
 
 
 class Symbol:
-    """There are 4 classes of allocation for symbols:\n
+    """There are 6 classes of allocation for symbols:\n
     - allocation to a register ('reg')
     - allocation to an arbitrary memory location, in the current stack frame
       ('auto') or in the data section ('global')
-    - allocation to an immediate ('imm')"""
+    - allocation to an immediate ('imm')
+    - allocation of function parameters('param')
+    - allocation of function retuns('return')"""
 
-    def __init__(self, name, stype, value=None, alloct='auto'):
+    def __init__(self, name, stype, value=None, alloct='auto', offset=0, fname=''):
         self.name = name
         self.stype = stype
         self.value = value  # if not None, it is a constant
         self.alloct = alloct
         self.allocinfo = None
+        # used in parameters and returns to understand their order
+        self.offset = offset
+        # defines the scope of the symbol
+        self.fname=fname
 
     def set_alloc_info(self, allocinfo):
         self.allocinfo = allocinfo
@@ -139,10 +145,17 @@ class Symbol:
 
 
 class SymbolTable(list):
-    def find(self, name):
+    def find(self, node, name):
         print('Looking up', name)
         for s in self:
-            if s.name == name:
+            # TODO: check if this is needed for returns
+            if s.alloct == "param":
+                # for parameters it's not enough to check the name, also
+                # the called function must be the one being parsed to
+                # make sure to get the correct variable in the scope
+                if s.fname == node.current_function and s.name == name:
+                    return s
+            elif s.name == name:
                 return s
         print('Looking up failed!')
         return None
@@ -185,7 +198,7 @@ class IRNode:  # abstract
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elsepart', 'symbol', 'call', 'step', 'expr', 'target', 'defs',
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
                  'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
 
         res = repr(type(self)) + ' ' + repr(id(self)) + ' {\n'
@@ -213,7 +226,7 @@ class IRNode:  # abstract
         return res
 
     def navigate(self, action):
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elsepart', 'symbol', 'call', 'step', 'expr', 'target', 'defs',
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
                  'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
         if 'children' in dir(self) and len(self.children):
             print('navigating children of', type(self), id(self), len(self.children))
@@ -235,7 +248,7 @@ class IRNode:  # abstract
         if 'children' in dir(self) and len(self.children) and old in self.children:
             self.children[self.children.index(old)] = new
             return True
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elsepart', 'symbol', 'call', 'step', 'expr', 'target', 'defs',
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
                  'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
         for d in attrs:
             try:
@@ -377,16 +390,79 @@ class UnExpr(Expr):
         statl = [self.children[1], stmt]
         return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
+def find_the_program(start):
+    if start.parent:
+        return find_the_program(start.parent)
+    else:
+        return start
+
+def recursive_find_function_definition(node, function_symbol):
+    function_definition = node.get_function()
+
+    # it's the main function
+    if function_definition == 'global':
+        program = find_the_program(node)
+        for definition in program.defs.children:
+            if type(definition) == FunctionDef and definition.symbol == function_symbol:
+                return definition
+
+        if function_definition == 'global':
+            raise RuntimeError('Can\'t find function ' + str(function_symbol))
+
+    # it's the current function
+    if function_definition.symbol == function_symbol:
+        return function_definition
+
+    # it's one of the functions defined in the current function
+    for definition in function_definition.body.defs.children:
+        if type(definition) == FunctionDef and definition.symbol == function_symbol:
+            return definition
+
+    # it's a function defined in the parent
+    return recursive_find_function_definition(function_definition, function_symbol)
+
+def find_function_definition(node, function_symbol, parameters):
+    function_definition = recursive_find_function_definition(node, function_symbol)
+    
+    if len(parameters) != len(function_definition.parameters):
+        raise RuntimeError('Not specified the right amount of parameters')
+
+    return function_definition
 
 class CallExpr(Expr):
     def __init__(self, parent=None, function=None, parameters=None, symtab=None):
         super().__init__(parent, [], symtab)
         self.symbol = function
-        # parameters are ignored
+
         if parameters:
             self.children = parameters[:]
         else:
             self.children = []
+
+        for child in self.children:
+            child.parent = self
+        
+    def lower(self):
+        # this also checks that the number of parameters is correct
+        function_definition = find_function_definition(self, self.symbol, self.children)
+        self.parent.function_definition = function_definition
+
+        stats = self.children[:]
+
+        # save space for eventual return variables
+        if len(self.parent.returns) > 0:
+            stats.append(SaveSpaceStat(number_of_returns=len(self.parent.returns), symtab=self.symtab))
+
+        function_definition_symbols = []
+        for symbol in function_definition.parameters:
+            if symbol.alloct == 'param':
+                function_definition_symbols.append(symbol)
+
+        # put the parameters on the stack
+        for i in range(len(self.children)):
+            stats += [StoreStat(symbol=self.children[i].destination(), dest=function_definition_symbols[i], symtab=self.symtab)]
+
+        return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
 
 # STATEMENTS
@@ -410,31 +486,74 @@ class Stat(IRNode):  # abstract
         return []
 
 
+class SaveSpaceStat(Stat): # low-level node
+    """ Save space for eventual return statements by pushing null values
+        Just needed a statement that would survive until codegen and would
+        not matter for datalayout"""
+
+    def __init__(self, parent=None, number_of_returns=0, symtab=None):
+        super().__init__(parent, [], symtab)
+        self.number_of_returns = number_of_returns
+
+    def collect_uses(self):
+        return []
+
+    def human_repr(self):
+        return 'save space for ' + str(self.number_of_returns) + ' return values'
+
+
 class CallStat(Stat):
     """Procedure call"""
 
-    def __init__(self, parent=None, call_expr=None, symtab=None):
+    def __init__(self, parent=None, call_expr=None, symbol=None, returns=[], symtab=None):
         super().__init__(parent, [], symtab)
         self.call = call_expr
         self.call.parent = self
+        self.symbol = self.call.symbol
+        self.returns = returns
+
+        self.returns = returns
+        for ret in self.returns:
+            ret.parent = self
 
     def collect_uses(self):
         return self.call.collect_uses() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
 
+    # XXX: this is heavily dependent on CallExpr and viceversa, maybe it would be better to just merge them in a single place
     def lower(self):
-        dest = self.call.symbol
-        bst = BranchStat(target=dest, symtab=self.symtab, returns=True)
-        return self.parent.replace(self, bst)
+        dest = self.symbol
+        bst = BranchStat(target=dest, symtab=self.symtab, returns=True, number_of_parameters=len(self.function_definition.parameters))
+
+        # check that the call asks for exactly as many as the function returns
+        # XXX: this makes impossible to ignore return values
+        if len(self.function_definition.returns) != len(self.returns):
+            raise RuntimeError('Too few or too many values are being returned')
+
+        stats = [self.call, bst]
+
+        # load the returned values in the correct symbols
+        # first load the returned value in a temporary, then store its value in memory
+        for i in range(len(self.returns)):
+            temp = new_temporary(self.symtab, self.function_definition.returns[i].stype)
+            stats += [LoadStat(symbol=self.function_definition.returns[i], dest=temp, symtab=self.symtab)]
+            stats += [StoreStat(symbol=temp, dest=self.returns[i], symtab=self.symtab)]
+
+        return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
 
 class IfStat(Stat):
-    def __init__(self, parent=None, cond=None, thenpart=None, elsepart=None, symtab=None):
+    def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elsepart=None, symtab=None):
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.thenpart = thenpart
+        self.elifspart = elifspart
         self.elsepart = elsepart
         self.cond.parent = self
         self.thenpart.parent = self
+
+        if self.elifspart:
+            self.elifspart.parent = self
+
         if self.elsepart:
             self.elsepart.parent = self
 
@@ -442,19 +561,40 @@ class IfStat(Stat):
         exit_label = TYPENAMES['label']()
         exit_stat = EmptyStat(self.parent, symtab=self.symtab)
         exit_stat.set_label(exit_label)
-        if self.elsepart:
-            then_label = TYPENAMES['label']()
-            self.thenpart.set_label(then_label)
-            branch_to_then = BranchStat(None, self.cond.destination(), then_label, self.symtab)
-            branch_to_exit = BranchStat(None, None, exit_label, self.symtab)
-            stat_list = StatList(self.parent,
-                                 [self.cond, branch_to_then, self.elsepart, branch_to_exit, self.thenpart, exit_stat],
-                                 self.symtab)
-            return self.parent.replace(self, stat_list)
-        else:
+
+        # no elifs and no else
+        if not self.elifspart and not self.elsepart:
             branch_to_exit = BranchStat(None, self.cond.destination(), exit_label, self.symtab, negcond=True)
             stat_list = StatList(self.parent, [self.cond, branch_to_exit, self.thenpart, exit_stat], self.symtab)
             return self.parent.replace(self, stat_list)
+
+        then_label = TYPENAMES['label']()
+        self.thenpart.set_label(then_label)
+        branch_to_then = BranchStat(None, self.cond.destination(), then_label, self.symtab)
+        branch_to_exit = BranchStat(None, None, exit_label, self.symtab)
+
+        stats = [self.cond, branch_to_then]
+
+        # elifs branches
+        for i in range(0, len(self.elifspart.children), 2):
+            elif_label = TYPENAMES['label']()
+            self.elifspart.children[i + 1].set_label(elif_label)
+            branch_to_elif = BranchStat(None, self.elifspart.children[i].destination(), elif_label, self.symtab)
+            stats = stats[:] + [self.elifspart.children[i], branch_to_elif]
+
+        # else
+        if self.elsepart:
+            stats = stats[:] + [self.elsepart, branch_to_exit]
+
+        stats.append(self.thenpart)
+
+        # elifs statements
+        for i in range(0, len(self.elifspart.children), 2):
+            stats = stats[:] + [branch_to_exit, self.elifspart.children[i + 1]]
+
+        stats.append(exit_stat)
+        stat_list = StatList(self.parent, stats, self.symtab)
+        return self.parent.replace(self, stat_list)
 
 
 class WhileStat(Stat):
@@ -477,7 +617,7 @@ class WhileStat(Stat):
         return self.parent.replace(self, stat_list)
 
 
-class ForStat(Stat):  # incomplete
+class ForStat(Stat):
     def __init__(self, parent=None, init=None, cond=None, step=None, body=None, symtab=None):
         super().__init__(parent, [], symtab)
         self.init = init
@@ -488,6 +628,17 @@ class ForStat(Stat):  # incomplete
         self.cond.parent = self
         self.step.parent = self
         self.body.parent = self
+
+    def lower(self):
+        entry_label = TYPENAMES['label']()
+        exit_label = TYPENAMES['label']()
+        exit_stat = EmptyStat(self.parent, symtab=self.symtab)
+        exit_stat.set_label(exit_label)
+        self.cond.set_label(entry_label)
+        branch = BranchStat(None, self.cond.destination(), exit_label, self.symtab, negcond=True)
+        loop = BranchStat(None, None, entry_label, self.symtab)
+        stat_list = StatList(self.parent, [self.init, self.cond, branch, self.body, self.step, loop, exit_stat], self.symtab)
+        return self.parent.replace(self, stat_list)
 
 
 class AssignStat(Stat):
@@ -604,9 +755,34 @@ class ReadCommand(Stat):  # low-level node
     def human_repr(self):
         return 'read ' + repr(self.dest)
 
+class ReturnStat(Stat):
+    def __init__(self, parent=None, children=[], symtab=None):
+        super().__init__(parent, children, symtab)
+        for child in self.children:
+            child.parent = self
+
+    def lower(self):
+        stats = self.children
+
+        function_definition = self.get_function()
+        if function_definition == 'global':
+            raise RuntimeError('The main function should not have return statements')
+
+        # check that the function returns as many values as the defined ones
+        if len(function_definition.returns) != len(self.children):
+            raise RuntimeError('Too few or too many values are being returned')
+
+        # put all values to return in the correct place in the stack
+        for i in range(len(self.children)):
+            stats.append(StoreStat(symbol=self.children[i].destination(), dest=function_definition.returns[i], symtab=self.symtab))
+
+        stats.append(BranchStat(parent=self, target='', is_return=True, symtab=self.symtab))
+
+        stat_list = StatList(self.parent, stats, self.symtab)
+        return self.parent.replace(self, stat_list)
 
 class BranchStat(Stat):  # low-level node
-    def __init__(self, parent=None, cond=None, target=None, symtab=None, returns=False, negcond=False):
+    def __init__(self, parent=None, cond=None, target=None, symtab=None, returns=False, negcond=False, is_return=False, number_of_parameters=0):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
@@ -618,6 +794,10 @@ class BranchStat(Stat):  # low-level node
             raise RuntimeError('condition not in register')
         self.target = target
         self.returns = returns
+        # XXX: maybe this is useless since it's the only one where target is an empty string
+        self.is_return = is_return
+        # needed for returns -> parameters need to be popped after returning from a call
+        self.number_of_parameters = number_of_parameters
 
     def collect_uses(self):
         if not (self.cond is None):
@@ -630,7 +810,9 @@ class BranchStat(Stat):  # low-level node
         return False
 
     def human_repr(self):
-        if self.returns:
+        if self.is_return:
+            return 'return to previous function'
+        elif self.returns:
             h = 'call '
         else:
             h = 'branch '
@@ -675,13 +857,13 @@ class LoadPtrToSym(Stat):  # low-level node
 
 
 class StoreStat(Stat):  # low-level node
-    # store the symbol to the specified destination + offset
     def __init__(self, parent=None, dest=None, symbol=None, killhint=None, symtab=None):
         """Stores the value in the 'symbol' temporary (register) to 'dest' which
         can be a symbol allocated in memory, or a temporary (symbol allocated to a
         register). In the first case, the store is done to the symbol itself; in
         the second case the dest symbol is used as a pointer to an arbitrary
-        location in memory."""
+        location in memory.
+        Special cases for parameters and returns defined in the codegen"""
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         if self.symbol.alloct != 'reg':
@@ -870,6 +1052,8 @@ class Block(Stat):
         self.body.parent = self
         self.defs.parent = self
         self.stackroom = 0
+        # XXX: added myself, just for printing
+        self.local_symtab = lc_sym
 
 
 # DEFINITIONS
@@ -882,10 +1066,12 @@ class Definition(IRNode):
 
 
 class FunctionDef(Definition):
-    def __init__(self, parent=None, symbol=None, body=None):
+    def __init__(self, parent=None, symbol=None, parameters=[], body=None, returns=[]):
         super().__init__(parent, symbol)
         self.body = body
         self.body.parent = self
+        self.parameters = parameters
+        self.returns = returns
 
     def get_global_symbols(self):
         return self.body.global_symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])

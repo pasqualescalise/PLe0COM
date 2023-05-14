@@ -20,7 +20,11 @@ class BasicBlock(object):
         else:
             self.instrs = []
         try:
-            self.target = self.instrs[-1].target
+            # XXX: added myself
+            if self.instrs[-1].returns == True: # exclude case with call as last instruction
+                self.target = None
+            else:
+                self.target = self.instrs[-1].target
         except Exception:
             self.target = None
         if labels:

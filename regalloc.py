@@ -170,4 +170,3 @@ class LinearScanRegisterAllocator(object):
             live.sort(key=lambda li: li['interv'][-1])
 
         return RegisterAllocation(self.vartoreg, numspill, self.nregs)
-

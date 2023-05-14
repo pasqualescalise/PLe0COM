@@ -15,6 +15,9 @@ class Parser:
         self.new_value = None
         self.the_lexer = the_lexer.tokens()
 
+        # used to mantain scope
+        self.current_function = "main"
+
     def getsym(self):
         """Update sym"""
         try:
@@ -41,7 +44,7 @@ class Parser:
         return 0
 
     def array_offset(self, symtab):
-        target = symtab.find(self.value)
+        target = symtab.find(self, self.value)
         offset = None
         if isinstance(target.stype, ir.ArrayType):
             idxes = []
@@ -71,8 +74,9 @@ class Parser:
 
     @logger
     def factor(self, symtab):
+        '''F -> var | const | ( E )'''
         if self.accept('ident'):
-            var = symtab.find(self.value)
+            var = symtab.find(self, self.value)
             offs = self.array_offset(symtab)
             if offs is None:
                 return ir.Var(var=var, symtab=symtab)
@@ -81,7 +85,8 @@ class Parser:
         if self.accept('number'):
             return ir.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
-            expr = self.expression()
+            # XXX: added myself
+            expr = self.expression(symtab)
             self.expect('rparen')
             return expr
         else:
@@ -98,19 +103,30 @@ class Parser:
             expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
+    # XXX: shifts have more precedence than plus/minus, which is maybe wrong, but it's easier to parse negative number this way
+    @logger
+    def shift(self, symtab):
+        expr = self.term(symtab)
+        while self.new_sym in ['shl', 'shr']:
+            self.getsym()
+            op = self.sym
+            expr2 = self.term(symtab)
+            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+        return expr
+
     @logger
     def expression(self, symtab):
         op = None
         if self.new_sym in ['plus', 'minus']:
             self.getsym()
             op = self.sym
-        expr = self.term(symtab)
+        expr = self.shift(symtab)
         if op:
             expr = ir.UnExpr(children=[op, expr], symtab=symtab)
         while self.new_sym in ['plus', 'minus']:
             self.getsym()
             op = self.sym
-            expr2 = self.term(symtab)
+            expr2 = self.shift(symtab)
             expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
@@ -133,7 +149,7 @@ class Parser:
     @logger
     def statement(self, symtab):
         if self.accept('ident'):
-            target = symtab.find(self.value)
+            target = symtab.find(self, self.value)
             offset = self.array_offset(symtab)
             self.expect('becomes')
             expr = self.expression(symtab)
@@ -141,7 +157,42 @@ class Parser:
 
         elif self.accept('callsym'):
             self.expect('ident')
-            return ir.CallStat(call_expr=ir.CallExpr(function=symtab.find(self.value), symtab=symtab), symtab=symtab)
+            function = symtab.find(self, self.value)
+            self.expect('lparen')
+
+            # arguments
+            parameters = []
+            while self.new_sym != "rparen":
+                expr = self.expression(symtab)
+                parameters.append(expr)
+                if self.new_sym == "comma":
+                    self.accept('comma')
+                    # handle dangling commas e.g. (int x, int y, )
+                    if self.new_sym == "rparen":
+                        self.error("Wrongly defined arguments for call to function")
+
+            self.expect("rparen")
+
+            # return
+            returns = []
+            if self.new_sym == "returns":
+                self.accept('returns')
+                self.expect('lparen')
+
+                while self.new_sym != "rparen":
+                    self.accept('ident')
+                    returns.append(symtab.find(self, self.value))
+
+                    if self.new_sym == "comma":
+                        self.accept('comma')
+                        # handle dangling commas e.g. (x, y, )
+                        if self.new_sym == "rparen":
+                            self.error("Wrongly defined returns for call to function")
+
+                self.expect("rparen")
+
+            return ir.CallStat(call_expr=ir.CallExpr(function=function, parameters=parameters, symtab=symtab), returns=returns, symtab=symtab)
+
         elif self.accept('beginsym'):
             statement_list = ir.StatList(symtab=symtab)
             statement_list.append(self.statement(symtab))
@@ -150,27 +201,78 @@ class Parser:
             self.expect('endsym')
             statement_list.print_content()
             return statement_list
+
         elif self.accept('ifsym'):
             cond = self.condition(symtab)
             self.expect('thensym')
             then = self.statement(symtab)
+
+            elifs = ir.StatList(symtab=symtab)
+            while self.new_sym == "elifsym":
+                self.accept("elifsym")
+                elif_cond = self.condition(symtab)
+                elifs.append(elif_cond)
+
+                self.expect('thensym')
+                elif_then = self.statement(symtab)
+                elifs.append(elif_then)
+
             els = None
             if self.accept('elsesym'):
                 els = self.statement(symtab)
-            return ir.IfStat(cond=cond, thenpart=then, elsepart=els, symtab=symtab)
+            return ir.IfStat(cond=cond, thenpart=then, elifspart=elifs, elsepart=els, symtab=symtab)
+
         elif self.accept('whilesym'):
             cond = self.condition(symtab)
             self.expect('dosym')
             body = self.statement(symtab)
             return ir.WhileStat(cond=cond, body=body, symtab=symtab)
+
+        elif self.accept('forsym'):
+            # check that init is an assign statement
+            if self.new_sym != "ident":
+                self.error(self, "First for part must be assignment")
+            init = self.statement(symtab)
+
+            self.expect('semicolon')
+            cond = self.condition(symtab)
+
+            self.expect('semicolon')
+            # check that step is an assign statement
+            if self.new_sym != "ident":
+                self.error(self, "Third for part must be assignment")
+            step = self.statement(symtab)
+
+            self.expect('dosym')
+            body = self.statement(symtab)
+            return ir.ForStat(init=init, cond=cond, step=step, body=body, symtab=symtab)
+
         elif self.accept('print'):
             exp = self.expression(symtab)
             return ir.PrintStat(exp=exp, symtab=symtab)
+
         elif self.accept('read'):
             self.expect('ident')
-            target = symtab.find(self.value)
+            target = symtab.find(self, self.value)
             offset = self.array_offset(symtab)
             return ir.AssignStat(target=target, offset=offset, expr=ir.ReadStat(symtab=symtab), symtab=symtab)
+
+        elif self.accept('returnsym'):
+            self.expect('lparen')
+
+            returns = []
+            while self.new_sym != "rparen":
+                expr = self.expression(symtab)
+                returns.append(expr)
+                if self.new_sym == "comma":
+                    self.accept('comma')
+                    # handle dangling commas e.g. (x, y, )
+                    if self.new_sym == "rparen":
+                        self.error("Wrongly defined return")
+
+            self.expect('rparen')
+
+            return ir.ReturnStat(children=returns, symtab=symtab)
 
     @logger
     def block(self, symtab, alloct='auto'):
@@ -191,12 +293,78 @@ class Parser:
         while self.accept('procsym'):
             self.expect('ident')
             fname = self.value
+            self.expect('lparen')
+
+            # arguments
+            parameters = []
+            while self.new_sym != "rparen":
+                self.expect('ident')
+                if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
+                    self.error("Parameter types must be valid")
+                type = self.value
+                self.expect('ident')
+
+                parameter = ir.Symbol(self.value, ir.TYPENAMES[type], alloct='param', fname=fname)
+                parameters.append(parameter)
+
+                if self.new_sym == "comma":
+                    self.accept('comma')
+                    # handle dangling commas e.g. (int x, int y, )
+                    if self.new_sym == "rparen":
+                        self.error("Wrongly defined arguments for procedure")
+
+            self.expect('rparen')
+
+            for i in range(len(parameters)):
+                # since they are pushed in the stack, the first parameter has the greatest offset, in descending order
+                parameters[i].offset = len(parameters) - i - 1
+                # reversed in the symtab for easier datalayout
+                local_vars.append(parameters[len(parameters) - i - 1])
+
+            # if the function returns something - it's not mandatory
+            returns = []
+            if self.new_sym == "returns":
+                self.accept('returns')
+                self.expect('lparen')
+
+                while self.new_sym != "rparen":
+                    self.expect('ident')
+                    if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
+                        self.error("Return types must be valid")
+                    type = self.value
+
+                    ret = ir.Symbol("ret_" + str(len(returns)), ir.TYPENAMES[self.value], alloct='return', fname=fname)
+                    returns.append(ret)
+
+                    if self.new_sym == "comma":
+                        self.accept('comma')
+                        # handle dangling commas e.g. (int, int, )
+                        if self.new_sym == "rparen":
+                            self.error("Wrongly defined returns for procedure")
+
+                self.expect('rparen')
+
+            # returns are always after the parameters in the SymbolTable bacause of the datalayout (an order had to be chosen)
+            for i in range(len(returns)):
+                # XXX: do these need to be reversed?
+                returns[i].offset = i
+                local_vars.append(returns[i])
+
             self.expect('semicolon')
-            local_vars.append(ir.Symbol(fname, ir.TYPENAMES['function']))
-            fbody = self.block(local_vars)
+
+            symtab.append(ir.Symbol(fname, ir.TYPENAMES['function']))
+
+            # make sure to save and restore the current function while parsing the new one
+            parent = self.current_function
+            self.current_function = fname
+            fbody = self.block(ir.SymbolTable(local_vars + symtab[:])) # local_vars is the symtab of the procedure block
+            self.current_function = parent
+
             self.expect('semicolon')
-            defs.append(ir.FunctionDef(symbol=local_vars.find(fname), body=fbody))
-        stat = self.statement(ir.SymbolTable(symtab[:] + local_vars))
+            defs.append(ir.FunctionDef(symbol=symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
+
+        # XXX: added myself, local variables need to be more prevalent than global ones to preserve scope
+        stat = self.statement(ir.SymbolTable(local_vars + symtab[:]))
         return ir.Block(gl_sym=symtab, lc_sym=local_vars, defs=defs, body=stat)
 
     @logger

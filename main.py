@@ -17,7 +17,6 @@ def compile_program(text):
     res = pars.program()
     print('\n', res, '\n')
 
-    return
     res.navigate(print_stat_list)
 
     node_list = get_node_list(res)

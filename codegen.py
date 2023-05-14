@@ -80,9 +80,14 @@ def block_codegen(self, regalloc):
     except Exception:
         pass
 
-    res[0] += '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
-    res[0] += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += '\tbx lr\n'
+    last_statement_of_block = self.body.children[-1]
+    if (type(last_statement_of_block) == BranchStat and last_statement_of_block.is_return):
+        # optmization: if the last statement is a return this instructions are useless
+        pass
+    else:
+        res[0] += '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
+        res[0] += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+        res[0] += '\tbx lr\n'
 
     res[0] = res[0] + res[1]
     res[1] = ''
@@ -129,6 +134,10 @@ def binstat_codegen(self, regalloc):
         res += '\tmul ' + rd + ', ' + param + '\n'
     elif self.op == "slash":
         res += '\tdiv ' + rd + ', ' + param + '\n'
+    elif self.op == "shl":
+        res += '\tlsl ' + rd + ', ' + param + '\n'
+    elif self.op == "shr":
+        res += '\tlsr ' + rd + ', ' + param + '\n'
     elif self.op == "eql":
         res += '\tcmp ' + param + '\n'
         res += '\tmoveq ' + rd + ', #1\n'
@@ -195,6 +204,12 @@ ReadCommand.codegen = read_codegen
 
 
 def branch_codegen(self, regalloc):
+    if self.is_return:
+        res = '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
+        res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+        res += '\tbx lr\n'
+        return res
+
     targetl = self.target.name
     if not self.returns:
         if self.cond is None:
@@ -209,6 +224,11 @@ def branch_codegen(self, regalloc):
             res = save_regs(REGS_CALLERSAVE)
             res += '\tbl ' + targetl + '\n'
             res += restore_regs(REGS_CALLERSAVE)
+
+            # pop passed parameters -> in the scratch register since they are useless now
+            for param in range(self.number_of_parameters):
+                res += '\tpop {' + get_register_string(REG_SCRATCH) + '}\n'
+
             return res
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
@@ -218,6 +238,11 @@ def branch_codegen(self, regalloc):
             res += save_regs(REGS_CALLERSAVE)
             res += '\tbl ' + targetl + '\n'
             res += restore_regs(REGS_CALLERSAVE)
+
+            # pop passed parameters -> in the scratch register since they are useless now
+            for param in range(self.number_of_parameters):
+                res += '\tpop {' + get_register_string(REG_SCRATCH) + '}\n'
+
             res += '1:'
             return res
     return comment('impossible!')
@@ -257,7 +282,10 @@ LoadPtrToSym.codegen = ldptrto_codegen
 def storestat_codegen(self, regalloc):
     res = ''
     trail = ''
-    if self.dest.alloct == 'reg':
+    if self.dest.alloct == 'param':
+        res += '\tpush {' + regalloc.get_register_for_variable(self.symbol) + '}\n'
+        return [res, trail]
+    elif self.dest.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.dest)
         dest = '[' + regalloc.get_register_for_variable(self.dest) + ']'
     else:
@@ -280,6 +308,7 @@ def storestat_codegen(self, regalloc):
 
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
+
     return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
 
 
@@ -292,6 +321,9 @@ def loadstat_codegen(self, regalloc):
     if self.symbol.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
         src = '[' + regalloc.get_register_for_variable(self.symbol) + ']'
+    elif self.symbol.alloct == 'return':
+        res += '\tpop {' + regalloc.get_register_for_variable(self.dest) + '}\n'
+        return [res, trail]
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:
@@ -317,6 +349,16 @@ def loadstat_codegen(self, regalloc):
 
 
 LoadStat.codegen = loadstat_codegen
+
+
+def savespacestat_codegen(self, regalloc):
+    res = ''
+    for param in range(self.number_of_returns):
+        res += '\tpush {' + get_register_string(REG_SCRATCH) + '}\n'
+    return res
+
+
+SaveSpaceStat.codegen = savespacestat_codegen
 
 
 def loadimm_codegen(self, regalloc):

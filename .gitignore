@@ -9,3 +9,6 @@ test*
 out
 .idea
 *.log
+
+.gdb_history
+tags
