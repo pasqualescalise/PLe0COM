@@ -81,7 +81,7 @@ def block_codegen(self, regalloc):
         pass
 
     last_statement_of_block = self.body.children[-1]
-    if (type(last_statement_of_block) == BranchStat and last_statement_of_block.is_return):
+    if (type(last_statement_of_block) == BranchStat and last_statement_of_block.target is None):
         # optmization: if the last statement is a return this instructions are useless
         pass
     else:
@@ -204,7 +204,8 @@ ReadCommand.codegen = read_codegen
 
 
 def branch_codegen(self, regalloc):
-    if self.is_return:
+    if self.target is None:
+        # the branch is a return
         res = '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
         res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
         res += '\tbx lr\n'

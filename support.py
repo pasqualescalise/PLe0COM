@@ -111,7 +111,7 @@ def dotty_wrapper(fout):
         for d in attrs:
             node = getattr(irnode, d)
             if d == 'target':
-                if irnode.is_return:
+                if irnode.target is None:
                     res += repr(id(irnode)) + ' -> ' + 'return;\n'
                 else:
                     res += repr(id(irnode)) + ' -> ' + repr(id(node.value)) + ' [label=' + node.name + '];\n'

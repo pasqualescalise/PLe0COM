@@ -120,7 +120,9 @@ class Symbol:
       ('auto') or in the data section ('global')
     - allocation to an immediate ('imm')
     - allocation of function parameters('param')
-    - allocation of function retuns('return')"""
+    - allocation of function retuns('return') -> these are not 'real' symbols
+      because they can't be referenced, but are needed to know where on the stack
+      to put return values"""
 
     def __init__(self, name, stype, value=None, alloct='auto', offset=0, fname=''):
         self.name = name
@@ -148,7 +150,6 @@ class SymbolTable(list):
     def find(self, node, name):
         print('Looking up', name)
         for s in self:
-            # TODO: check if this is needed for returns
             if s.alloct == "param":
                 # for parameters it's not enough to check the name, also
                 # the called function must be the one being parsed to
@@ -564,14 +565,14 @@ class IfStat(Stat):
 
         # no elifs and no else
         if not self.elifspart and not self.elsepart:
-            branch_to_exit = BranchStat(None, self.cond.destination(), exit_label, self.symtab, negcond=True)
+            branch_to_exit = BranchStat(cond=self.cond.destination(), target=exit_label, negcond=True, symtab=self.symtab)
             stat_list = StatList(self.parent, [self.cond, branch_to_exit, self.thenpart, exit_stat], self.symtab)
             return self.parent.replace(self, stat_list)
 
         then_label = TYPENAMES['label']()
         self.thenpart.set_label(then_label)
-        branch_to_then = BranchStat(None, self.cond.destination(), then_label, self.symtab)
-        branch_to_exit = BranchStat(None, None, exit_label, self.symtab)
+        branch_to_then = BranchStat(cond=self.cond.destination(), target=then_label, symtab=self.symtab)
+        branch_to_exit = BranchStat(target=exit_label, symtab=self.symtab)
 
         stats = [self.cond, branch_to_then]
 
@@ -579,7 +580,7 @@ class IfStat(Stat):
         for i in range(0, len(self.elifspart.children), 2):
             elif_label = TYPENAMES['label']()
             self.elifspart.children[i + 1].set_label(elif_label)
-            branch_to_elif = BranchStat(None, self.elifspart.children[i].destination(), elif_label, self.symtab)
+            branch_to_elif = BranchStat(cond=self.elifspart.children[i].destination(), target=elif_label, symtab=self.symtab)
             stats = stats[:] + [self.elifspart.children[i], branch_to_elif]
 
         # else
@@ -611,8 +612,8 @@ class WhileStat(Stat):
         exit_stat = EmptyStat(self.parent, symtab=self.symtab)
         exit_stat.set_label(exit_label)
         self.cond.set_label(entry_label)
-        branch = BranchStat(None, self.cond.destination(), exit_label, self.symtab, negcond=True)
-        loop = BranchStat(None, None, entry_label, self.symtab)
+        branch = BranchStat(cond=self.cond.destination(), target=exit_label, negcond=True, symtab=self.symtab)
+        loop = BranchStat(target=entry_label, symtab=self.symtab)
         stat_list = StatList(self.parent, [self.cond, branch, self.body, loop, exit_stat], self.symtab)
         return self.parent.replace(self, stat_list)
 
@@ -635,8 +636,8 @@ class ForStat(Stat):
         exit_stat = EmptyStat(self.parent, symtab=self.symtab)
         exit_stat.set_label(exit_label)
         self.cond.set_label(entry_label)
-        branch = BranchStat(None, self.cond.destination(), exit_label, self.symtab, negcond=True)
-        loop = BranchStat(None, None, entry_label, self.symtab)
+        branch = BranchStat(cond=self.cond.destination(), target=exit_label, negcond=True, symtab=self.symtab)
+        loop = BranchStat(target=entry_label, symtab=self.symtab)
         stat_list = StatList(self.parent, [self.init, self.cond, branch, self.body, self.step, loop, exit_stat], self.symtab)
         return self.parent.replace(self, stat_list)
 
@@ -776,17 +777,18 @@ class ReturnStat(Stat):
         for i in range(len(self.children)):
             stats.append(StoreStat(symbol=self.children[i].destination(), dest=function_definition.returns[i], symtab=self.symtab))
 
-        stats.append(BranchStat(parent=self, target='', is_return=True, symtab=self.symtab))
+        stats.append(BranchStat(parent=self, target=None, symtab=self.symtab))
 
         stat_list = StatList(self.parent, stats, self.symtab)
         return self.parent.replace(self, stat_list)
 
 class BranchStat(Stat):  # low-level node
-    def __init__(self, parent=None, cond=None, target=None, symtab=None, returns=False, negcond=False, is_return=False, number_of_parameters=0):
+    def __init__(self, parent=None, cond=None, target=None, returns=False, negcond=False, number_of_parameters=0, symtab=None):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
-        If returns is True, this is a branch-and-link instruction."""
+        If returns is True, this is a branch-and-link instruction.
+        If target is None, the branch is a return and the 'target' is computed at runtime"""
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.negcond = negcond
@@ -794,8 +796,6 @@ class BranchStat(Stat):  # low-level node
             raise RuntimeError('condition not in register')
         self.target = target
         self.returns = returns
-        # XXX: maybe this is useless since it's the only one where target is an empty string
-        self.is_return = is_return
         # needed for returns -> parameters need to be popped after returning from a call
         self.number_of_parameters = number_of_parameters
 
@@ -810,7 +810,7 @@ class BranchStat(Stat):  # low-level node
         return False
 
     def human_repr(self):
-        if self.is_return:
+        if self.target is None:
             return 'return to previous function'
         elif self.returns:
             h = 'call '
