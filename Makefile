@@ -54,4 +54,12 @@ clean:
 gdb:
 	gdb-multiarch --eval-command="file out" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
 
-.PHONY: compile test clean
+showpdf:
+	dot -Tpdf cfg.dot -o cfg.pdf;\
+	zathura cfg.pdf &
+
+showpng:
+	dot -Tpng cfg.dot -o cfg.png;\
+	feh cfg.png &
+
+.PHONY: compile test clean gdb showpdf showpng

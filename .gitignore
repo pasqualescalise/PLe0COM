@@ -3,6 +3,7 @@
 log
 
 *.pdf
+*.png
 test*
 *.s
 
