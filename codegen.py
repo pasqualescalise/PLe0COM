@@ -218,9 +218,9 @@ def branch_codegen(self, regalloc):
             res += '\tbl ' + targetl + '\n'
             res += restore_regs(REGS_CALLERSAVE)
 
-            # pop passed parameters -> in the scratch register since they are useless now
-            for param in range(self.number_of_parameters):
-                res += '\tpop {' + get_register_string(REG_SCRATCH) + '}\n'
+            # restore space left by the parameters
+            if self.space_needed_for_parameters > 0:
+                res += '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed_for_parameters) + '\n'
 
             return res
         else:
@@ -232,9 +232,9 @@ def branch_codegen(self, regalloc):
             res += '\tbl ' + targetl + '\n'
             res += restore_regs(REGS_CALLERSAVE)
 
-            # pop passed parameters -> in the scratch register since they are useless now
-            for param in range(self.number_of_parameters):
-                res += '\tpop {' + get_register_string(REG_SCRATCH) + '}\n'
+            # restore space left by the parameters
+            if self.space_needed_for_parameters > 0:
+                res += '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed_for_parameters) + '\n'
 
             res += '1:'
             return res
@@ -340,10 +340,7 @@ LoadStat.codegen = loadstat_codegen
 
 
 def savespacestat_codegen(self, regalloc):
-    res = ''
-    for param in range(self.number_of_returns):
-        res += '\tpush {' + get_register_string(REG_SCRATCH) + '}\n'
-    return res
+    return '\tsub ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed) + '\n'
 
 SaveSpaceStat.codegen = savespacestat_codegen
 

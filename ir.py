@@ -436,7 +436,7 @@ class CallExpr(Expr):
             raise RuntimeError('Not specified the right amount of parameters')
 
         # check that the call asks for exactly as many as the function returns
-        # XXX: this makes impossible to ignore return values
+        # XXX: this makes it impossible to ignore return values
         if len(self.function_definition.returns) != len(self.parent.returns):
             raise RuntimeError('Too few or too many values are being returned')
         
@@ -448,7 +448,10 @@ class CallExpr(Expr):
 
         # save space for eventual return variables
         if len(self.parent.returns) > 0:
-            stats.append(SaveSpaceStat(number_of_returns=len(self.parent.returns), symtab=self.symtab))
+            space_needed = 0;
+            for ret in self.parent.returns:
+                space_needed += ret.stype.size // 8
+            stats.append(SaveSpaceStat(space_needed=space_needed, symtab=self.symtab))
 
         function_definition_symbols = []
         for symbol in self.function_definition.parameters:
@@ -488,15 +491,15 @@ class SaveSpaceStat(Stat): # low-level node
         Just needed a statement that would survive until codegen and would
         not matter for datalayout"""
 
-    def __init__(self, parent=None, number_of_returns=0, symtab=None):
+    def __init__(self, parent=None, space_needed=0, symtab=None):
         super().__init__(parent, [], symtab)
-        self.number_of_returns = number_of_returns
+        self.space_needed = space_needed
 
     def collect_uses(self):
         return []
 
     def human_repr(self):
-        return 'save space for ' + str(self.number_of_returns) + ' return values'
+        return 'save space for the return values'
 
 
 class CallStat(Stat):
@@ -516,7 +519,12 @@ class CallStat(Stat):
 
     def lower(self):
         self.function_definition = self.get_function_definition(self.function_symbol)
-        branch = BranchStat(target=self.function_symbol, symtab=self.symtab, returns=True, number_of_parameters=len(self.function_definition.parameters))
+
+        space_needed_for_parameters = 0;
+        for param in self.function_definition.parameters:
+            space_needed_for_parameters += param.stype.size // 8
+
+        branch = BranchStat(target=self.function_symbol, symtab=self.symtab, returns=True, space_needed_for_parameters=space_needed_for_parameters)
 
         stats = [self.call, branch]
 
@@ -774,7 +782,7 @@ class ReturnStat(Stat):
 
 
 class BranchStat(Stat):  # low-level node
-    def __init__(self, parent=None, cond=None, target=None, returns=False, negcond=False, number_of_parameters=0, symtab=None):
+    def __init__(self, parent=None, cond=None, target=None, returns=False, negcond=False, space_needed_for_parameters=0, symtab=None):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
@@ -788,7 +796,7 @@ class BranchStat(Stat):  # low-level node
         self.target = target
         self.returns = returns
         # needed for returns -> parameters need to be popped after returning from a call
-        self.number_of_parameters = number_of_parameters
+        self.space_needed_for_parameters = space_needed_for_parameters
 
     def collect_uses(self):
         if not (self.cond is None):
