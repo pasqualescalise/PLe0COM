@@ -46,7 +46,12 @@ def compile_program(text):
     cfg = CFG(program)
     cfg.liveness()
     cfg.print_liveness()
+
+    print("\n\nRETURN ANALYSIS\n\n")
+    cfg.return_analysis()
+
     cfg.print_cfg_to_dot("cfg.dot")
+
     print("\nA dot file representation of the program is in the cfg.dot file\n")
 
     print("\n\nREGISTER ALLOCATION\n\n")

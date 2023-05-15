@@ -21,12 +21,12 @@ class BasicBlock(object):
             self.instrs = []
         try:
             # XXX: added myself
-            if self.instrs[-1].returns == True: # exclude case with call as last instruction
+            if self.instrs[-1].returns == True:
                 self.target = None
             else:
                 self.target = self.instrs[-1].target
         except Exception:
-            self.target = None
+            self.target = None # last instruction is not a branch
         if labels:
             self.labels = labels
         else:
@@ -122,7 +122,7 @@ def stat_list_to_bb(sl):
             label = n.get_label()
             if label:
                 if len(newbb):
-                    bb = BasicBlock(None, newbb, labels)
+                    bb = BasicBlock(instrs=newbb, labels=labels)
                     newbb = []
                     if len(bbs):
                         bbs[-1].next = bb
@@ -131,12 +131,12 @@ def stat_list_to_bb(sl):
                 else:
                     labels.append(label)
         except Exception:
-            pass
+            pass # instruction doesn't have a label
 
         newbb.append(n)
 
         if isinstance(n, BranchStat) and not n.returns:
-            bb = BasicBlock(None, newbb, labels)
+            bb = BasicBlock(instrs=newbb, labels=labels)
             newbb = []
             if len(bbs):
                 bbs[-1].next = bb
@@ -144,7 +144,7 @@ def stat_list_to_bb(sl):
             labels = []
 
     if len(newbb) or len(labels):
-        bb = BasicBlock(None, newbb, labels)
+        bb = BasicBlock(instrs=newbb, labels=labels)
         if len(bbs):
             bbs[-1].next = bb
         bbs.append(bb)
@@ -191,6 +191,15 @@ class CFG(list):
             else:
                 res[parent] = bb
         return res
+
+    def tails(self):
+        """Return a list of all the basic block that do not have successors"""
+        tail = []
+        for bb in self:
+            if bb.next is None and bb.target is None:
+                tail.append(bb)
+
+        return tail
 
     def print_cfg_to_dot(self, filename):
         """Print the CFG in graphviz dot to file"""
@@ -246,3 +255,19 @@ class CFG(list):
                 out.append(bb.liveness_iteration())
         for bb in self:
             bb.compute_instr_level_liveness()
+
+    def return_analysis(self):
+        """Check that if a function returns, each path of the CFG ends with a return"""
+        tails = self.tails()
+        for bb in tails:
+            function_definition = bb.get_function()
+            if function_definition == 'global':
+                continue # the main does not return anything
+
+            if len(function_definition.returns) > 0:
+                last_instruction = bb.instrs[-1]
+                from ir import BranchStat
+                if type(last_instruction) is BranchStat and last_instruction.target == None:
+                    pass
+                else:
+                    raise RuntimeError("Function does not return correctly")
