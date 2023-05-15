@@ -4,6 +4,8 @@
 is not a register, is allocated in the local stack frame (LocalSymbol) or in
 the data section of the executable (GlobalSymbol)."""
 
+from codegenhelp import CALL_OFFSET
+
 
 class SymbolLayout(object):
     def __init__(self, symname, bsize):
@@ -36,11 +38,10 @@ def perform_data_layout(root):
     for defin in root.defs.children:
         perform_data_layout_of_function(defin)
 
-
 def perform_data_layout_of_function(funcroot):
     offs = 0  # prev fp
     # considering all the caller and callee saved registers
-    minimum_fixed_offset = 48
+    minimum_fixed_offset = CALL_OFFSET - 4
     param_offs = minimum_fixed_offset
     returns_offs = minimum_fixed_offset
 
@@ -77,6 +78,7 @@ def perform_data_layout_of_function(funcroot):
         else:
             prefix = "_l_" + funcroot.symbol.name + "_"
             offs -= bsize
+            var.fname = funcroot.symbol.name
             var.set_alloc_info(LocalSymbolLayout(prefix + var.name, offs, bsize))
 
     # XXX: added myself
@@ -85,11 +87,10 @@ def perform_data_layout_of_function(funcroot):
 
     funcroot.body.stackroom = -offs
 
-
 # the parameters and the returns are of functions called by the main, so they behave exactly like other functions
 def perform_data_layout_of_program(root):
     # considering all the caller and callee saved registers
-    minimum_fixed_offset = 48
+    minimum_fixed_offset = CALL_OFFSET - 4
     param_offs = minimum_fixed_offset
     returns_offs = minimum_fixed_offset
 

@@ -281,7 +281,13 @@ def storestat_codegen(self, regalloc):
     else:
         ai = self.dest.allocinfo
         if type(ai) is LocalSymbolLayout:
-            dest = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
+            static_link = check_if_variable_needs_static_link(self, self.dest)
+            if static_link:
+                res += static_link
+                # if the static link is necessary use the offset contained in the scratch register
+                dest = '[' + get_register_string(REG_SCRATCH) + ', #' + ai.symname + ']'
+            else:
+                dest = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
@@ -316,7 +322,13 @@ def loadstat_codegen(self, regalloc):
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:
-            src = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
+            static_link = check_if_variable_needs_static_link(self, self.symbol)
+            if static_link:
+                res += static_link
+                # if the static link is necessary use the offset contained in the scratch register
+                src = '[' + get_register_string(REG_SCRATCH) + ', #' + ai.symname + ']'
+            else:
+                src = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
