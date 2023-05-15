@@ -66,10 +66,6 @@ def flattening(node):
         if not check:
             print('Failed!')
     except Exception as e:
-        # XXX: added myself
-        if type(e) == RuntimeError:
-            print('Cannot flatten', id(node), type(node), e)
-            exit(1)
         pass  # this type of node cannot be flattened
 
 def dotty_wrapper(fout):

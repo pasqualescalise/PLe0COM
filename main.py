@@ -12,65 +12,70 @@ from codegen import *
 
 
 def compile_program(text):
+    print("\n\nPARSING\n\n")
     lex = lexer.Lexer(text)
     pars = parser.Parser(lex)
-    res = pars.program()
-    print('\n', res, '\n')
+    program = pars.program()
+    print('\n', program, '\n')
 
-    res.navigate(print_stat_list)
+    print("\n\nSTATEMENTS\n\n")
+    program.navigate(print_stat_list)
 
-    node_list = get_node_list(res)
+    print("\n\nNODE LIST\n\n")
+    node_list = get_node_list(program)
     for n in node_list:
         print(type(n), id(n), '->', type(n.parent), id(n.parent))
     print('\nTotal nodes in IR:', len(node_list), '\n')
 
-    res.navigate(lowering)
+    print("\n\nLOWERING\n\n")
+    program.navigate(lowering)
 
-    node_list = get_node_list(res)
-    print('\n', res, '\n')
-    for n in node_list:
-        print(type(n), id(n))
-        try:
-            n.flatten()
-        except Exception:
-            pass
-    # res.navigate(flattening)
-    print('\n', res, '\n')
+    print("\n\nFLATTENING\n\n")
+    program.navigate(flattening)
+    print('\n', program, '\n')
 
-    print_dotty(res, "log.dot")
+    print("\n\nMAKING DOTTY\n\n")
+    print_dotty(program, "log.dot")
+    print("\nA dot file representation of the program is in the log.dot file\n")
 
     print("\n\nDATALAYOUT\n\n")
-    perform_data_layout(res)
-    print('\n', res, '\n')
+    perform_data_layout(program)
+    print('\n', program, '\n')
 
-    cfg = CFG(res)
+    print("\n\nLIVENESS ANALYSIS\n\n")
+    cfg = CFG(program)
     cfg.liveness()
     cfg.print_liveness()
     cfg.print_cfg_to_dot("cfg.dot")
+    print("\nA dot file representation of the program is in the cfg.dot file\n")
 
-    print("\n\nREGALLOC\n\n")
+    print("\n\nREGISTER ALLOCATION\n\n")
     ra = LinearScanRegisterAllocator(cfg, 11)
     reg_alloc = ra()
     print(reg_alloc)
 
-    print("\n\nCODEGEN\n\n")
-    code = generate_code(res, reg_alloc)
+    print("\n\nCODE GENERATION\n\n")
+    code = generate_code(program, reg_alloc)
     print(code)
 
     return code
 
 def driver_main():
-    from lexer import __test_program
-    test_program=__test_program
-    import sys
-    print(sys.argv)
-    if len(sys.argv) >= 2:
-        with open(sys.argv[1], 'r') as inf :
+    from sys import argv
+
+    # compile the test program specified in the Lexer
+    test_program=lexer.__test_program
+
+    # get a test program from the arguments
+    if len(argv) > 2:
+        with open(argv[1], 'r') as inf :
             test_program = inf.read()
+
     code = compile_program(test_program)
 
-    if len(sys.argv) > 2:
-        with open(sys.argv[-1], 'w') as outf :
+    # write the code in the file specifed in the arguments
+    if len(argv) >= 2:
+        with open(argv[-1], 'w') as outf :
             outf.write(code)
 
 
