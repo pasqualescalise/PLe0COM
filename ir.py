@@ -124,15 +124,13 @@ class Symbol:
       because they can't be referenced, but are needed to know where on the stack
       to put return values"""
 
-    def __init__(self, name, stype, value=None, alloct='auto', offset=0, fname=''):
+    def __init__(self, name, stype, value=None, alloct='auto', fname=''):
         self.name = name
         self.stype = stype
         self.value = value  # if not None, it is a constant
         self.alloct = alloct
         self.allocinfo = None
-        # used in parameters and returns to understand their order
-        self.offset = offset
-        # defines the scope of the symbol
+        # useful to understand the scope of the symbol
         self.fname=fname
 
     def set_alloc_info(self, allocinfo):

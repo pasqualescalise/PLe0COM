@@ -316,8 +316,6 @@ class Parser:
             self.expect('rparen')
 
             for i in range(len(parameters)):
-                # since they are pushed in the stack, the first parameter has the greatest offset, in descending order
-                parameters[i].offset = len(parameters) - i - 1
                 # reversed in the symtab for easier datalayout
                 local_vars.append(parameters[len(parameters) - i - 1])
 
@@ -346,8 +344,6 @@ class Parser:
 
             # returns are always after the parameters in the SymbolTable bacause of the datalayout (an order had to be chosen)
             for i in range(len(returns)):
-                # XXX: do these need to be reversed?
-                returns[i].offset = i
                 local_vars.append(returns[i])
 
             self.expect('semicolon')
