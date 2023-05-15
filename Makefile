@@ -27,11 +27,14 @@ testall:
 		rm $$output_directory/*;\
 	fi;\
 	for test in $$tests; do\
-		basename=$$(basename "$$test" .pl0).output;\
-		$(MAKE) compile test="$$test" > /dev/null 2> $$output_directory/$$basename;\
+		output_file=$$output_directory/$$(basename "$$test" .pl0).output;\
+		$(MAKE) compile test="$$test" > /dev/null 2> $$output_file;\
 		return_value=$$(echo $$?);\
 		if [ "$$return_value" -eq "0" ]; then\
-			$(MAKE) test | sed -n -e "4,\$$p" > $$output_directory/$$basename;\
+			$(MAKE) test | sed -n -e "4,\$$p" > $$output_file;\
+		else\
+			sed -i -e "\$$d" $$output_file;\
+			sed -n -i -e "\$$p" $$output_file;\
 		fi;\
 	done;\
 	for output in $$output_directory/*.output; do\
