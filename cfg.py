@@ -264,10 +264,18 @@ class CFG(list):
             if function_definition == 'global':
                 continue # the main does not return anything
 
-            if len(function_definition.returns) > 0:
+            number_of_returns = len(function_definition.returns)
+            if number_of_returns > 0:
                 last_instruction = bb.instrs[-1]
                 from ir import BranchStat
                 if type(last_instruction) is BranchStat and last_instruction.target == None:
                     pass
                 else:
                     raise RuntimeError("Function does not return correctly")
+
+            if number_of_returns == 0:
+                print("Function " + function_definition.symbol.name + " does not return any value")
+            elif number_of_returns == 1:
+                print("Function " + function_definition.symbol.name + " returns 1 value")
+            else:
+                print("Function " + function_definition.symbol.name + " returns " + str(len(function_definition.returns)) + " values")

@@ -49,6 +49,7 @@ def compile_program(text):
 
     print("\n\nRETURN ANALYSIS\n\n")
     cfg.return_analysis()
+    print("\nAll procedures that need to return parameters correctly return them\n")
 
     cfg.print_cfg_to_dot("cfg.dot")
 
