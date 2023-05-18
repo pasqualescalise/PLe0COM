@@ -12,7 +12,6 @@ from codegenhelp import *
 
 tempcount = 0
 
-
 def new_temporary(symtab, type):
     global tempcount
     temp = Symbol(name='t' + str(tempcount), stype=type, alloct='reg')
@@ -232,19 +231,24 @@ class IRNode:  # abstract
         attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
                  'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
         if 'children' in dir(self) and len(self.children):
-            print('navigating children of', type(self), id(self), len(self.children))
             for node in self.children:
                 try:
                     node.navigate(action)
-                except Exception:
+                except AttributeError as e:
                     pass
+                except Exception as e:
+                    raise e
+            print('Successfully navigated', len(self.children), 'children of', type(self), id(self))
         for d in attrs:
             try:
                 getattr(self, d).navigate(action)
-                print('successfully navigated attr ', d, ' of', type(self), id(self))
-            except Exception:
+                print('Successfully navigated attr', d, 'of', type(self), id(self))
+            except AttributeError as e:
                 pass
+            except Exception as e:
+                raise e
         action(self)
+        print('Successfully navigated', type(self), id(self), '\n')
 
     def replace(self, old, new):
         new.parent = self
@@ -270,7 +274,6 @@ class IRNode:  # abstract
         else:
             return self.parent.get_function()
 
-    # XXX: added myself
     def find_the_program(self):
         if self.parent:
             return self.parent.find_the_program()
@@ -1041,7 +1044,7 @@ class StatList(Stat):  # low-level node
     def flatten(self):
         """Remove nested StatLists"""
         if type(self.parent) == StatList:
-            print('Flattening', id(self), 'into', id(self.parent))
+            print('Flattening', type(self), id(self), 'into parent', type(self.parent), id(self.parent))
             if self.get_label():
                 emptystat = EmptyStat(self, symtab=self.symtab)
                 self.children.insert(0, emptystat)
@@ -1050,10 +1053,8 @@ class StatList(Stat):  # low-level node
                 c.parent = self.parent
             i = self.parent.children.index(self)
             self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
-            return True
         else:
-            print('Not flattening', id(self), 'into', id(self.parent), 'of type', type(self.parent))
-            return False
+            print('Not flattening', id(self), 'into parent', id(self.parent), 'of type', type(self.parent))
 
     def destination(self):
         for i in range(-1, -len(self.children) - 1, -1):
@@ -1064,7 +1065,7 @@ class StatList(Stat):  # low-level node
         return None
 
 
-class Block(Stat):
+class Block(Stat):  # low-level node
     def __init__(self, parent=None, gl_sym=None, lc_sym=None, defs=None, body=None):
         super().__init__(parent, [], lc_sym)
         self.global_symtab = gl_sym

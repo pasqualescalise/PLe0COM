@@ -49,22 +49,19 @@ def lowering(node):
         check = node.lower()
         print('Lowering', type(node), id(node))
         if not check:
-            print('Failed!')
+            raise RuntimeError("Node " + repr(node) + " did not return anything after lowering")
+    except AttributeError as e:
+         print('Lowering not yet implemented for type ' + repr(type(node)))
     except Exception as e:
-        print('Cannot lower', id(node), type(node), e)
-        # XXX: added myself
-        if type(e) == RuntimeError:
-            exit(1)
-        pass  # lowering not yet implemented for this class
+        raise e
 
 def flattening(node):
     """Flattening action for a node
     (only StatList nodes are actually flattened)"""
     try:
-        check = node.flatten()
-        print('Flattening', type(node), id(node))
-        if not check:
-            print('Failed!')
+        node.flatten()
+    except AttributeError as e:
+         print('Flattening not yet implemented for type ' + repr(type(node)))
     except Exception as e:
         pass  # this type of node cannot be flattened
 
