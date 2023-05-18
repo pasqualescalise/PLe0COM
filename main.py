@@ -60,6 +60,8 @@ def compile_program(text):
     print("\n\nREGISTER ALLOCATION\n\n")
     ra = LinearScanRegisterAllocator(cfg, 11)
     reg_alloc = ra()
+    print(ra)
+    print("\n\n")
     print(reg_alloc)
 
     print("\n\nCODE GENERATION\n\n")

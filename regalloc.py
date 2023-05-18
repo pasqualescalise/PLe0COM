@@ -69,7 +69,10 @@ class RegisterAllocation(object):
         return True
 
     def __repr__(self):
-        return 'vartoreg = ' + repr(self.vartoreg)
+        res = 'Register Allocation for variables:\n'
+        for i in self.vartoreg:
+            res += '\t' + repr(i) + ': ' + repr(self.vartoreg[i]) + '\n'
+        return res
 
 
 class LinearScanRegisterAllocator(object):
@@ -122,7 +125,15 @@ class LinearScanRegisterAllocator(object):
             gen = min_gen[v]
             kill = max_use[v]
             self.varliveness.insert(0, {"var": v, "interv": range(gen, kill)})
-        self.varliveness.sort(key=lambda x: x['interv'][0])
+
+        try:
+            self.varliveness.sort(key=lambda x: x['interv'][0])
+        except IndexError:
+            # XXX: added myself
+            for i in self.varliveness:
+                if i['interv'].start == i['interv'].stop:
+                    raise RuntimeError("Variable " + i['var'].name + " is only used at instruction " + repr(i['interv'].start) + "; it may be useless or there may be another mistake earlier during compilation")
+
         self.allvars = list(vars)
 
     def __call__(self):
@@ -130,8 +141,6 @@ class LinearScanRegisterAllocator(object):
                 graph coloring algorithm known as "left-edge")"""
 
         self.compute_liveness_intervals()
-        print('LIVENESS INTERVALS:')
-        print(self.varliveness)
 
         live = []
         freeregs = set(range(0, self.nregs - 2))  # -2 for spill room
@@ -170,3 +179,11 @@ class LinearScanRegisterAllocator(object):
             live.sort(key=lambda li: li['interv'][-1])
 
         return RegisterAllocation(self.vartoreg, numspill, self.nregs)
+
+    def __repr__(self):
+        res = 'Liveness intervals:\n'
+
+        for i in self.varliveness:
+            res += '\t' + repr(i['var']) + ' is live in the interval (' + repr(i['interv'].start) + ', ' + repr(i['interv'].stop) + ')\n'
+        
+        return res
