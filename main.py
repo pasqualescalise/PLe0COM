@@ -38,6 +38,9 @@ def compile_program(text):
     print_dotty(program, "log.dot")
     print("\nA dot file representation of the program is in the log.dot file\n")
 
+    print("\n\nMEMORY-TO-REGISTER PROMOTION\n\n")
+    perform_memory_to_register_promotion(program)
+
     print("\n\nDATALAYOUT\n\n")
     perform_data_layout(program)
     print('\n', program, '\n')

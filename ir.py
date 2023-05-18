@@ -124,7 +124,7 @@ class Symbol:
       because they can't be referenced, but are needed to know where on the stack
       to put return values"""
 
-    def __init__(self, name, stype, value=None, alloct='auto', fname=''):
+    def __init__(self, name, stype, value=None, alloct='auto', fname='', used_in_nested_procedure=False):
         self.name = name
         self.stype = stype
         self.value = value  # if not None, it is a constant
@@ -132,6 +132,8 @@ class Symbol:
         self.allocinfo = None
         # useful to understand the scope of the symbol
         self.fname=fname
+        # if a variable is used in a nested procedure in cannot be promoted to a register
+        self.used_in_nested_procedure = used_in_nested_procedure
 
     def set_alloc_info(self, allocinfo):
         self.allocinfo = allocinfo
@@ -155,6 +157,8 @@ class SymbolTable(list):
                 if s.fname == node.current_function and s.name == name:
                     return s
             elif s.name == name:
+                if s.fname != node.current_function:
+                    s.used_in_nested_procedure = True
                 return s
         print('Looking up failed!')
         return None
@@ -810,7 +814,7 @@ class BranchStat(Stat):  # low-level node
         self.space_needed_for_parameters = space_needed_for_parameters
 
     def collect_uses(self):
-        if not (self.cond is None):
+        if self.cond is not None:
             return [self.cond]
         return []
 
@@ -885,6 +889,7 @@ class StoreStat(Stat):  # low-level node
         if self.symbol.alloct != 'reg':
             raise RuntimeError('store not from register')
         self.dest = dest
+        # set only for stores from register to register (mov instructions), tells which symbol this specific mov kills
         self.killhint = killhint
 
     def collect_uses(self):
@@ -904,7 +909,7 @@ class StoreStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        if self.dest.alloct == 'reg':
+        if self.dest.alloct == 'reg' and self.symbol.alloct != 'reg':
             return '[' + repr(self.dest) + '] <- ' + repr(self.symbol)
         return repr(self.dest) + ' <- ' + repr(self.symbol)
 
@@ -935,7 +940,7 @@ class LoadStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        if self.symbol.alloct == 'reg':
+        if self.symbol.alloct == 'reg' and self.dest.alloct != 'reg':
             return repr(self.dest) + ' <- [' + repr(self.symbol) + ']'
         else:
             return repr(self.dest) + ' <- ' + repr(self.symbol)

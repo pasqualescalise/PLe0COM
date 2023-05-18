@@ -275,6 +275,9 @@ def storestat_codegen(self, regalloc):
     if self.dest.alloct == 'param':
         res += '\tpush {' + regalloc.get_register_for_variable(self.symbol) + '}\n'
         return [res, trail]
+    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg':
+        res += '\tmov ' + regalloc.get_register_for_variable(self.dest) + ', ' + regalloc.get_register_for_variable(self.symbol) + '\n'
+        return [res, trail]
     elif self.dest.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.dest)
         dest = '[' + regalloc.get_register_for_variable(self.dest) + ']'
@@ -313,12 +316,15 @@ StoreStat.codegen = storestat_codegen
 def loadstat_codegen(self, regalloc):
     res = ''
     trail = ''
-    if self.symbol.alloct == 'reg':
-        res += regalloc.gen_spill_load_if_necessary(self.symbol)
-        src = '[' + regalloc.get_register_for_variable(self.symbol) + ']'
-    elif self.symbol.alloct == 'return':
+    if self.symbol.alloct == 'return':
         res += '\tpop {' + regalloc.get_register_for_variable(self.dest) + '}\n'
         return [res, trail]
+    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg':
+        res += '\tmov ' + regalloc.get_register_for_variable(self.dest) + ', ' + regalloc.get_register_for_variable(self.symbol) + '\n'
+        return [res, trail]
+    elif self.symbol.alloct == 'reg':
+        res += regalloc.gen_spill_load_if_necessary(self.symbol)
+        src = '[' + regalloc.get_register_for_variable(self.symbol) + ']'
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:

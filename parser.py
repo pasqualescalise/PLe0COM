@@ -373,13 +373,13 @@ class Parser:
         name = self.value
         self.expect('eql')
         self.expect('number')
-        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct), int(self.value))
+        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, fname=self.current_function), int(self.value))
         while self.accept('comma'):
             self.expect('ident')
             name = self.value
             self.expect('eql')
             self.expect('number')
-            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct), int(self.value))
+            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, fname=self.current_function), int(self.value))
 
     @logger
     def vardef(self, symtab, alloct='auto'):
@@ -397,9 +397,9 @@ class Parser:
             type = ir.TYPENAMES[self.value]
 
         if len(size) > 0:
-            symtab.append(ir.Symbol(name, ir.ArrayType(None, size, type), alloct=alloct))
+            symtab.append(ir.Symbol(name, ir.ArrayType(None, size, type), alloct=alloct, fname=self.current_function))
         else:
-            symtab.append(ir.Symbol(name, type, alloct=alloct))
+            symtab.append(ir.Symbol(name, type, alloct=alloct, fname=self.current_function))
 
     @logger
     def program(self):
