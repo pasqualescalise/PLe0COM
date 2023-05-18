@@ -21,6 +21,7 @@ TOKEN_DEFS = {
     'leq': ['<='],
     'gtr': ['>'],
     'geq': ['>='],
+    'dontcaresym': ['_'],
     'callsym': ['call'],
     'returns': ['->'],
     'returnsym': ['return'],

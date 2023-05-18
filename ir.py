@@ -430,13 +430,13 @@ class CallExpr(Expr):
         self.function_symbol = function_symbol
 
     # returns RuntimeError if the number of parameters or of returns is wrong
+    # TODO: add type checking
     def check_parameters_and_returns(self):
         # check that the number of parameters is correct
         if len(self.children) != len(self.function_definition.parameters):
             raise RuntimeError('Not specified the right amount of parameters')
 
-        # check that the call asks for exactly as many as the function returns
-        # XXX: this makes it impossible to ignore return values
+        # check that the call asks for exactly as many values as the function returns (including dont'cares)
         if len(self.function_definition.returns) != len(self.parent.returns):
             raise RuntimeError('Too few or too many values are being returned')
         
@@ -449,8 +449,11 @@ class CallExpr(Expr):
         # save space for eventual return variables
         if len(self.parent.returns) > 0:
             space_needed = 0;
-            for ret in self.parent.returns:
-                space_needed += ret.stype.size // 8
+            for i in range(len(self.parent.returns)):
+                if self.parent.returns[i] == "_":
+                    space_needed -= self.function_definition.returns[i].stype.size // 8
+                else:
+                    space_needed -= self.parent.returns[i].stype.size // 8
             stats.append(SaveSpaceStat(space_needed=space_needed, symtab=self.symtab))
 
         function_definition_symbols = []
@@ -499,7 +502,10 @@ class SaveSpaceStat(Stat): # low-level node
         return []
 
     def human_repr(self):
-        return 'save space for the return values'
+        if self.space_needed < 0:
+            return 'save space for the return values'
+        else:
+            return 'remove useless return values'
 
 
 class CallStat(Stat):
@@ -512,7 +518,8 @@ class CallStat(Stat):
         self.function_symbol = function_symbol
         self.returns = returns
         for ret in self.returns:
-            ret.parent = self
+            if ret != "_":
+                ret.parent = self
 
     def collect_uses(self):
         return self.call.collect_uses() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
@@ -532,9 +539,13 @@ class CallStat(Stat):
         # first load the returned value in a temporary, then store its value in memory
         # this must be done here because it happens after the branch
         for i in range(len(self.returns)):
-            temp = new_temporary(self.symtab, self.function_definition.returns[i].stype)
-            stats += [LoadStat(symbol=self.function_definition.returns[i], dest=temp, symtab=self.symtab)]
-            stats += [StoreStat(symbol=temp, dest=self.returns[i], symtab=self.symtab)]
+            if self.returns[i] != "_":
+                temp = new_temporary(self.symtab, self.function_definition.returns[i].stype)
+                stats += [LoadStat(symbol=self.function_definition.returns[i], dest=temp, symtab=self.symtab)]
+                stats += [StoreStat(symbol=temp, dest=self.returns[i], symtab=self.symtab)]
+            else:
+                space_needed = self.function_definition.returns[i].stype.size // 8
+                stats += [SaveSpaceStat(space_needed=space_needed, symtab=self.symtab)]
 
         return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 

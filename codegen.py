@@ -352,7 +352,12 @@ LoadStat.codegen = loadstat_codegen
 
 
 def savespacestat_codegen(self, regalloc):
-    return '\tsub ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed) + '\n'
+    comm = ''
+    if self.space_needed > 0:
+        comm = comment('ignoring a return value')
+    else:
+        comm = comment('saving space for return values')
+    return '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed) + ' ' + comm
 
 SaveSpaceStat.codegen = savespacestat_codegen
 

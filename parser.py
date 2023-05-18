@@ -180,8 +180,12 @@ class Parser:
                 self.expect('lparen')
 
                 while self.new_sym != "rparen":
-                    self.accept('ident')
-                    returns.append(symtab.find(self, self.value))
+                    if self.new_sym == "dontcaresym":
+                        self.accept('dontcaresym')
+                        returns.append("_")
+                    else:
+                        self.accept('ident')
+                        returns.append(symtab.find(self, self.value))
 
                     if self.new_sym == "comma":
                         self.accept('comma')
