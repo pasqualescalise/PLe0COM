@@ -42,8 +42,10 @@ def compile_program(text):
     perform_data_layout(program)
     print('\n', program, '\n')
 
-    print("\n\nLIVENESS ANALYSIS\n\n")
+    print("\n\nBUILDING THE CONTROL FLOW GRAPH\n\n")
     cfg = CFG(program)
+
+    print("\n\nLIVENESS ANALYSIS\n\n")
     cfg.liveness()
     cfg.print_liveness()
 

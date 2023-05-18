@@ -54,6 +54,16 @@ class BasicBlock(object):
         self.total_vars_used = len(self.gen.union(self.kill))
 
     def __repr__(self):
+        res = 'Id: ' + repr(id(self)) + '\n'
+        res += 'Next: ' + repr(id(self.next)) + '\n'
+        res += 'Target: ' + repr(self.target) + '\n'
+        res += 'Instructions: \n'
+        for i in self.instrs:
+            res += '\t' + repr(i) + '\n'
+
+        return res
+
+    def graphviz_repr(self):
         """Print in graphviz dot format"""
         instrs = repr(self.labels) + '\\n' if len(self.labels) else ''
         instrs += '\\n'.join([repr(i) for i in self.instrs])
@@ -206,7 +216,7 @@ class CFG(list):
         f = open(filename, "w")
         f.write("digraph G {\n")
         for n in self:
-            f.write(repr(n))
+            f.write(n.graphviz_repr())
         h = self.heads()
         for p in h:
             bb = h[p]
@@ -220,21 +230,37 @@ class CFG(list):
         f.close()
 
     def print_liveness(self):
-        print('Liveness sets')
-        for bb in self:
-            print(bb)
-            print('gen:', bb.gen)
-            print('kill:', bb.kill)
-            print('live_in:', bb.live_in)
-            print('live_out:', bb.live_out)
-        print()
-        print('Instruction liveness')
+        print('Liveness sets:')
         for bb in self:
             print('BASIC BLOCK:')
             print(bb)
-            print()
+            print('\tGen set: ')
+            for i in bb.gen:
+                print('\t\t' + repr(i))
+            print('\tKill set: ')
+            for i in bb.kill:
+                print('\t\t' + repr(i))
+            print('\tLive in set: ')
+            for i in bb.live_in:
+                print('\t\t' + repr(i))
+            print('\tLive out set: ')
+            for i in bb.live_out:
+                print('\t\t' + repr(i))
+            print("\n\n")
+        print('Instruction liveness:\n')
+        for bb in self:
+            print('BASIC BLOCK:')
+            print(bb)
             for i in bb.instrs:
-                print('inst={:80} live_in={:200} live_out={:80}'.format(repr(i), repr(i.live_in), repr(i.live_out)))
+                print('\tInstruction: ' + repr(i))
+                print('\tLive in set: ')
+                for j in i.live_in:
+                    print('\t\t' + repr(j))
+                print('\tLive out set: ')
+                for j in i.live_out:
+                    print('\t\t' + repr(j))
+
+                print("\n\n")
 
     def find_target_bb(self, label):
         """Return the BB that contains a given label;
@@ -259,6 +285,7 @@ class CFG(list):
     def return_analysis(self):
         """Check that if a function returns, each path of the CFG ends with a return"""
         tails = self.tails()
+
         for bb in tails:
             function_definition = bb.get_function()
             if function_definition == 'global':

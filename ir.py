@@ -836,8 +836,14 @@ class BranchStat(Stat):  # low-level node
 class EmptyStat(Stat):  # low-level node
     pass
 
+    def __repr__(self):
+        return 'empty statment'
+
     def collect_uses(self):
         return []
+
+    def human_repr(self):
+        return 'empty statment'
 
 
 class LoadPtrToSym(Stat):  # low-level node
