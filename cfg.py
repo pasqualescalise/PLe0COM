@@ -25,7 +25,7 @@ class BasicBlock(object):
                 self.target = None
             else:
                 self.target = self.instrs[-1].target
-        except Exception:
+        except AttributeError:
             self.target = None # last instruction is not a branch
         if labels:
             self.labels = labels
@@ -107,7 +107,7 @@ class BasicBlock(object):
             currently_alive |= set(i.collect_uses())
             i.live_in = set(currently_alive)
         if not currently_alive == self.live_in:
-            raise Exception('Instruction level liveness or block level liveness incorrect')
+            raise RuntimeError('Instruction level liveness or block level liveness incorrect')
 
     def remove_useless_next(self):
         """Check if unconditional branch, in that case remove next"""
@@ -171,7 +171,7 @@ class CFG(list):
     def __init__(self, root):
         super().__init__()
         from ir import StatList
-        stat_lists = [n for n in get_node_list(root) if isinstance(n, StatList)]
+        stat_lists = [n for n in get_node_list(root, quiet=True) if isinstance(n, StatList)]
         self += sum([stat_list_to_bb(sl) for sl in stat_lists], [])
         for bb in self:
             if bb.target:
@@ -268,7 +268,7 @@ class CFG(list):
         for bb in self:
             if label in bb.labels:
                 return bb
-        raise Exception(repr(label) + ' not found in any BB!')
+        raise RuntimeError('Label ' + repr(label) + ' not found in any Basic Block')
 
     def liveness(self):
         """Standard live variable analysis"""

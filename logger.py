@@ -6,9 +6,9 @@ Usage: decorate monitored function with '@logger'"""
 
 def logger(f):
     def wrapped(*args, **kwargs):
-        print('start', f)
+        print('Calling:', f)
         res = f(*args, **kwargs)
-        print('end', f)
+        print('Returning from:', f)
         return res
 
     return wrapped

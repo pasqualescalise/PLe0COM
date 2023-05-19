@@ -18,20 +18,20 @@ def compile_program(text):
     program = pars.program()
     print('\n', program, '\n')
 
-    print("\n\nSTATEMENTS\n\n")
-    program.navigate(print_stat_list)
+    print("\n\nSTATEMENT LIST\n\n")
+    program.navigate(print_statement_list, quiet=False)
 
     print("\n\nNODE LIST\n\n")
-    node_list = get_node_list(program)
+    node_list = get_node_list(program, quiet=True)
     for n in node_list:
         print(type(n), id(n), '->', type(n.parent), id(n.parent))
     print('\nTotal nodes in IR:', len(node_list), '\n')
 
     print("\n\nLOWERING\n\n")
-    program.navigate(lowering)
+    program.navigate(lowering, quiet=False)
 
     print("\n\nFLATTENING\n\n")
-    program.navigate(flattening)
+    program.navigate(flattening, quiet=True)
     print('\n', program, '\n')
 
     print("\n\nMAKING DOTTY\n\n")

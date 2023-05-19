@@ -40,7 +40,7 @@ Symbol.codegen = symbol_codegen
 
 
 def irnode_codegen(self, regalloc):
-    res = ['\t' + comment("irnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
+    res = ['\t' + comment("IRnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
     if 'children' in dir(self) and len(self.children):
         for node in self.children:
             try:
@@ -50,9 +50,8 @@ def irnode_codegen(self, regalloc):
                 except Exception:
                     pass
                 res = codegen_append(res, node.codegen(regalloc))
-            except Exception as e:
-                res[0] += "\t" + comment("node " + repr(id(node)) + " did not generate any code")
-                res[0] += "\t" + comment("exc: " + repr(e))
+            except RuntimeError as e:
+                raise RuntimeError("Node " + repr(id(node)) + " did not generate any code; Error: " + repr(e))
     return res
 
 IRNode.codegen = irnode_codegen
@@ -75,7 +74,7 @@ def block_codegen(self, regalloc):
     regalloc.enter_function_body(self)
     try:
         res = codegen_append(res, self.body.codegen(regalloc))
-    except Exception:
+    except AttributeError:
         pass
 
     last_statement_of_block = self.body.children[-1]
@@ -92,7 +91,7 @@ def block_codegen(self, regalloc):
 
     try:
         res = codegen_append(res, self.defs.codegen(regalloc))
-    except Exception:
+    except AttributeError:
         pass
 
     return res[0] + res[1]
@@ -158,7 +157,7 @@ def binstat_codegen(self, regalloc):
         res += '\tmovge ' + rd + ', #1\n'
         res += '\tmovlt ' + rd + ', #0\n'
     else:
-        raise Exception("operation " + repr(self.op) + " unexpected")
+        raise RuntimeError("Operation " + repr(self.op) + " unexpected")
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 BinStat.codegen = binstat_codegen
@@ -244,7 +243,7 @@ BranchStat.codegen = branch_codegen
 
 
 def emptystat_codegen(self, regalloc):
-    return '\t' + comment('emptystat')
+    return '\t' + comment('Empty statement')
 
 EmptyStat.codegen = emptystat_codegen
 
@@ -401,7 +400,7 @@ def unarystat_codegen(self, regalloc):
     elif self.op == 'odd':
         res += '\tand ' + rd + ', ' + rs + ', #1\n'
     else:
-        raise Exception("operation " + repr(self.op) + " unexpected")
+        raise RuntimeError("Operation " + repr(self.op) + " unexpected")
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
 

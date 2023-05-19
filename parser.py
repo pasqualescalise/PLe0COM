@@ -26,25 +26,25 @@ class Parser:
             self.new_sym, self.new_value = next(self.the_lexer)
         except StopIteration:
             return 2
-        print('getsym:', self.new_sym, self.new_value)
+        print('Get symbol:', self.new_sym, self.new_value)
         return 1
 
     def error(self, msg):
-        print('\033[31m', msg, self.new_sym, self.new_value, '\033[39m')
+        print('\033[31m' + msg, self.new_sym, self.new_value, '\033[39m')
+        raise RuntimeError('Raised error during parsing')
 
     def accept(self, s):
-        print('accepting', s, '==', self.new_sym)
+        print('Trying to accept', s, '==', self.new_sym)
         return self.getsym() if self.new_sym == s else 0
 
     def expect(self, s):
-        print('expecting', s)
+        print('Expecting', s)
         if self.accept(s):
             return 1
-        self.error("expect: unexpected symbol")
+        self.error("Expect: unexpected symbol")
         return 0
 
-    def array_offset(self, symtab):
-        target = symtab.find(self, self.value)
+    def array_offset(self, target, symtab):
         offset = None
         if isinstance(target.stype, ir.ArrayType):
             idxes = []
@@ -74,10 +74,9 @@ class Parser:
 
     @logger
     def factor(self, symtab):
-        '''F -> var | const | ( E )'''
         if self.accept('ident'):
             var = symtab.find(self, self.value)
-            offs = self.array_offset(symtab)
+            offs = self.array_offset(var, symtab)
             if offs is None:
                 return ir.Var(var=var, symtab=symtab)
             else:
@@ -90,7 +89,7 @@ class Parser:
             self.expect('rparen')
             return expr
         else:
-            self.error("factor: syntax error")
+            self.error("Factor: syntax error")
             self.getsym()
 
     @logger
@@ -103,7 +102,7 @@ class Parser:
             expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
-    # XXX: shifts have more precedence than plus/minus, which is maybe wrong, but it's easier to parse negative number this way
+    # XXX: shifts have more precedence than plus/minus, which is maybe wrong, but it's easier to parse negative numbers this way
     @logger
     def shift(self, symtab):
         expr = self.term(symtab)
@@ -138,19 +137,18 @@ class Parser:
             expr = self.expression(symtab)
             if self.new_sym in ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']:
                 self.getsym()
-                print('condition operator', self.sym, self.new_sym)
                 op = self.sym
                 expr2 = self.expression(symtab)
                 return ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
             else:
-                self.error("condition: invalid operator")
+                self.error("Condition: invalid operator")
                 self.getsym()
 
     @logger
     def statement(self, symtab):
         if self.accept('ident'):
             target = symtab.find(self, self.value)
-            offset = self.array_offset(symtab)
+            offset = self.array_offset(target, symtab)
             self.expect('becomes')
             expr = self.expression(symtab)
             return ir.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
@@ -235,7 +233,7 @@ class Parser:
         elif self.accept('forsym'):
             # check that init is an assign statement
             if self.new_sym != "ident":
-                self.error(self, "First for part must be assignment")
+                self.error("First for part must be assignment")
             init = self.statement(symtab)
 
             self.expect('semicolon')
@@ -244,7 +242,7 @@ class Parser:
             self.expect('semicolon')
             # check that step is an assign statement
             if self.new_sym != "ident":
-                self.error(self, "Third for part must be assignment")
+                self.error("Third for part must be assignment")
             step = self.statement(symtab)
 
             self.expect('dosym')
@@ -258,7 +256,7 @@ class Parser:
         elif self.accept('read'):
             self.expect('ident')
             target = symtab.find(self, self.value)
-            offset = self.array_offset(symtab)
+            offset = self.array_offset(target, symtab)
             return ir.AssignStat(target=target, offset=offset, expr=ir.ReadStat(symtab=symtab), symtab=symtab)
 
         elif self.accept('returnsym'):

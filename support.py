@@ -6,7 +6,15 @@ These functions expose high level interfaces (passes) for actions that can be
 applied to multiple IR nodes."""
 
 
-def get_node_list(root):
+def print_statement_list(node):
+    """Navigation action: printing
+    (only for StatList nodes the content is printed)"""
+    try:
+        node.print_content()
+    except AttributeError as e:
+         pass # not a StatList
+
+def get_node_list(root, quiet=False):
     """Get a list of all nodes in the AST"""
 
     def register_nodes(l):
@@ -17,34 +25,12 @@ def get_node_list(root):
         return r
 
     node_list = []
-    root.navigate(register_nodes(node_list))
-    return node_list
-
-def get_symbol_tables(root):
-    """Get a list of all symtabs in the AST"""
-
-    def register_nodes(l):
-        def r(node):
-            try:
-                if node.symtab not in l:
-                    l.append(node.symtab)
-            except Exception:
-                pass
-            try:
-                if node.lc_sym not in l:
-                    l.append(node.symtab)
-            except Exception:
-                pass
-
-        return r
-
-    node_list = []
-    root.navigate(register_nodes(node_list))
+    root.navigate(register_nodes(node_list), quiet)
     return node_list
 
 def lowering(node):
-    """Lowering action for a node
-    (all high level nodes can be lowered to lower-level representation"""
+    """Navigation action: lowering
+    (all high level nodes can be lowered to lower-level representation)"""
     try:
         check = node.lower()
         print('Lowering', type(node), id(node))
@@ -52,18 +38,14 @@ def lowering(node):
             raise RuntimeError("Node " + repr(node) + " did not return anything after lowering")
     except AttributeError as e:
          print('Lowering not yet implemented for type ' + repr(type(node)))
-    except Exception as e:
-        raise e
 
 def flattening(node):
-    """Flattening action for a node
+    """Navigation action: flattening
     (only StatList nodes are actually flattened)"""
     try:
         node.flatten()
     except AttributeError as e:
          print('Flattening not yet implemented for type ' + repr(type(node)))
-    except Exception as e:
-        pass  # this type of node cannot be flattened
 
 def dotty_wrapper(fout):
     """Main function for graphviz dot output generation"""
@@ -79,15 +61,15 @@ def dotty_wrapper(fout):
         res += 'label="' + repr(type(irnode)) + ' ' + repr(id(irnode))
         try:
             res += ': ' + irnode.value
-        except Exception:
+        except AttributeError:
             pass
         try:
             res += ': ' + irnode.name
-        except Exception:
+        except AttributeError:
             pass
         try:
             res += ': ' + getattr(irnode, 'symbol').name
-        except Exception:
+        except AttributeError:
             pass
         res += '" ];\n'
 
@@ -115,7 +97,7 @@ def print_dotty(root, filename):
     """Print a graphviz dot representation to file"""
     fout = open(filename, "w")
     fout.write("digraph G {\n")
-    node_list = get_node_list(root)
+    node_list = get_node_list(root, quiet=True)
     dotty = dotty_wrapper(fout)
     for n in node_list:
         dotty(n)

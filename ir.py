@@ -159,8 +159,7 @@ class SymbolTable(list):
                 if s.fname != node.current_function:
                     s.used_in_nested_procedure = True
                 return s
-        print('Looking up failed!')
-        return None
+        raise RuntimeError('Looking up for symbol ' + name + ' in function ' + node.current_function + ' failed!')
 
     def __repr__(self):
         res = 'SymbolTable:\n'
@@ -214,7 +213,6 @@ class IRNode:  # abstract
 
         res = label + res
 
-        # print 'NODE', type(self), id(self)
         if 'children' in dir(self) and len(self.children):
             res += '\tchildren:\n'
             for node in self.children:
@@ -227,28 +225,27 @@ class IRNode:  # abstract
         res += '}'
         return res
 
-    def navigate(self, action):
+    def navigate(self, action, quiet=False):
         attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
                  'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
         if 'children' in dir(self) and len(self.children):
+            if not quiet:
+                print('\nNavigated to', len(self.children), 'children of', type(self), id(self))
             for node in self.children:
                 try:
-                    node.navigate(action)
+                    node.navigate(action, quiet=quiet)
                 except AttributeError as e:
                     pass
-                except Exception as e:
-                    raise e
-            print('Successfully navigated', len(self.children), 'children of', type(self), id(self))
         for d in attrs:
             try:
-                getattr(self, d).navigate(action)
-                print('Successfully navigated attr', d, 'of', type(self), id(self))
+                if not quiet:
+                    print('\nNavigated to attribute', d, 'of', type(self), id(self))
+                getattr(self, d).navigate(action, quiet=quiet)
             except AttributeError as e:
                 pass
-            except Exception as e:
-                raise e
+        if not quiet:
+            print('\nNavigated to', type(self), id(self),)
         action(self)
-        print('Successfully navigated', type(self), id(self), '\n')
 
     def replace(self, old, new):
         new.parent = self
@@ -262,7 +259,7 @@ class IRNode:  # abstract
                 if getattr(self, d) == old:
                     setattr(self, d, new)
                     return True
-            except Exception:
+            except AttributeError:
                 pass
         return False
 
@@ -732,7 +729,7 @@ class PrintCommand(Stat):  # low-level node
         super().__init__(parent, [], symtab)
         self.src = src
         if src.alloct != 'reg':
-            raise RuntimeError('value not in register')
+            raise RuntimeError('Trying to print a symbol not stored in a register')
 
     def collect_uses(self):
         return [self.src]
@@ -757,7 +754,7 @@ class ReadCommand(Stat):  # low-level node
         super().__init__(parent, [], symtab)
         self.dest = dest
         if dest.alloct != 'reg':
-            raise RuntimeError('read not to register')
+            raise RuntimeError('Trying to read from a symbol not stored in a register')
 
     def destination(self):
         return self.dest
@@ -810,7 +807,7 @@ class BranchStat(Stat):  # low-level node
         self.cond = cond
         self.negcond = negcond
         if not (self.cond is None) and self.cond.alloct != 'reg':
-            raise RuntimeError('condition not in register')
+            raise RuntimeError('Trying to branch on a condition not stored in a register')
         self.target = target
         self.returns = returns
         # needed for returns -> parameters need to be popped after returning from a call
@@ -844,13 +841,13 @@ class EmptyStat(Stat):  # low-level node
     pass
 
     def __repr__(self):
-        return 'empty statment'
+        return 'empty statement'
 
     def collect_uses(self):
         return []
 
     def human_repr(self):
-        return 'empty statment'
+        return 'empty statement'
 
 
 class LoadPtrToSym(Stat):  # low-level node
@@ -862,9 +859,9 @@ class LoadPtrToSym(Stat):  # low-level node
         self.symbol = symbol
         self.dest = dest
         if self.symbol.alloct == 'reg':
-            raise RuntimeError('symbol not in memory')
+            raise RuntimeError('The symbol is not in memory')
         if self.dest.alloct != 'reg':
-            raise RuntimeError('dest not to register')
+            raise RuntimeError('The destination is not to a register')
 
     def collect_uses(self):
         return [self.symbol]
@@ -890,7 +887,7 @@ class StoreStat(Stat):  # low-level node
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         if self.symbol.alloct != 'reg':
-            raise RuntimeError('store not from register')
+            raise RuntimeError('Trying to store a value not from a register')
         self.dest = dest
         # set only for stores from register to register (mov instructions), tells which symbol this specific mov kills
         self.killhint = killhint
@@ -929,7 +926,7 @@ class LoadStat(Stat):  # low-level node
         self.dest = dest
         self.usehint = usehint
         if self.dest.alloct != 'reg':
-            raise RuntimeError('load not to register')
+            raise RuntimeError('Trying to load a value not to a register')
 
     def collect_uses(self):
         if self.usehint:
@@ -955,7 +952,7 @@ class LoadImmStat(Stat):  # low-level node
         self.val = val
         self.dest = dest
         if self.dest.alloct != 'reg':
-            raise RuntimeError('load not to register')
+            raise RuntimeError('Trying to load a value not to a register')
 
     def collect_uses(self):
         return []
@@ -978,9 +975,9 @@ class BinStat(Stat):  # low-level node
         self.srca = srca  # symbol
         self.srcb = srcb  # symbol
         if self.dest.alloct != 'reg':
-            raise RuntimeError('binstat dest not to register')
+            raise RuntimeError('The destination of the BinStat is not a register')
         if self.srca.alloct != 'reg' or self.srcb.alloct != 'reg':
-            raise RuntimeError('binstat src not in register')
+            raise RuntimeError('A source of the Binstat is not a register')
 
     def collect_kills(self):
         return [self.dest]
@@ -1002,9 +999,9 @@ class UnaryStat(Stat):  # low-level node
         self.op = op
         self.src = src
         if self.dest.alloct != 'reg':
-            raise RuntimeError('unarystat dest not to register')
+            raise RuntimeError('The destination of the UnaryStat is not a register')
         if self.src.alloct != 'reg':
-            raise RuntimeError('unarystat src not in register')
+            raise RuntimeError('The source of the UnaryStat is not a register')
 
     def collect_kills(self):
         return [self.dest]
@@ -1060,7 +1057,7 @@ class StatList(Stat):  # low-level node
         for i in range(-1, -len(self.children) - 1, -1):
             try:
                 return self.children[i].destination()
-            except Exception:
+            except AttributeError:
                 pass
         return None
 
@@ -1106,13 +1103,3 @@ class DefinitionList(IRNode):
     def append(self, elem):
         elem.parent = self
         self.children.append(elem)
-
-
-def print_stat_list(node):
-    """Navigation action: print"""
-    print(type(node), id(node))
-    if type(node) == StatList:
-        print('StatList', id(node), ': [', end=' ')
-        for n in node.children:
-            print(id(n), end=' ')
-        print(']')
