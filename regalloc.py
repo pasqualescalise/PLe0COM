@@ -101,23 +101,17 @@ class LinearScanRegisterAllocator(object):
 
         for bb in self.cfg:
             for i in bb.instrs:
-                try:
-                    kill = list(i.collect_kills())
-                except AttributeError:
-                    kill = []
-                use = list(i.collect_uses())
+                live_out = remove_non_regs(i.live_out)
+                live_in = remove_non_regs(i.live_in)
 
-                kill = remove_non_regs(kill)
-                use = remove_non_regs(use)
-
-                for var in kill:
+                for var in live_out:
                     if not var in min_gen:
                         min_gen[var] = inst_index
                         max_use[var] = inst_index
-                for var in use:
+                for var in live_in:
                     max_use[var] = inst_index
 
-                vars |= kill | use
+                vars |= live_out | live_in
 
                 inst_index += 1
 
