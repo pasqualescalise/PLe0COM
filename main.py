@@ -4,12 +4,12 @@
 
 import lexer
 import parser
-from support import *
-from datalayout import *
-from cfg import *
-from regalloc import *
-from codegen import *
-from optimizations import *
+from support import print_statement_list, get_node_list, flattening, lowering, print_dotty
+from datalayout import perform_data_layout, perform_memory_to_register_promotion
+from cfg import CFG
+from regalloc import LinearScanRegisterAllocator
+from codegen import generate_code
+from optimizations import loop_unrolling
 
 
 def compile_program(text):
@@ -78,11 +78,12 @@ def compile_program(text):
 
     return code
 
+
 def driver_main():
     from sys import argv
 
     # compile the test program specified in the Lexer
-    test_program=lexer.__test_program
+    test_program = lexer.__test_program
 
     # get a test program from the arguments
     if len(argv) > 2:

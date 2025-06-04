@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 
 """Intermediate Representation
-Could be improved by relying less on class hierarchy and more on string tags 
+Could be improved by relying less on class hierarchy and more on string tags
 and/or duck typing. Includes lowering and flattening functions. Every node must
 have a lowering function or a code generation function (codegen functions are
 in a separate module though)."""
 
-from codegenhelp import *
+from functools import reduce
 from copy import deepcopy
 
 # UTILITIES
 
 tempcount = 0
+
 
 def new_temporary(symtab, type):
     global tempcount
@@ -131,7 +132,7 @@ class Symbol:
         self.alloct = alloct
         self.allocinfo = None
         # useful to understand the scope of the symbol
-        self.fname=fname
+        self.fname = fname
         # if a variable is used in a nested procedure in cannot be promoted to a register
         self.used_in_nested_procedure = used_in_nested_procedure
 
@@ -139,8 +140,7 @@ class Symbol:
         self.allocinfo = allocinfo
 
     def __repr__(self):
-        base = self.alloct + ' ' + self.stype.name + ' ' + self.name + \
-               (self.value if type(self.value) == str else '')
+        base = self.alloct + ' ' + self.stype.name + ' ' + self.name + (self.value if type(self.value) == str else '')
         if self.allocinfo is not None:
             base = base + "; " + repr(self.allocinfo)
         # TODO: remove this
@@ -160,13 +160,13 @@ class SymbolTable(list):
                     if s.fname == node.current_function and s.name == name:
                         return s
                 except AttributeError:
-                    pass # trying to use find outside of the parser
+                    pass  # trying to use find outside of the parser
             elif s.name == name:
                 try:
                     if s.fname != node.current_function:
                         s.used_in_nested_procedure = True
                 except AttributeError:
-                    pass # trying to use find outside of the parser
+                    pass  # trying to use find outside of the parser
                 return s
         raise RuntimeError('Looking up for symbol ' + name + ' in function ' + node.current_function + ' failed!')
 
@@ -243,21 +243,21 @@ class IRNode:  # abstract
             for node in self.children:
                 try:
                     node.navigate(action, *args, quiet=quiet)
-                except AttributeError as e:
+                except AttributeError:
                     pass
         for d in attrs:
             try:
                 if not quiet:
                     print('\nNavigated to attribute', d, 'of', type(self), id(self))
                 getattr(self, d).navigate(action, *args, quiet=quiet)
-            except AttributeError as e:
+            except AttributeError:
                 pass
         if not quiet:
             print('\nNavigated to', type(self), id(self),)
         # XXX: shitty solution
         try:
             action(self, *args)
-        except TypeError as e:
+        except TypeError:
             action(self)
 
     def replace(self, old, new):
@@ -288,22 +288,22 @@ class IRNode:  # abstract
                     node.parent = self
 
                     if type(node) is Symbol:
-                        real_symbol = symtab.find(None, node.name) 
+                        real_symbol = symtab.find(None, node.name)
                         self.replace(node, real_symbol)
 
                     node.deepcopy_fix(symtab=symtab)
-                except AttributeError as e:
+                except AttributeError:
                     pass
         for d in attrs:
             try:
                 getattr(self, d).parent = self
 
                 if type(getattr(self, d)) is Symbol:
-                    real_symbol = symtab.find(None, getattr(self, d).name) 
+                    real_symbol = symtab.find(None, getattr(self, d).name)
                     self.replace(getattr(self, d), real_symbol)
 
                 getattr(self, d).deepcopy_fix(symtab=symtab)
-            except AttributeError as e:
+            except AttributeError:
                 pass
 
     def get_function(self):
@@ -486,7 +486,7 @@ class CallExpr(Expr):
         # check that the call asks for exactly as many values as the function returns (including dont'cares)
         if len(self.function_definition.returns) != len(self.parent.returns):
             raise RuntimeError('Too few or too many values are being returned')
-        
+
     def lower(self):
         self.function_definition = self.get_function_definition(self.function_symbol)
         self.check_parameters_and_returns()
@@ -495,7 +495,7 @@ class CallExpr(Expr):
 
         # save space for eventual return variables
         if len(self.parent.returns) > 0:
-            space_needed = 0;
+            space_needed = 0
             for i in range(len(self.parent.returns)):
                 if self.parent.returns[i] == "_":
                     space_needed -= self.function_definition.returns[i].stype.size // 8
@@ -536,7 +536,7 @@ class Stat(IRNode):  # abstract
         return []
 
 
-class SaveSpaceStat(Stat): # low-level node
+class SaveSpaceStat(Stat):  # low-level node
     """ Save space for eventual return statements by pushing null values
         Just needed a statement that would survive until codegen and would
         not matter for datalayout"""
@@ -574,7 +574,7 @@ class CallStat(Stat):
     def lower(self):
         self.function_definition = self.get_function_definition(self.function_symbol)
 
-        space_needed_for_parameters = 0;
+        space_needed_for_parameters = 0
         for param in self.function_definition.parameters:
             space_needed_for_parameters += param.stype.size // 8
 

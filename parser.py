@@ -366,7 +366,7 @@ class Parser:
             # make sure to save and restore the current function while parsing the new one
             parent = self.current_function
             self.current_function = fname
-            fbody = self.block(ir.SymbolTable(local_vars + symtab[:])) # local_vars is the symtab of the procedure block
+            fbody = self.block(ir.SymbolTable(local_vars + symtab[:]))  # local_vars is the symtab of the procedure block
             self.current_function = parent
 
             self.expect('semicolon')

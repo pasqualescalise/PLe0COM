@@ -2,7 +2,7 @@
 
 """Helper functions used by the code generator"""
 
-from regalloc import *
+from regalloc import RegisterAllocation
 
 REG_FP = 11
 REG_SCRATCH = 12
@@ -25,6 +25,7 @@ def get_register_string(regid):
         return 'sp'
     return 'r' + repr(regid)
 
+
 def save_regs(reglist):
     if len(reglist) == 0:
         return ''
@@ -35,6 +36,7 @@ def save_regs(reglist):
         res += get_register_string(reglist[i])
     res += '}\n'
     return res
+
 
 def restore_regs(reglist):
     if len(reglist) == 0:
@@ -47,13 +49,16 @@ def restore_regs(reglist):
     res += '}\n'
     return res
 
+
 def comment(cont):
     return '@ ' + cont + '\n'
+
 
 def codegen_append(vec, code):
     if type(code) is list:
         return [vec[0] + code[0], vec[1] + code[1]]
     return [vec[0] + code, vec[1]]
+
 
 # if a variable needs a static link, add the correct offset to the frame pointer, put the result
 # in the scratch register and use that to reference the variable
@@ -65,6 +70,7 @@ def check_if_variable_needs_static_link(node, symbol):
     if real_offset > 0:
         return '\tadd ' + get_register_string(REG_SCRATCH) + ', ' + get_register_string(REG_FP) + ', #' + str(real_offset) + '\n'
 
+
 # if a nested function uses a variable of its (grand)parent, its offset will be wrong because
 # it will be in reference to the frame pointer of the parent; this analysis finds the real offset
 # and adds instructions to correct it
@@ -75,6 +81,7 @@ def static_link_analysis(node, symbol):
         return get_static_link_offset(function_definition, symbol.fname, 0)
 
     return 0
+
 
 # recursively keep adding the offset (saved registers + parameters + returns + local variables of the caller)
 # of each function until the specified function is found; this offset + the current frame pointer will point
@@ -100,10 +107,12 @@ def get_static_link_offset(node, function_name, offset):
 
     return get_static_link_offset(function_definition, function_name, offset)
 
+
 def enter_function_body(self, block):
     self.curfun = block
     self.spillvarloc = dict()
     self.spillvarloctop = -block.stackroom
+
 
 def gen_spill_load_if_necessary(self, var):
     self.dematerialize_spilled_var_if_necessary(var)
@@ -116,10 +125,12 @@ def gen_spill_load_if_necessary(self, var):
     res += '\t' + comment('<<- fill')
     return res
 
+
 def get_register_for_variable(self, var):
     self.materialize_spilled_var_if_necessary(var)
     res = get_register_string(self.vartoreg[var])
     return res
+
 
 def gen_spill_store_if_necessary(self, var):
     if not self.materialize_spilled_var_if_necessary(var):

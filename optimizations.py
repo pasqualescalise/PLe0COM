@@ -2,10 +2,10 @@
 
 """Optimizations"""
 
-from ir import *
 from math import log
 
 LOOP_UNROLLING_FACTOR = 2
+
 
 def loop_unrolling(node):
     """Navigation action: unrolling
@@ -19,6 +19,7 @@ def loop_unrolling(node):
         return
 
     try:
-        node.unroll(LOOP_UNROLLING_FACTOR)
-    except AttributeError as e:
-        pass # not a ForStat
+        # node.unroll(LOOP_UNROLLING_FACTOR)
+        pass
+    except AttributeError:
+        pass  # not a ForStat

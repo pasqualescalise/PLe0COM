@@ -68,7 +68,7 @@ class Lexer:
 
     def check_symbol(self):
         for s, t in self.str_to_token:
-            if self.text[self.pos:self.pos+len(s)].lower() == s:
+            if self.text[self.pos:self.pos + len(s)].lower() == s:
                 self.pos += len(s)
                 return t, s
         return None, None
@@ -99,8 +99,10 @@ class Lexer:
             if t:
                 yield 'ident', t
                 continue
-            try : t = self.text[self.pos] 
-            except Exception : t='end of file' # at end of file this will fail because self.pos >= len(self.text)
+            try:
+                t = self.text[self.pos]
+            except Exception:
+                t = 'end of file'  # at end of file this will fail because self.pos >= len(self.text)
             yield 'illegal', t
             break
 
@@ -118,10 +120,10 @@ BEGIN
    test := 1234;
    squ := x * x
 END;
- 
+
 BEGIN
    x := -1;
-   
+
    read x;
    if x > 100 then begin
       print -x
@@ -136,14 +138,14 @@ BEGIN
       x:=x+1;
       !squ
    END;
-   
+
    x := 101;
    while x <= 105 do begin
     arr[x-100] := x;
     !arr[x-100];
     x := x + 1
    end;
-   
+
    x := 1;
    y := 1;
    while x <= 5 do begin

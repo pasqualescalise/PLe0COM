@@ -4,7 +4,7 @@
 Assumes that all temporaries can be allocated to any register (because of this,
 it does not work with non integer types)."""
 
-from cfg import *
+from cfg import remove_non_regs
 
 # the register of all spilled temporaries is set to SPILL_FLAG
 SPILL_FLAG = 999
@@ -105,7 +105,7 @@ class LinearScanRegisterAllocator(object):
                 live_in = remove_non_regs(i.live_in)
 
                 for var in live_out:
-                    if not var in min_gen:
+                    if var not in min_gen:
                         min_gen[var] = inst_index
                         max_use[var] = inst_index
                 for var in live_in:
@@ -179,5 +179,5 @@ class LinearScanRegisterAllocator(object):
 
         for i in self.varliveness:
             res += '\t' + repr(i['var']) + ' is live in the interval (' + repr(i['interv'].start) + ', ' + repr(i['interv'].stop) + ')\n'
-        
+
         return res

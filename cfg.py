@@ -21,12 +21,12 @@ class BasicBlock(object):
             self.instrs = []
         try:
             # XXX: added myself
-            if self.instrs[-1].returns == True:
+            if self.instrs[-1].returns:
                 self.target = None
             else:
                 self.target = self.instrs[-1].target
         except AttributeError:
-            self.target = None # last instruction is not a branch
+            self.target = None  # last instruction is not a branch
         if labels:
             self.labels = labels
         else:
@@ -46,7 +46,7 @@ class BasicBlock(object):
                 kills = set(i.collect_kills())
             except AttributeError:
                 kills = set()
-            #print(i.human_repr(), uses, kills)
+            # print(i.human_repr(), uses, kills)
             uses.difference_update(self.kill)
             self.gen.update(uses)
             self.kill |= kills
@@ -141,7 +141,7 @@ def stat_list_to_bb(sl):
                 else:
                     labels.append(label)
         except Exception:
-            pass # instruction doesn't have a label
+            pass  # instruction doesn't have a label
 
         newbb.append(n)
 
@@ -275,7 +275,7 @@ class CFG(list):
         out = []
         for bb in self:
             out.append(bb.liveness_iteration())
-        while sum(out) != False:
+        while sum(out):
             out = []
             for bb in self:
                 out.append(bb.liveness_iteration())
@@ -289,13 +289,13 @@ class CFG(list):
         for bb in tails:
             function_definition = bb.get_function()
             if function_definition == 'global':
-                continue # the main does not return anything
+                continue  # the main does not return anything
 
             number_of_returns = len(function_definition.returns)
             if number_of_returns > 0:
                 last_instruction = bb.instrs[-1]
                 from ir import BranchStat
-                if type(last_instruction) is BranchStat and last_instruction.target == None:
+                if type(last_instruction) is BranchStat and last_instruction.target is None:
                     pass
                 else:
                     raise RuntimeError("Function does not return correctly")

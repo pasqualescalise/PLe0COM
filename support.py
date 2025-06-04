@@ -11,23 +11,25 @@ def print_statement_list(node):
     (only for StatList nodes the content is printed)"""
     try:
         node.print_content()
-    except AttributeError as e:
-         pass # not a StatList
+    except AttributeError:
+        pass  # not a StatList
+
 
 def get_node_list(root, quiet=False):
     """Get a list of all nodes in the AST"""
 
-    def register_nodes(l):
+    def register_nodes(left):
         """Navigation action: get a list of all nodes"""
-        def r(node):
-            if node not in l:
-                l.append(node)
+        def right(node):
+            if node not in left:
+                left.append(node)
 
-        return r
+        return right
 
     node_list = []
     root.navigate(register_nodes(node_list), quiet)
     return node_list
+
 
 def lowering(node):
     """Navigation action: lowering
@@ -41,13 +43,15 @@ def lowering(node):
         print(e)
         print('Lowering not yet implemented for type ' + repr(type(node)))
 
+
 def flattening(node):
     """Navigation action: flattening
     (only StatList nodes are actually flattened)"""
     try:
         node.flatten()
-    except AttributeError as e:
-         print('Flattening not yet implemented for type ' + repr(type(node)))
+    except AttributeError:
+        print('Flattening not yet implemented for type ' + repr(type(node)))
+
 
 def dotty_wrapper(fout):
     """Main function for graphviz dot output generation"""
@@ -94,6 +98,7 @@ def dotty_wrapper(fout):
         return res
 
     return dotty_function
+
 
 def print_dotty(root, filename):
     """Print a graphviz dot representation to file"""

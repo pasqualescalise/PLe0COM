@@ -9,8 +9,9 @@ correspond to. Alternatively, they can return a list where:
 This feature can be used only by IR nodes that are contained in a Block, and
 is used for adding constant literals."""
 
-from datalayout import *
-from ir import *
+from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, check_if_variable_needs_static_link
+from datalayout import LocalSymbolLayout
+from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat
 
 localconsti = 0
 
@@ -36,6 +37,7 @@ def symbol_codegen(self, regalloc):
     else:
         return '\t.equ ' + self.allocinfo.symname + ', ' + repr(self.allocinfo.fpreloff) + "\n"
 
+
 Symbol.codegen = symbol_codegen
 
 
@@ -53,6 +55,7 @@ def irnode_codegen(self, regalloc):
             except RuntimeError as e:
                 raise RuntimeError("Node " + repr(id(node)) + " did not generate any code; Error: " + repr(e))
     return res
+
 
 IRNode.codegen = irnode_codegen
 
@@ -74,7 +77,7 @@ def block_codegen(self, regalloc):
     regalloc.enter_function_body(self)
     try:
         res = codegen_append(res, self.body.codegen(regalloc))
-    except AttributeError as e:
+    except AttributeError:
         pass
 
     last_statement_of_block = self.body.children[-1]
@@ -96,11 +99,13 @@ def block_codegen(self, regalloc):
 
     return res[0] + res[1]
 
+
 Block.codegen = block_codegen
 
 
 def deflist_codegen(self, regalloc):
     return ''.join([child.codegen(regalloc) for child in self.children])
+
 
 DefinitionList.codegen = deflist_codegen
 
@@ -109,6 +114,7 @@ def fun_codegen(self, regalloc):
     res = '\n' + self.symbol.name + ':\n'
     res += self.body.codegen(regalloc)
     return res
+
 
 FunctionDef.codegen = fun_codegen
 
@@ -164,6 +170,7 @@ def binstat_codegen(self, regalloc):
         raise RuntimeError("Operation " + repr(self.op) + " unexpected")
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
+
 BinStat.codegen = binstat_codegen
 
 
@@ -175,6 +182,7 @@ def print_codegen(self, regalloc):
     res += '\tbl __pl0_print\n'
     res += restore_regs(REGS_CALLERSAVE)
     return res
+
 
 PrintCommand.codegen = print_codegen
 
@@ -194,6 +202,7 @@ def read_codegen(self, regalloc):
     res += restore_regs(savedregs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
+
 
 ReadCommand.codegen = read_codegen
 
@@ -243,11 +252,13 @@ def branch_codegen(self, regalloc):
             return res
     return comment('impossible!')
 
+
 BranchStat.codegen = branch_codegen
 
 
 def emptystat_codegen(self, regalloc):
     return '\t' + comment('Empty statement')
+
 
 EmptyStat.codegen = emptystat_codegen
 
@@ -268,6 +279,7 @@ def ldptrto_codegen(self, regalloc):
         trail += tmp
         res = '\tldr ' + rd + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
+
 
 LoadPtrToSym.codegen = ldptrto_codegen
 
@@ -313,6 +325,7 @@ def storestat_codegen(self, regalloc):
 
     return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
 
+
 StoreStat.codegen = storestat_codegen
 
 
@@ -357,6 +370,7 @@ def loadstat_codegen(self, regalloc):
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return [res, trail]
 
+
 LoadStat.codegen = loadstat_codegen
 
 
@@ -367,6 +381,7 @@ def savespacestat_codegen(self, regalloc):
     else:
         comm = comment('saving space for return values')
     return '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed) + ' ' + comm
+
 
 SaveSpaceStat.codegen = savespacestat_codegen
 
@@ -388,6 +403,7 @@ def loadimm_codegen(self, regalloc):
         res = '\tldr ' + rd + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
+
 LoadImmStat.codegen = loadimm_codegen
 
 
@@ -407,6 +423,7 @@ def unarystat_codegen(self, regalloc):
         raise RuntimeError("Operation " + repr(self.op) + " unexpected")
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
+
 
 UnaryStat.codegen = unarystat_codegen
 

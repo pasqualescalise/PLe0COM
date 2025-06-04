@@ -5,7 +5,7 @@ is not a register, is allocated in the local stack frame (LocalSymbol) or in
 the data section of the executable (GlobalSymbol)."""
 
 from codegenhelp import CALL_OFFSET
-from ir import *
+from ir import StoreStat
 
 
 class SymbolLayout(object):
@@ -21,8 +21,7 @@ class LocalSymbolLayout(SymbolLayout):
         self.bsize = bsize
 
     def __repr__(self):
-        return self.symname + ": fp + (" + repr(self.fpreloff) + ") [def byte " + \
-               repr(self.bsize) + "]"
+        return self.symname + ": fp + (" + repr(self.fpreloff) + ") [def byte " + repr(self.bsize) + "]"
 
 
 class GlobalSymbolLayout(SymbolLayout):
@@ -45,10 +44,10 @@ def promote_symbol(symbol, root):
         if type(instructions[i]) is StoreStat and instructions[i].dest == symbol:
             instructions[i].killhint = symbol
 
+
 # a variable can be promoted from being stored in memory to being stored in a register if
 #   - the variable is not used in any nested procedure
 def perform_memory_to_register_promotion(root):
-    instructions = root.body.children
     to_promote = []
 
     for symbol in root.symtab:
@@ -70,10 +69,12 @@ def perform_memory_to_register_promotion(root):
     for function_definition in root.defs.children:
         perform_memory_to_register_promotion(function_definition.body)
 
+
 def perform_data_layout(root):
     perform_data_layout_of_program(root)
     for defin in root.defs.children:
         perform_data_layout_of_function(defin)
+
 
 def perform_data_layout_of_function(funcroot):
     offs = 0  # prev fp
@@ -105,12 +106,12 @@ def perform_data_layout_of_function(funcroot):
 
             prefix = "_p_" + funcroot.symbol.name + "_" + var.fname + "_"
             param_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, param_offs , bsize))
+            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, param_offs, bsize))
 
         elif var.alloct == 'return':
             prefix = "_r_" + var.fname + "_" + funcroot.symbol.name + "_"
             returns_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, returns_offs , bsize))
+            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, returns_offs, bsize))
 
         else:
             prefix = "_l_" + funcroot.symbol.name + "_"
@@ -122,6 +123,7 @@ def perform_data_layout_of_function(funcroot):
     # XXX: added myself
     for defin in funcroot.body.defs.children:
         perform_data_layout_of_function(defin)
+
 
 # the parameters and the returns are of functions called by the main, so they behave exactly like other functions
 def perform_data_layout_of_program(root):
@@ -153,12 +155,12 @@ def perform_data_layout_of_program(root):
 
             prefix = "_p_main_" + var.fname + "_"
             param_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, param_offs , bsize))
+            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, param_offs, bsize))
 
         elif var.alloct == 'return':
             prefix = "_r_" + var.fname + "_main_"
             returns_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, returns_offs , bsize))
+            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, returns_offs, bsize))
 
         else:
             prefix = "_g_"
