@@ -66,7 +66,7 @@ def check_if_variable_needs_static_link(node, symbol):
         return '\tadd ' + get_register_string(REG_SCRATCH) + ', ' + get_register_string(REG_FP) + ', #' + str(real_offset) + '\n'
 
 # if a nested function uses a variable of its (grand)parent, its offset will be wrong because
-# it will be in reference to the frame pointer of the parent; this analysis find the real offset
+# it will be in reference to the frame pointer of the parent; this analysis finds the real offset
 # and adds instructions to correct it
 def static_link_analysis(node, symbol):
     function_definition = node.get_function()

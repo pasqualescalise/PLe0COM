@@ -117,11 +117,11 @@ def perform_data_layout_of_function(funcroot):
             offs -= bsize
             var.set_alloc_info(LocalSymbolLayout(prefix + var.name, offs, bsize))
 
+    funcroot.body.stackroom = -offs
+
     # XXX: added myself
     for defin in funcroot.body.defs.children:
         perform_data_layout_of_function(defin)
-
-    funcroot.body.stackroom = -offs
 
 # the parameters and the returns are of functions called by the main, so they behave exactly like other functions
 def perform_data_layout_of_program(root):

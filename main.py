@@ -9,6 +9,7 @@ from datalayout import *
 from cfg import *
 from regalloc import *
 from codegen import *
+from optimizations import *
 
 
 def compile_program(text):
@@ -27,6 +28,11 @@ def compile_program(text):
         print(type(n), id(n), '->', type(n.parent), id(n.parent))
     print('\nTotal nodes in IR:', len(node_list), '\n')
 
+    print("\n\nLOOP UNROLLING\n\n")
+    # loop_unrolling(program)
+    program.navigate(loop_unrolling, quiet=True)
+    print('\n', program, '\n')
+
     print("\n\nLOWERING\n\n")
     program.navigate(lowering, quiet=False)
 
@@ -34,7 +40,6 @@ def compile_program(text):
     program.navigate(flattening, quiet=True)
     print('\n', program, '\n')
 
-    print("\n\nMAKING DOTTY\n\n")
     print_dotty(program, "log.dot")
     print("\nA dot file representation of the program is in the log.dot file\n")
 
@@ -81,14 +86,14 @@ def driver_main():
 
     # get a test program from the arguments
     if len(argv) > 2:
-        with open(argv[1], 'r') as inf :
+        with open(argv[1], 'r') as inf:
             test_program = inf.read()
 
     code = compile_program(test_program)
 
     # write the code in the file specifed in the arguments
     if len(argv) >= 2:
-        with open(argv[-1], 'w') as outf :
+        with open(argv[-1], 'w') as outf:
             outf.write(code)
 
 

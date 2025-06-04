@@ -7,6 +7,7 @@ have a lowering function or a code generation function (codegen functions are
 in a separate module though)."""
 
 from codegenhelp import *
+from copy import deepcopy
 
 # UTILITIES
 
@@ -142,6 +143,8 @@ class Symbol:
                (self.value if type(self.value) == str else '')
         if self.allocinfo is not None:
             base = base + "; " + repr(self.allocinfo)
+        # TODO: remove this
+        base += " " + repr(id(self))
         return base
 
 
@@ -153,11 +156,17 @@ class SymbolTable(list):
                 # for parameters it's not enough to check the name, also
                 # the called function must be the one being parsed to
                 # make sure to get the correct variable in the scope
-                if s.fname == node.current_function and s.name == name:
-                    return s
+                try:
+                    if s.fname == node.current_function and s.name == name:
+                        return s
+                except AttributeError:
+                    pass # trying to use find outside of the parser
             elif s.name == name:
-                if s.fname != node.current_function:
-                    s.used_in_nested_procedure = True
+                try:
+                    if s.fname != node.current_function:
+                        s.used_in_nested_procedure = True
+                except AttributeError:
+                    pass # trying to use find outside of the parser
                 return s
         raise RuntimeError('Looking up for symbol ' + name + ' in function ' + node.current_function + ' failed!')
 
@@ -225,7 +234,7 @@ class IRNode:  # abstract
         res += '}'
         return res
 
-    def navigate(self, action, quiet=False):
+    def navigate(self, action, *args, quiet=False):
         attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
                  'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
         if 'children' in dir(self) and len(self.children):
@@ -233,19 +242,23 @@ class IRNode:  # abstract
                 print('\nNavigated to', len(self.children), 'children of', type(self), id(self))
             for node in self.children:
                 try:
-                    node.navigate(action, quiet=quiet)
+                    node.navigate(action, *args, quiet=quiet)
                 except AttributeError as e:
                     pass
         for d in attrs:
             try:
                 if not quiet:
                     print('\nNavigated to attribute', d, 'of', type(self), id(self))
-                getattr(self, d).navigate(action, quiet=quiet)
+                getattr(self, d).navigate(action, *args, quiet=quiet)
             except AttributeError as e:
                 pass
         if not quiet:
             print('\nNavigated to', type(self), id(self),)
-        action(self)
+        # XXX: shitty solution
+        try:
+            action(self, *args)
+        except TypeError as e:
+            action(self)
 
     def replace(self, old, new):
         new.parent = self
@@ -262,6 +275,36 @@ class IRNode:  # abstract
             except AttributeError:
                 pass
         return False
+
+    # fix mistakes introduced by deepcoping node:
+    #   + assign the correct parents
+    #   + switch the new Symbols with the old ones, so all the symbols correspond to the correct object
+    def deepcopy_fix(self, symtab):
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
+                 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+        if 'children' in dir(self) and len(self.children):
+            for node in self.children:
+                try:
+                    node.parent = self
+
+                    if type(node) is Symbol:
+                        real_symbol = symtab.find(None, node.name) 
+                        self.replace(node, real_symbol)
+
+                    node.deepcopy_fix(symtab=symtab)
+                except AttributeError as e:
+                    pass
+        for d in attrs:
+            try:
+                getattr(self, d).parent = self
+
+                if type(getattr(self, d)) is Symbol:
+                    real_symbol = symtab.find(None, getattr(self, d).name) 
+                    self.replace(getattr(self, d), real_symbol)
+
+                getattr(self, d).deepcopy_fix(symtab=symtab)
+            except AttributeError as e:
+                pass
 
     def get_function(self):
         if not self.parent:
@@ -652,6 +695,36 @@ class ForStat(Stat):
         loop = BranchStat(target=entry_label, symtab=self.symtab)
         stat_list = StatList(self.parent, [self.init, self.cond, branch, self.body, self.step, loop, exit_stat], self.symtab)
         return self.parent.replace(self, stat_list)
+
+    def unroll(self, unrolling_factor):
+        return
+        original_body = self.body.children[:]
+
+        loop_end = self.cond.children[-1]
+        factor = Const(value=unrolling_factor, symtab=self.symtab)
+
+        # modulus = BinExpr(parent=self, children=['mod', loop_end, factor], symtab=self.symtab)
+        modulus = BinExpr(parent=self, children=['shr', loop_end, factor], symtab=self.symtab)
+        self.cond.children[-1] = modulus
+
+        copy_step = deepcopy(self.step)
+        copy_step.deepcopy_fix(symtab=self.symtab)
+
+        for i in range(unrolling_factor - 1):
+            self.body.append(copy_step)
+
+            for child in original_body:
+                copy_child = deepcopy(child)
+                copy_child.deepcopy_fix(symtab=self.symtab)
+                self.body.append(copy_child)
+
+        # cleanup
+        # TODO: append it to the parent of the ForStat right after it
+        # loop_end = self.cond.children[-1]
+        # if unrolling_factor == 2:
+        #     pass
+        # else:
+        #     pass
 
 
 class AssignStat(Stat):

@@ -74,7 +74,7 @@ def block_codegen(self, regalloc):
     regalloc.enter_function_body(self)
     try:
         res = codegen_append(res, self.body.codegen(regalloc))
-    except AttributeError:
+    except AttributeError as e:
         pass
 
     last_statement_of_block = self.body.children[-1]
@@ -132,6 +132,10 @@ def binstat_codegen(self, regalloc):
         res += '\tlsl ' + rd + ', ' + param + '\n'
     elif self.op == "shr":
         res += '\tlsr ' + rd + ', ' + param + '\n'
+    elif self.op == "mod":
+        res += '\tadd ' + rd + ', ' + param + '\n'
+        res += '\tsub ' + get_register_string(REG_SCRATCH) + ', ' + rb + ', #1\n'
+        res += '\tand ' + rd + ', ' + rd + ', ' + get_register_string(REG_SCRATCH) + '\n'
     elif self.op == "eql":
         res += '\tcmp ' + param + '\n'
         res += '\tmoveq ' + rd + ', #1\n'

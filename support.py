@@ -18,6 +18,7 @@ def get_node_list(root, quiet=False):
     """Get a list of all nodes in the AST"""
 
     def register_nodes(l):
+        """Navigation action: get a list of all nodes"""
         def r(node):
             if node not in l:
                 l.append(node)
@@ -37,7 +38,8 @@ def lowering(node):
         if not check:
             raise RuntimeError("Node " + repr(node) + " did not return anything after lowering")
     except AttributeError as e:
-         print('Lowering not yet implemented for type ' + repr(type(node)))
+        print(e)
+        print('Lowering not yet implemented for type ' + repr(type(node)))
 
 def flattening(node):
     """Navigation action: flattening
@@ -60,7 +62,7 @@ def dotty_wrapper(fout):
             res += 'shape=box,'
         res += 'label="' + repr(type(irnode)) + ' ' + repr(id(irnode))
         try:
-            res += ': ' + irnode.value
+            res += ': ' + repr(irnode.value)
         except AttributeError:
             pass
         try:

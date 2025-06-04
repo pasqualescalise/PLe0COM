@@ -85,7 +85,7 @@ class Parser:
             return ir.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
             # XXX: added myself
-            expr = self.expression(symtab)
+            expr = self.expression(symtab=symtab)
             self.expect('rparen')
             return expr
         else:
@@ -113,19 +113,30 @@ class Parser:
             expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
+    # XXX: weird precedence
+    @logger
+    def modulus(self, symtab):
+        expr = self.shift(symtab)
+        if self.new_sym == 'mod':
+            self.getsym()
+            op = self.sym
+            expr2 = self.shift(symtab)
+            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+        return expr
+
     @logger
     def expression(self, symtab):
         op = None
         if self.new_sym in ['plus', 'minus']:
             self.getsym()
             op = self.sym
-        expr = self.shift(symtab)
+        expr = self.modulus(symtab)
         if op:
             expr = ir.UnExpr(children=[op, expr], symtab=symtab)
         while self.new_sym in ['plus', 'minus']:
             self.getsym()
             op = self.sym
-            expr2 = self.shift(symtab)
+            expr2 = self.modulus(symtab)
             expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
