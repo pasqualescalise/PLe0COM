@@ -1,15 +1,16 @@
 *.dot
 *.pyc
-log
 
 *.pdf
 *.png
-test*
 *.s
 
+tests/output
+tests/examples
+
 out
-.idea
-*.log
 
 .gdb_history
+.editorconfig
 tags
+ToDo.md

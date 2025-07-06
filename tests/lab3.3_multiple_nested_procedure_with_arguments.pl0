@@ -1,0 +1,36 @@
+PROCEDURE multiply(int x, int y);
+	VAR result;
+
+	PROCEDURE square(int parameter);
+		VAR ressquare;
+		BEGIN
+			ressquare := parameter * parameter;
+			print ressquare
+		END;
+
+	PROCEDURE difference(int dif1, int dif2);
+		VAR resdif;
+
+		PROCEDURE sum(int sum1, int sum2);
+			VAR ressum;
+			BEGIN
+				ressum := sum1 + sum2;
+				print ressum
+			END;
+
+		BEGIN
+			resdif := dif1 - dif2;
+			print resdif;
+			CALL sum(resdif, 3)
+		END;
+
+	BEGIN
+		result := x * y;
+		print result;
+		CALL square(result);
+		CALL difference(result, x)
+	END;
+
+BEGIN
+	CALL multiply(4 + 1, 2)
+END.

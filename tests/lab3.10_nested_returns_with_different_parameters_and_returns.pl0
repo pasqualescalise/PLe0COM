@@ -1,0 +1,45 @@
+VAR result;
+
+PROCEDURE performArithmetic(int x, int y) -> (int);
+	VAR sum_res, power_res, operation_res;
+
+	PROCEDURE sum(int x, int y) -> (int);
+		BEGIN
+			return (x + y)
+		END;
+
+	PROCEDURE multiply(int x, int y) -> (int);
+		BEGIN
+			return (x * y)
+		END;
+
+	PROCEDURE power(int base, int exponent) -> (int);
+		VAR respow, i;
+		BEGIN
+			respow := base;
+			for i := 0; i < (exponent - 1); i := i + 1 DO BEGIN
+				respow := respow * base
+			END;
+			return (respow)
+		END;
+
+	{ this computes (x + y) * (x ^ 2) }
+	PROCEDURE operation(int x, int y) -> (int, int, int);
+		VAR sum_res, power_res, res;
+		BEGIN
+			CALL sum(x, y) -> (sum_res);
+			CALL power(x, 2) -> (power_res);
+			CALL multiply(sum_res, power_res) -> (res);
+			return (sum_res, power_res, res)
+		END;
+
+	BEGIN
+		CALL operation(x, y) -> (_, _, operation_res);
+
+		return (operation_res)
+	END;
+
+BEGIN
+	CALL performArithmetic(23, 32) -> (result);
+	print result
+END.

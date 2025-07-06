@@ -1,0 +1,18 @@
+PROCEDURE multiply(int x, int y);
+	VAR result;
+	BEGIN
+		result := x * y;
+		print result
+	END;
+
+PROCEDURE power(int parameter);
+	VAR result_2;
+	BEGIN
+		result_2 := parameter * parameter;
+		print result_2
+	END;
+
+BEGIN
+	CALL multiply(4 + 1, 2);
+	CALL power(2 * 3)
+END.

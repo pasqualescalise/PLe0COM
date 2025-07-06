@@ -1,0 +1,39 @@
+VAR result;
+
+PROCEDURE f1(int x, int y);
+	VAR result, ret;
+
+	PROCEDURE f2(int x, int y) -> (int);
+		VAR space;
+
+		PROCEDURE f3(int x, int y);
+			BEGIN
+				result := x + x
+			END;
+
+		PROCEDURE f4(int x, int y);
+			VAR space;
+			BEGIN
+				result := result + x
+			END;
+
+		BEGIN
+			result := x * y;
+			print result;
+			CALL f3(x, y);
+			print result;
+			CALL f4(x, y);
+			print result;
+			return (0)
+		END;
+
+	BEGIN
+		result := x + y;
+		CALL f2(x, y) -> (ret);
+		print result;
+		print ret
+	END;
+
+BEGIN
+	CALL f1(3, 4)
+END.

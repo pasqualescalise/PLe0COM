@@ -1,0 +1,11 @@
+VAR result;
+
+PROCEDURE multiply(int x, int y) -> (int);
+	BEGIN
+		return (x * y)
+	END;
+
+BEGIN
+	CALL multiply(4 + 1, 2) -> (result);
+	print result
+END.

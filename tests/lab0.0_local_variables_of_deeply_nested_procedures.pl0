@@ -1,0 +1,19 @@
+VAR result;
+
+PROCEDURE f1(int x, int y);
+	VAR result;
+
+	PROCEDURE f2(int x, int y);
+		BEGIN
+			result := x * y
+		END;
+
+	BEGIN
+		result := x + y;
+		CALL f2(x, y);
+		print result
+	END;
+
+BEGIN
+	CALL f1(3, 4)
+END.

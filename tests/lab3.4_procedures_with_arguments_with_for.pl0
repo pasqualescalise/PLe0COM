@@ -1,0 +1,18 @@
+VAR base, exponent;
+
+PROCEDURE power(int x, int y);
+	VAR result, i;
+	BEGIN
+		result := 1;
+		for i := 0; i < y; i := i + 1 DO BEGIN
+			result := result * x
+		END;
+		print result
+	END;
+
+BEGIN
+	base := 3;
+	exponent := 4;
+	CALL power(base, exponent);
+	CALL power(exponent, base)
+END.

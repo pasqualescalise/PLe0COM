@@ -1,0 +1,17 @@
+VAR i, j;
+
+BEGIN
+	i := 0;
+
+    if i = 0 then begin
+    	for j := 0; j < 10; j := j + 1 do begin
+			print j
+    	end
+	end elif i = 1 then begin
+    	for j := 10; j > 0; j := j - 1 do begin
+			print j
+    	end
+	end else begin
+		print 100
+	end
+END.

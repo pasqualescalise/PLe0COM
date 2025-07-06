@@ -1,0 +1,12 @@
+VAR sum, multiplication;
+
+PROCEDURE sumAndMultiply(int x, int y) -> (int, int);
+	BEGIN
+		return (x + y, x * y)
+	END;
+
+BEGIN
+	CALL sumAndMultiply(23, 32) -> (sum, multiplication);
+	print sum;
+	print multiplication
+END.

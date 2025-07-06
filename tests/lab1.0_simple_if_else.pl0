@@ -1,0 +1,11 @@
+VAR i;
+
+BEGIN
+	i := 5;
+
+    if i > 100 then begin
+		print 0
+	end else begin
+		print 1
+	end
+END.

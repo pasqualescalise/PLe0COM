@@ -1,0 +1,5 @@
+VAR i;
+
+BEGIN
+    print 20 % 16
+END.

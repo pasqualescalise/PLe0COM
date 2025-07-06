@@ -1,0 +1,13 @@
+VAR i;
+
+BEGIN
+	i := 30;
+
+    if i > 100 then begin
+		print 0
+	end elif i > 10 then begin
+		print 1
+	end else begin
+		print 2
+	end
+END.

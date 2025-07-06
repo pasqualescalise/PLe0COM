@@ -1,0 +1,14 @@
+VAR result;
+
+PROCEDURE function(int x, int y) -> (int);
+	BEGIN
+		if x > 2 then begin
+			return (y)
+		end
+	END;
+
+BEGIN
+	result := 100;
+	CALL function(1, 2) -> (result);
+	print result
+END.

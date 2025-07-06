@@ -1,0 +1,1 @@
+RuntimeError: At least one path of the function 'function' doesn't end with a return, even if one is needed

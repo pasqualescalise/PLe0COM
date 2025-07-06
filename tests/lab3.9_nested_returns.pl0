@@ -1,0 +1,27 @@
+VAR sum_res, multiplication;
+
+PROCEDURE sumAndMultiply(int x, int y) -> (int, int);
+	VAR sum_res, multiplication;
+
+	PROCEDURE sum(int x, int y) -> (int);
+		BEGIN
+			return (x + y)
+		END;
+
+	PROCEDURE multiply(int x, int y) -> (int);
+		BEGIN
+			return (x * y)
+		END;
+
+	BEGIN
+		CALL sum(x, y) -> (sum_res);
+		CALL multiply(x, y) -> (multiplication);
+
+		return (sum_res, multiplication)
+	END;
+
+BEGIN
+	CALL sumAndMultiply(23, 32) -> (sum_res, multiplication);
+	print sum_res;
+	print multiplication
+END.
