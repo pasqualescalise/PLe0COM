@@ -3,7 +3,7 @@
 """PL/0 recursive descent parser adapted from Wikipedia"""
 
 import ir
-from logger import logger, log_indentation, ANSI
+from logger import logger, log_indentation, red, green, yellow, magenta, cyan, bold
 from functools import reduce
 
 
@@ -26,22 +26,22 @@ class Parser:
             self.new_sym, self.new_value = next(self.the_lexer)
         except StopIteration:
             return 2
-        log_indentation(f'{ANSI("MAGENTA", "Next symbol:")} {self.new_sym} {self.new_value}')
+        log_indentation(f"{magenta('Next symbol:')} {self.new_sym} {self.new_value}")
         return 1
 
     def error(self, msg):
-        log_indentation(ANSI("RED", f"{msg} {self.new_sym} {self.new_value}"))
-        raise RuntimeError('Raised error during parsing')
+        log_indentation(red(f"{msg} {self.new_sym} {self.new_value}"))
+        raise RuntimeError("Raised error during parsing")
 
     def accept(self, s):
-        accepted_color = ANSI("RED", f"{self.new_sym} == {s}")
+        accepted_color = red(f"{self.new_sym} == {s}")
         if (self.new_sym == s):
-            accepted_color = ANSI("GREEN", f"{self.new_sym} == {s}")
-        log_indentation(f'Trying to accept {accepted_color}')
+            accepted_color = green(f"{self.new_sym} == {s}")
+        log_indentation(f"Trying to accept {accepted_color}")
         return self.getsym() if self.new_sym == s else 0
 
     def expect(self, s):
-        log_indentation(f'{ANSI("CYAN", "Expecting:")} {s}')
+        log_indentation(f"{cyan('Expecting:')} {s}")
         if self.accept(s):
             return 1
         self.error("Expect: unexpected symbol")
@@ -166,7 +166,7 @@ class Parser:
                 statement_list.append(self.statement(symtab))
 
             self.expect('endsym')
-            log_indentation(f'{ANSI("BOLD", statement_list.get_content())}')
+            log_indentation(f"{bold(statement_list.get_content())}")
             return statement_list
 
         elif self.accept('ident'):
@@ -245,7 +245,7 @@ class Parser:
             return ir.WhileStat(cond=cond, body=body, symtab=symtab)
 
         elif self.accept('forsym'):
-            log_indentation(ANSI("YELLOW", "First part of for statement"))
+            log_indentation(yellow("First part of for statement"))
             # check that there is an assign statement
             if self.new_sym != "ident":
                 self.error("First part of for statement must be assignment")
@@ -253,12 +253,12 @@ class Parser:
 
             self.expect('semicolon')
 
-            log_indentation(ANSI("YELLOW", "Second part of for statement"))
+            log_indentation(yellow("Second part of for statement"))
             cond = self.condition(symtab)
 
             self.expect('semicolon')
 
-            log_indentation(ANSI("YELLOW", "Third part of for statement"))
+            log_indentation(yellow("Third part of for statement"))
             # check that there is an assign statement
             if self.new_sym != "ident":
                 self.error("Third part of for statement must be assignment")
@@ -311,7 +311,7 @@ class Parser:
                     self.vardef(local_symtab, alloct)
             self.expect('semicolon')
 
-        log_indentation(ANSI("GREEN", "Parsed variables definition"))
+        log_indentation(green("Parsed variables definition"))
 
         # functions definition
         function_defs = ir.DefinitionList()
@@ -385,7 +385,7 @@ class Parser:
             self.expect('semicolon')
             function_defs.append(ir.FunctionDef(symbol=parent_symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
 
-        log_indentation(ANSI("GREEN", "Parsed functions definition"))
+        log_indentation(green("Parsed functions definition"))
 
         # parse the block statements
         # XXX: local variables need to be more prevalent than global ones to preserve scope
@@ -433,7 +433,7 @@ class Parser:
             new_var = ir.Symbol(name, type, alloct=alloct, fname=self.current_function)
 
         symtab.append(new_var)
-        log_indentation(f"{ANSI('GREEN', 'Parsed variable:')} {str(new_var)}")
+        log_indentation(f"{green('Parsed variable:')} {str(new_var)}")
 
     @logger
     def program(self):

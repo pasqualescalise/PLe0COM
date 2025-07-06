@@ -4,7 +4,7 @@
 Assumes that all temporaries can be allocated to any register (because of this,
 it does not work with non integer types)."""
 
-from logger import ANSI
+from logger import green, yellow, cyan, bold
 
 # the register of all spilled temporaries is set to SPILL_FLAG
 SPILL_FLAG = 999
@@ -77,12 +77,12 @@ class RegisterAllocation(object):
         max_len = max(variables_name_len)
         indentation = list(map(lambda x: max_len - x, variables_name_len))
 
-        res = ANSI("YELLOW", "Register Allocation for variables")
+        res = yellow("Register Allocation for variables")
         res += " [\n"
 
         i = 0
         for var in self.var_to_reg:
-            res += f"\t{var}: {' ' * indentation[i]}{' ' * self.var_to_reg[var] * 2}{ANSI('CYAN', f'{self.var_to_reg[var]}')}\n"
+            res += f"\t{var}: {' ' * indentation[i]}{' ' * self.var_to_reg[var] * 2}{cyan(f'{self.var_to_reg[var]}')}\n"
             i += 1
 
         res += "]\n"
@@ -192,7 +192,7 @@ class LinearScanRegisterAllocator(object):
         return RegisterAllocation(self.var_to_reg, num_spill, self.nregs)
 
     def get_liveness_intervals(self):
-        res = ANSI("YELLOW", "Liveness intervals")
+        res = yellow("Liveness intervals")
         res += " [\n"
 
         variables_name_len = list(map(len, map(str, map(lambda v: v['var'], self.var_liveness))))
@@ -205,8 +205,7 @@ class LinearScanRegisterAllocator(object):
             start = interval['interval'].start
             stop = interval['interval'].stop
 
-            # res += f"{' ' * 4}Variable {ANSI('GREEN', f'{var}')} is {ANSI('BOLD', 'live')} in the instruction interval {ANSI('CYAN', f'({start} - {stop})')},\n"
-            res += f"{' ' * 4}Variable {ANSI('GREEN', f'{var}')} is {ANSI('BOLD', 'live')} in the instruction interval {' ' * indentation[i]}{ANSI('CYAN', f'({start} - {stop})')},\n"
+            res += f"{' ' * 4}Variable {green(f'{var}')} is {bold('live')} in the instruction interval {' ' * indentation[i]}{cyan(f'({start} - {stop})')},\n"
             i += 1
 
         res += "]\n"

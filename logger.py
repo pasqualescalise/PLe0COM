@@ -12,20 +12,20 @@ def initialize_logger():
 def logger(f):
     def wrapped(*args, **kwargs):
         global indentation
-        function_name = f.__module__.capitalize() + "." + f.__name__ + "()"
-        print(f'{" " * indentation * 4}{ANSI("YELLOW", "Calling:")} {function_name}')
+        function_name = f"{f.__module__.capitalize()}.{f.__name__}()"
+        print(f"{' ' * indentation * 4}{yellow('Calling:')} {function_name}")
         indentation += 1
         res = f(*args, **kwargs)
         indentation -= 1
-        print(f'{" " * indentation * 4}{ANSI("BLUE", "Returning from:")} {function_name}')
+        print(f"{' ' * indentation * 4}{blue('Returning from:')} {function_name}")
         return res
 
     return wrapped
 
 
 def log_indentation(str):
-    str = str.replace("\n", f'\n{" " * indentation * 4}')
-    print(f'{" " * indentation * 4}{str}')
+    str = str.replace("\n", f"\n{' ' * indentation * 4}")
+    print(f"{' ' * indentation * 4}{str}")
 
 
 BASE = "\033["
@@ -51,7 +51,50 @@ def ANSI(code, str):
         return str
 
     return f"{CODE[code]}{str}{RST}"
-    # return f"{str}"
+
+
+def black(str):
+    return ANSI("BLACK", str)
+
+
+def red(str):
+    return ANSI("RED", str)
+
+
+def green(str):
+    return ANSI("GREEN", str)
+
+
+def yellow(str):
+    return ANSI("YELLOW", str)
+
+
+def blue(str):
+    return ANSI("BLUE", str)
+
+
+def magenta(str):
+    return ANSI("MAGENTA", str)
+
+
+def cyan(str):
+    return ANSI("CYAN", str)
+
+
+def white(str):
+    return ANSI("WHITE", str)
+
+
+def bold(str):
+    return ANSI("BOLD", str)
+
+
+def italic(str):
+    return ANSI("ITALIC", str)
+
+
+def underline(str):
+    return ANSI("UNDERLINE", str)
 
 
 def h1(str):

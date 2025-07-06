@@ -9,7 +9,7 @@ in a separate module though)."""
 from functools import reduce
 from copy import deepcopy
 
-from logger import log_indentation, ANSI
+from logger import log_indentation, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
 
 # UTILITIES
@@ -144,20 +144,19 @@ class Symbol:
         base = f"{self.alloct} {self.stype.name}"
 
         if type(self.stype) == FunctionType or type(self.stype) == LabelType:
-            base = f"{base} {ANSI('MAGENTA', f'{self.name}')}"
+            base = f"{base} {magenta(f'{self.name}')}"
         elif self.alloct != "reg":
-            base = f"{base} {ANSI('GREEN', f'{self.name}')}"
+            base = f"{base} {green(f'{self.name}')}"
         else:
-            # base = f"{base} {self.name}{self.value if type(self.value) == str else ''}"
-            base = f"{base} {ANSI('RED', f'{self.name}')}"
+            base = f"{base} {red(f'{self.name}')}"
         if self.allocinfo is not None:
-            base = f"{base} {{{ANSI('YELLOW', ANSI('ITALIC', f'{self.allocinfo}'))}}}"
+            base = f"{base} {{{yellow(italic(f'{self.allocinfo}'))}}}"
         return base
 
 
 class SymbolTable(list):
     def find(self, node, name):
-        log_indentation(ANSI("UNDERLINE", f'Looking up {name}'))
+        log_indentation(underline(f"Looking up {name}"))
         for s in self:
             if s.alloct == "param":
                 # for parameters it's not enough to check the name, also
@@ -178,7 +177,7 @@ class SymbolTable(list):
         raise RuntimeError(f"Looking up for symbol {name} in function {node.current_function} failed!")
 
     def __repr__(self):
-        res = f"{ANSI('CYAN', 'SymbolTable')} " + '{\n'
+        res = f"{cyan('SymbolTable')} " + '{\n'
         for symbol in self:
             res += f"\t{symbol}\n"
         res += "}"
@@ -219,7 +218,7 @@ class IRNode:  # abstract
 
         attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol'} & set(dir(self))
 
-        res = f"{ANSI('CYAN', f'{self.type()}')}, {id(self)}" + " {"
+        res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
             # res += f"\nparent: {id(self.parent)};\n"
             res += "\n"
@@ -228,7 +227,7 @@ class IRNode:  # abstract
             # a missing parent is not a bug only for the root node, but at this
             # level of abstraction there is no way to distinguish between the root
             # node and a node with a missing parent
-            res += ANSI("RED", " MISSING PARENT\n")
+            res += red(" MISSING PARENT\n")
 
         res = f"{label}{res}"
 
@@ -251,7 +250,7 @@ class IRNode:  # abstract
                 rep = f"{rep[0]}\n{reps}"
             else:
                 rep = f"{rep[0]}"
-            res += f"{' ' * 4}{ANSI('CYAN', f'{attr}')} {ANSI('BOLD', '->')} {rep}\n"
+            res += f"{' ' * 4}{cyan(f'{attr}')} {bold('->')} {rep}\n"
 
         res += "}"
         return res
@@ -264,7 +263,7 @@ class IRNode:  # abstract
 
         if 'children' in dir(self) and len(self.children):
             if not quiet:
-                log_indentation(f'Navigating to {ANSI("CYAN", len(self.children))} children of {ANSI("CYAN", self.type())}, {id(self)}')
+                log_indentation(f"Navigating to {cyan(len(self.children))} children of {cyan(self.type())}, {id(self)}")
             for node in self.children:
                 try:
                     logger.indentation += 1
@@ -276,7 +275,7 @@ class IRNode:  # abstract
         for attr in attrs:
             try:
                 if not quiet:
-                    log_indentation(f'Navigating to attribute {ANSI("CYAN", attr)} of {ANSI("CYAN", self.type())}, {id(self)}')
+                    log_indentation(f"Navigating to attribute {cyan(attr)} of {cyan(self.type())}, {id(self)}")
                 logger.indentation += 1
                 node = getattr(self, attr)
                 node.navigate(action, *args, quiet=quiet)
@@ -284,7 +283,7 @@ class IRNode:  # abstract
             except AttributeError:
                 logger.indentation -= 1
         if not quiet:
-            log_indentation(f'Navigating to {ANSI("CYAN", self.type())}, {id(self)}')
+            log_indentation(f"Navigating to {cyan(self.type())}, {id(self)}")
 
         # XXX: shitty solution
         try:
@@ -390,7 +389,7 @@ class IRNode:  # abstract
 
 class Const(IRNode):
     def __init__(self, parent=None, value=0, symb=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New Const Node (id: {id(self)})'))
+        log_indentation(bold(f"New Const Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
         self.value = value
         self.symbol = symb
@@ -409,7 +408,7 @@ class Var(IRNode):
     """loads in a temporary the value pointed to by the symbol"""
 
     def __init__(self, parent=None, var=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New Var Node (id: {id(self)})'))
+        log_indentation(bold(f"New Var Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
         self.symbol = var
 
@@ -430,7 +429,7 @@ class ArrayElement(IRNode):
     def __init__(self, parent=None, var=None, offset=None, symtab=None):
         """offset can NOT be a list of exps in case of multi-d arrays; it should
         have already been flattened beforehand"""
-        log_indentation(ANSI("BOLD", f'New ArrayElement Node (id: {id(self)})'))
+        log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
         super().__init__(parent, [offset], symtab)
         self.symbol = var
         self.offset = offset
@@ -475,7 +474,7 @@ class Expr(IRNode):  # abstract
 
 class BinExpr(Expr):
     def __init__(self, parent=None, children=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New BinExpr Node (id: {id(self)})'))
+        log_indentation(bold(f"New BinExpr Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
 
     def get_operands(self):
@@ -500,7 +499,7 @@ class BinExpr(Expr):
 
 class UnExpr(Expr):
     def __init__(self, parent=None, children=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New UnExpr Node (id: {id(self)})'))
+        log_indentation(bold(f"New UnExpr Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
 
     def get_operand(self):
@@ -516,7 +515,7 @@ class UnExpr(Expr):
 
 class CallExpr(Expr):
     def __init__(self, parent=None, function_symbol=None, parameters=[], symtab=None):
-        log_indentation(ANSI("BOLD", f'New CallExpr Node (id: {id(self)})'))
+        log_indentation(bold(f"New CallExpr Node (id: {id(self)})"))
         super().__init__(parent, parameters, symtab)
         self.function_symbol = function_symbol
 
@@ -586,7 +585,7 @@ class SaveSpaceStat(Stat):  # low-level node
         not matter for datalayout"""
 
     def __init__(self, parent=None, space_needed=0, symtab=None):
-        log_indentation(ANSI("BOLD", f'New SaveSpaceStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New SaveSpaceStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.space_needed = space_needed
 
@@ -604,7 +603,7 @@ class CallStat(Stat):
     """Procedure call"""
 
     def __init__(self, parent=None, call_expr=None, function_symbol=None, returns=[], symtab=None):
-        log_indentation(ANSI("BOLD", f'New CallStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New CallStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.call = call_expr
         self.call.parent = self
@@ -645,7 +644,7 @@ class CallStat(Stat):
 
 class IfStat(Stat):
     def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elsepart=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New IfStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New IfStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.thenpart = thenpart
@@ -702,7 +701,7 @@ class IfStat(Stat):
 
 class WhileStat(Stat):
     def __init__(self, parent=None, cond=None, body=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New WhileStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New WhileStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.body = body
@@ -723,7 +722,7 @@ class WhileStat(Stat):
 
 class ForStat(Stat):
     def __init__(self, parent=None, init=None, cond=None, step=None, body=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New ForStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New ForStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.init = init
         self.cond = cond
@@ -778,7 +777,7 @@ class ForStat(Stat):
 
 class AssignStat(Stat):
     def __init__(self, parent=None, target=None, offset=None, expr=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New AssignStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.symbol = target
 
@@ -840,7 +839,7 @@ class AssignStat(Stat):
 
 class PrintStat(Stat):
     def __init__(self, parent=None, exp=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New PrintStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New PrintStat Node (id: {id(self)})"))
         super().__init__(parent, [exp], symtab)
         self.expr = exp
 
@@ -855,7 +854,7 @@ class PrintStat(Stat):
 
 class PrintCommand(Stat):  # low-level node
     def __init__(self, parent=None, src=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New PrintCommand Node (id: {id(self)})'))
+        log_indentation(bold(f"New PrintCommand Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.src = src
         if src.alloct != 'reg':
@@ -865,12 +864,12 @@ class PrintCommand(Stat):  # low-level node
         return [self.src]
 
     def human_repr(self):
-        return f"{ANSI('BLUE', 'print')} {self.src}"
+        return f"{blue('print')} {self.src}"
 
 
 class ReadStat(Stat):
     def __init__(self, parent=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New ReadStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New ReadStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
 
     def lower(self):
@@ -882,7 +881,7 @@ class ReadStat(Stat):
 
 class ReadCommand(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New ReadCommand Node (id: {id(self)})'))
+        log_indentation(bold(f"New ReadCommand Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.dest = dest
         if dest.alloct != 'reg':
@@ -898,12 +897,12 @@ class ReadCommand(Stat):  # low-level node
         return [self.dest]
 
     def human_repr(self):
-        return f"{ANSI('BLUE', 'read')} {self.dest}"
+        return f"{blue('read')} {self.dest}"
 
 
 class ReturnStat(Stat):
     def __init__(self, parent=None, children=[], symtab=None):
-        log_indentation(ANSI("BOLD", f'New ReturnStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New ReturnStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
         for child in self.children:
             child.parent = self
@@ -936,7 +935,7 @@ class BranchStat(Stat):  # low-level node
         otherwise the branch is taken when cond is true.
         If is_call is True, this is a branch-and-link instruction.
         If target is None, the branch is a return and the 'target' is computed at runtime"""
-        log_indentation(ANSI("BOLD", f'New BranchStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New BranchStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.negcond = negcond
@@ -976,7 +975,7 @@ class EmptyStat(Stat):  # low-level node
 
     def __repr__(self):
         if self.get_label() != '':
-            return ANSI('MAGENTA', f"{self.get_label().name}: ")
+            return magenta(f"{self.get_label().name}: ")
         return 'empty statement'
 
     def used_variables(self):
@@ -993,7 +992,7 @@ class LoadPtrToSym(Stat):  # low-level node
         """Loads to the 'dest' symbol the location in memory (as an absolute
         address) of 'symbol'. This instruction is used as a starting point for
         lowering nodes which need any kind of pointer arithmetic."""
-        log_indentation(ANSI("BOLD", f'New LoadPtrToSym Node (id: {id(self)})'))
+        log_indentation(bold(f"New LoadPtrToSym Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         self.dest = dest
@@ -1012,7 +1011,7 @@ class LoadPtrToSym(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        return f"{self.dest} {ANSI('BOLD', '<-')} &({self.symbol})"
+        return f"{self.dest} {bold('<-')} &({self.symbol})"
 
 
 class StoreStat(Stat):  # low-level node
@@ -1023,7 +1022,7 @@ class StoreStat(Stat):  # low-level node
         the second case the dest symbol is used as a pointer to an arbitrary
         location in memory.
         Special cases for parameters and returns defined in the codegen"""
-        log_indentation(ANSI("BOLD", f'New StoreStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New StoreStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         if self.symbol.alloct != 'reg':
@@ -1050,8 +1049,8 @@ class StoreStat(Stat):  # low-level node
 
     def human_repr(self):
         if self.dest.alloct == 'reg' and self.symbol.alloct != 'reg':
-            return f"[{self.dest}] {ANSI('BOLD', '<-')} {self.symbol}"
-        return f"{self.dest} {ANSI('BOLD', '<-')} {self.symbol}"
+            return f"[{self.dest}] {bold('<-')} {self.symbol}"
+        return f"{self.dest} {bold('<-')} {self.symbol}"
 
 
 class LoadStat(Stat):  # low-level node
@@ -1061,7 +1060,7 @@ class LoadStat(Stat):  # low-level node
         register). In the first case, the value contained in the symbol itself is
         loaded; in the second case the symbol is used as a pointer to an arbitrary
         location in memory."""
-        log_indentation(ANSI("BOLD", f'New LoadStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New LoadStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         self.dest = dest
@@ -1082,14 +1081,14 @@ class LoadStat(Stat):  # low-level node
 
     def human_repr(self):
         if self.symbol.alloct == 'reg' and self.dest.alloct != 'reg':
-            return f"{self.dest} {ANSI('BOLD', '<-')} [{self.symbol}]"
+            return f"{self.dest} {bold('<-')} [{self.symbol}]"
         else:
-            return f"{self.dest} {ANSI('BOLD', '<-')} {self.symbol}"
+            return f"{self.dest} {bold('<-')} {self.symbol}"
 
 
 class LoadImmStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, val=0, symtab=None):
-        log_indentation(ANSI("BOLD", f'New LoadImmStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New LoadImmStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.val = val
         self.dest = dest
@@ -1106,12 +1105,12 @@ class LoadImmStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        return f"{self.dest} {ANSI('BOLD', '<-')} {self.val}"
+        return f"{self.dest} {bold('<-')} {self.val}"
 
 
 class BinStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, op=None, srca=None, srcb=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New BinStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New BinStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.dest = dest  # symbol
         self.op = op
@@ -1132,12 +1131,12 @@ class BinStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        return f"{self.dest} {ANSI('BOLD', '<-')} {self.srca} {ANSI('BOLD', f'{self.op}')} {self.srcb}"
+        return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.op}')} {self.srcb}"
 
 
 class UnaryStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, op=None, src=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New UnaryStat Node (id: {id(self)})'))
+        log_indentation(bold(f"New UnaryStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.dest = dest
         self.op = op
@@ -1157,17 +1156,17 @@ class UnaryStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        return f"{self.dest} {ANSI('BOLD', '<-')} {ANSI('BOLD', f'{self.op}')} {self.src}"
+        return f"{self.dest} {bold('<-')} {bold(f'{self.op}')} {self.src}"
 
 
 class StatList(Stat):  # low-level node
     def __init__(self, parent=None, children=None, symtab=None):
-        log_indentation(ANSI("BOLD", f'New StatList Node (id: {id(self)})'))
+        log_indentation(bold(f"New StatList Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
 
     def append(self, elem):
         elem.parent = self
-        log_indentation(f'Appending statement {id(elem)} of type {elem.type()} to StatList {id(self)}')
+        log_indentation(f"Appending statement {id(elem)} of type {elem.type()} to StatList {id(self)}")
         self.children.append(elem)
 
     def used_variables(self):
@@ -1177,16 +1176,16 @@ class StatList(Stat):  # low-level node
         return u
 
     def get_content(self):
-        content = f'Recap StatList {id(self)}: [\n'
+        content = f"Recap StatList {id(self)}: [\n"
         for n in self.children:
             content += f"{' ' * 4}{n.type()}, {id(n)};\n"
-        content += ']'
+        content += "]"
         return content
 
     def flatten(self):
         """Remove nested StatLists"""
         if type(self.parent) == StatList:
-            log_indentation(ANSI("GREEN", f'Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}'))
+            log_indentation(green(f"Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}"))
             if self.get_label():
                 emptystat = EmptyStat(self, symtab=self.symtab)
                 self.children.insert(0, emptystat)
@@ -1196,7 +1195,7 @@ class StatList(Stat):  # low-level node
             i = self.parent.children.index(self)
             self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
         else:
-            log_indentation(f'{ANSI("RED", "NOT")} flattening {ANSI("CYAN", f"{self.type()}")}, {id(self)} into parent {ANSI("CYAN", f"{self.parent.type()}")}, {id(self.parent)}')
+            log_indentation(f"{red('NOT')} flattening {cyan(f'{self.type()}')}, {id(self)} into parent {cyan(f'{self.parent.type()}')}, {id(self.parent)}")
 
     def destination(self):
         for i in range(-1, -len(self.children) - 1, -1):
@@ -1209,7 +1208,7 @@ class StatList(Stat):  # low-level node
 
 class Block(Stat):  # low-level node
     def __init__(self, parent=None, gl_sym=None, lc_sym=None, defs=None, body=None):
-        log_indentation(ANSI("BOLD", f'New Block Node (id: {id(self)})'))
+        log_indentation(bold(f"New Block Node (id: {id(self)})"))
         super().__init__(parent, [], lc_sym)
         self.global_symtab = gl_sym
         self.body = body
@@ -1225,7 +1224,7 @@ class Block(Stat):  # low-level node
 
 class Definition(IRNode):
     def __init__(self, parent=None, symbol=None):
-        log_indentation(ANSI("BOLD", f'New Definition Node (id: {id(self)})'))
+        log_indentation(bold(f"New Definition Node (id: {id(self)})"))
         super().__init__(parent, [], None)
         self.parent = parent
         self.symbol = symbol
@@ -1233,7 +1232,7 @@ class Definition(IRNode):
 
 class FunctionDef(Definition):
     def __init__(self, parent=None, symbol=None, parameters=[], body=None, returns=[]):
-        log_indentation(ANSI("BOLD", f'New Functions Definition Node (id: {id(self)})'))
+        log_indentation(bold(f"New Functions Definition Node (id: {id(self)})"))
         super().__init__(parent, symbol)
         self.body = body
         self.body.parent = self
@@ -1246,7 +1245,7 @@ class FunctionDef(Definition):
 
 class DefinitionList(IRNode):
     def __init__(self, parent=None, children=None):
-        log_indentation(ANSI("BOLD", f'New Definition List Node (id: {id(self)})'))
+        log_indentation(bold(f"New Definition List Node (id: {id(self)})"))
         super().__init__(parent, children, None)
 
     def append(self, elem):

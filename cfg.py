@@ -6,7 +6,7 @@ Includes cfg construction and liveness analysis."""
 from functools import reduce
 
 from ir import BranchStat, StatList, FunctionDef
-from logger import ANSI, remove_formatting
+from logger import remove_formatting, green, yellow, blue, cyan
 from support import get_node_list
 
 
@@ -58,17 +58,17 @@ class BasicBlock(object):
             self.gen.update(uses)
             self.kill |= kills
 
-        # Total number of registers needed
+        # total number of registers needed
         self.total_vars_used = len(self.gen.union(self.kill))
 
     def __repr__(self):
-        res = f"{ANSI('YELLOW', 'Basic Block')} {id(self)} " + "{\n"
+        res = f"{yellow('Basic Block')} {id(self)} " + "{\n"
         if self.next:
-            res += f"{' ' * 4}{ANSI('BLUE', 'Next:')} {id(self.next)},\n"
+            res += f"{' ' * 4}{blue('Next:')} {id(self.next)},\n"
         else:
-            res += f"{' ' * 4}{ANSI('BLUE', 'Next:')} {self.next},\n"
-        res += f"{' ' * 4}{ANSI('BLUE', 'Target:')} {self.target},\n"
-        res += f"{' ' * 4}{ANSI('BLUE', 'Instructions:')}\n"
+            res += f"{' ' * 4}{blue('Next:')} {self.next},\n"
+        res += f"{' ' * 4}{blue('Target:')} {self.target},\n"
+        res += f"{' ' * 4}{blue('Instructions:')}\n"
         for i in self.instrs:
             res += f"{' ' * 8}{i}\n"
 
@@ -272,18 +272,18 @@ class ControlFlowGraph(list):
     def print_liveness(self):
         for bb in self:
             print(bb)
-            print(f"{ANSI('YELLOW', 'Liveness Sets')}" + " {")
-            print(f"{' ' * 4}{ANSI('BLUE', 'Gen set:')} {bb.gen},")
-            print(f"{' ' * 4}{ANSI('BLUE', 'Kill set:')} {bb.kill},\n")
-            print(f"{' ' * 4}{ANSI('BLUE', 'Live in set:')} {bb.live_in},")
-            print(f"{' ' * 4}{ANSI('BLUE', 'Live out set:')} {bb.live_out}")
+            print(f"{yellow('Liveness Sets')}" + " {")
+            print(f"{' ' * 4}{blue('Gen set:')} {bb.gen},")
+            print(f"{' ' * 4}{blue('Kill set:')} {bb.kill},\n")
+            print(f"{' ' * 4}{blue('Live in set:')} {bb.live_in},")
+            print(f"{' ' * 4}{blue('Live out set:')} {bb.live_out}")
             print("}\n")
 
-            print(f"{ANSI('YELLOW', 'Instruction Liveness')}" + " {")
+            print(f"{yellow('Instruction Liveness')}" + " {")
             for i in bb.instrs:
-                print(f"{' ' * 4}{ANSI('BLUE', 'Instruction:')} '{i}' " + "{")
-                print(f"{' ' * 8}{ANSI('CYAN', 'Live in set:')} {i.live_in},")
-                print(f"{' ' * 8}{ANSI('CYAN', 'Live out set:')} {i.live_out}")
+                print(f"{' ' * 4}{blue('Instruction:')} '{i}' " + "{")
+                print(f"{' ' * 8}{cyan('Live in set:')} {i.live_in},")
+                print(f"{' ' * 8}{cyan('Live out set:')} {i.live_out}")
                 print(f"{' ' * 4}" + "}")
             print("}\n\n")
 
@@ -324,4 +324,4 @@ class ControlFlowGraph(list):
                 else:
                     raise RuntimeError(f"At least one path of the function '{function_definition.symbol.name}' doesn't end with a return, even if one is needed")
 
-        print(ANSI("GREEN", "All procedures that need to return parameters correctly return them\n"))
+        print(green("All procedures that need to return parameters correctly return them\n"))

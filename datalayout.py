@@ -5,7 +5,7 @@ is not a register, is allocated in the local stack frame (LocalSymbol) or in
 the data section of the executable (GlobalSymbol)."""
 
 from codegenhelp import CALL_OFFSET
-from logger import ANSI
+from logger import red, green, blue, cyan
 from ir import StoreStat
 
 
@@ -55,13 +55,13 @@ def perform_memory_to_register_promotion(root):
         if symbol.alloct not in ['auto', 'global'] and symbol.stype.size > 0:
             continue
 
-        print(f"{ANSI('BLUE', 'SYMBOL:')} {symbol}")
+        print(f"{blue('SYMBOL:')} {symbol}")
 
         if symbol.used_in_nested_procedure:
-            print(ANSI('RED', "Can't promote because the symbol is used in a nested procedure\n"))
+            print(red("Can't promote because the symbol is used in a nested procedure\n"))
             continue
 
-        print(ANSI('GREEN', "Promoted\n"))
+        print(green("Promoted\n"))
         to_promote.append(symbol)
 
     for symbol in to_promote:
@@ -122,7 +122,7 @@ def perform_data_layout_of_function(funcroot):
     funcroot.body.stackroom = -offs
 
     if current_function is not None:
-        print(f"{ANSI('CYAN', f'{current_function}')} {funcroot.body.symtab}")
+        print(f"{cyan(f'{current_function}')} {funcroot.body.symtab}")
 
     for defin in funcroot.body.defs.children:
         perform_data_layout_of_function(defin)
@@ -169,4 +169,4 @@ def perform_data_layout_of_program(root):
             name = f"_g_{var.name}"
             var.set_alloc_info(GlobalSymbolLayout(name, bsize))
 
-    print(f"{ANSI('CYAN', 'main')} {root.symtab}")
+    print(f"{cyan('main')} {root.symtab}")
