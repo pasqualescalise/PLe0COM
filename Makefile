@@ -1,68 +1,83 @@
-tests:= $(wildcard ./tests/*.pl0)
-tests_expected_directory := "./tests/expected"
-output_directory := "./tests/output"
-executables := $(wildcard ./out*)
+CC := arm-linux-gnueabi-gcc
+CFLAGS := -g -static -march=armv6 -z noexecstack
 
-all: compile test
+ASSEMBLY := out.s
+EXECUTABLE := out
+RUN_COMMAND := qemu-arm -cpu arm1136 
+
+TESTS_SRC_DIR:= "./tests"
+TESTS_EXP_DIR := "./tests/expected"
+TESTS_OUT_DIR := "./tests/output"
+
+CFG_DOT_FILE := cfg.dot
+CFG_PDF_FILE := cfg.pdf
+CFG_PNG_FILE := cfg.png
+
+all: compile execute
 
 compile:
-	python3 main.py $(test) out.s
+	python3 main.py $(test) $(ASSEMBLY)
+	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE)
+	if [ ! $$? -eq 0 ]; then\
+		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
+	fi;
 
-test:
-	echo "\nRUNNING\n";\
-	arm-linux-gnueabi-gcc out.s runtime.c -g -static -march=armv6 -o out;\
+execute:
+	printf "\n\e[36mRUNNING\e[0m\n\n";
 	if [ $(gdb) ]; then\
-		qemu-arm -cpu arm1136 -g 7777 out;\
+		$(RUN_COMMAND) -g 7777 $(EXECUTABLE);\
+	elif [ $(test) ]; then\
+		test_name=$$(basename "$(test)" .pl0);\
+		output_file=$(TESTS_OUT_DIR)/single_test.output;\
+		$(RUN_COMMAND) $(EXECUTABLE) > $$output_file;\
+		cat $$output_file;\
+		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file;\
 	else\
-		qemu-arm -cpu arm1136 out;\
+		$(RUN_COMMAND) $(EXECUTABLE);\
 	fi;
 
 testall:
-	output_directory="$(output_directory)";\
-	tests="$(tests)";\
-	tests_expected_directory="$(tests_expected_directory)";\
-	if [ ! -d $$output_directory ]; then\
-		mkdir $$output_directory;\
+	if [ ! -d $(TESTS_OUT_DIR) ]; then\
+		mkdir $(TESTS_OUT_DIR);\
 	else\
-		rm $$output_directory/*;\
-	fi;\
-	for test in $$tests; do\
-		output_file=$$output_directory/$$(basename "$$test" .pl0).output;\
-		$(MAKE) compile test="$$test" > /dev/null 2> $$output_file;\
+		rm -f $(TESTS_OUT_DIR)/*;\
+	fi;
+	for test_file in $(TESTS_SRC_DIR)/*.pl0; do\
+		test_name=$$(basename "$$test_file" .pl0);\
+		output_file=$(TESTS_OUT_DIR)/"$$test_name".output;\
+		$(MAKE) compile test="$$test_file" > /dev/null 2> $$output_file;\
 		return_value=$$(echo $$?);\
 		if [ "$$return_value" -eq "0" ]; then\
-			$(MAKE) test | sed -n -e "4,\$$p" > $$output_file;\
+			$(MAKE) execute | sed -n -e "4,\$$p" > $$output_file;\
 		else\
 			sed -i -e "\$$d" $$output_file;\
 			sed -n -i -e "\$$p" $$output_file;\
 		fi;\
-	done;\
-	for output in $$output_directory/*.output; do\
-		basename=$$(basename "$$output" .output);\
-		expected=$$tests_expected_directory/$$(basename "$$output" .output).expected;\
-		if [ ! -f $$expected ]; then\
-			printf "\e[31mExpected output does not exist for test $$basename\e[0m\n";\
-			continue;\
-		fi;\
-		if output=$$(diff -y -W 72 $$output $$expected); then\
-				printf "\e[32mTest $$basename passed!\e[0m\n";\
-		else\
-				printf "\e[31mTest $$basename not passed\e[0m\n";\
-		fi;\
+		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file;\
 	done;
 
+check_output:
+	expected_file=$(TESTS_EXP_DIR)/"$(test_name)".expected;\
+	if [ ! -f $$expected_file ]; then\
+		printf "\e[31mExpected output does not exist for test $(test_name)\e[0m\n";\
+	elif output=$$(diff -y -W 72 $(output_file) $$expected_file); then\
+		printf "\e[32mTest $(test_name) passed!\e[0m\n";\
+	else\
+		printf "\e[31mTest $(test_name) not passed\e[0m\n";\
+	fi;
+
 clean:
-	rm out.s out
+	rm $(ASSEMBLY) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
 
 gdb:
-	gdb-multiarch --eval-command="file out" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
+	gdb-multiarch --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
 
 showpdf:
-	dot -Tpdf cfg.dot -o cfg.pdf;\
-	zathura cfg.pdf &
+	dot -Tpdf $(CFG_DOT_FILE) -o $(CFG_PDF_FILE)
+	xdg-open $(CFG_PDF_FILE) &
 
 showpng:
-	dot -Tpng cfg.dot -o cfg.png;\
-	feh cfg.png &
+	dot -Tpng $(CFG_DOT_FILE) -o $(CFG_PNG_FILE)
+	xdg-open $(CFG_PNG_FILE) &
 
 .PHONY: compile test clean gdb showpdf showpng

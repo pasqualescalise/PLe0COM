@@ -4,10 +4,14 @@
 Assumes that all temporaries can be allocated to any register (because of this,
 it does not work with non integer types)."""
 
-from cfg import remove_non_regs
+from logger import ANSI
 
 # the register of all spilled temporaries is set to SPILL_FLAG
 SPILL_FLAG = 999
+
+
+def remove_non_regs(set):
+    return {var for var in set if var.alloct == 'reg'}
 
 
 class RegisterAllocation(object):
@@ -18,26 +22,26 @@ class RegisterAllocation(object):
     as late as possible, and spilled again as soon as possible. This class is
     responsible for filling these registers."""
 
-    def __init__(self, vartoreg, numspill, nregs):
-        self.vartoreg = vartoreg
-        self.numspill = numspill
+    def __init__(self, var_to_reg, num_spill, nregs):
+        self.var_to_reg = var_to_reg
+        self.num_spill = num_spill
         self.nregs = nregs
         self.vartospillframeoffset = dict()
         self.spillregi = 0
         self.spillframeoffseti = 0
 
     def update(self, otherra):
-        self.vartoreg.update(otherra.vartoreg)
-        self.numspill += otherra.numspill
+        self.var_to_reg.update(otherra.var_to_reg)
+        self.num_spill += otherra.num_spill
 
     def spill_room(self):
-        return self.numspill * 4
+        return self.num_spill * 4
 
     def dematerialize_spilled_var_if_necessary(self, var):
         """Resets the register used for a spill variable when we know that instance
         of the variable is now dead."""
-        if self.vartoreg[var] >= self.nregs - 2:
-            self.vartoreg[var] = SPILL_FLAG
+        if self.var_to_reg[var] >= self.nregs - 2:
+            self.var_to_reg[var] = SPILL_FLAG
 
     def materialize_spilled_var_if_necessary(self, var):
         """Decide which of the spill-reserved registers to fill with a spilled
@@ -52,14 +56,14 @@ class RegisterAllocation(object):
         works and it never needs any information about which registers are live
         at a given time."""
 
-        if self.vartoreg[var] != SPILL_FLAG:
+        if self.var_to_reg[var] != SPILL_FLAG:
             # already allocated and filled! nothing to do
-            if self.vartoreg[var] >= self.nregs - 2:
+            if self.var_to_reg[var] >= self.nregs - 2:
                 return True
             return False
 
         # decide the register
-        self.vartoreg[var] = self.spillregi + self.nregs - 2
+        self.var_to_reg[var] = self.spillregi + self.nregs - 2
         self.spillregi = (self.spillregi + 1) % 2
 
         # decide the location in the current frame
@@ -69,9 +73,20 @@ class RegisterAllocation(object):
         return True
 
     def __repr__(self):
-        res = 'Register Allocation for variables:\n'
-        for i in self.vartoreg:
-            res += '\t' + repr(i) + ': ' + repr(self.vartoreg[i]) + '\n'
+        variables_name_len = list(map(len, map(str, self.var_to_reg.keys())))
+        max_len = max(variables_name_len)
+        indentation = list(map(lambda x: max_len - x, variables_name_len))
+
+        res = ANSI("YELLOW", "Register Allocation for variables")
+        res += " [\n"
+
+        i = 0
+        for var in self.var_to_reg:
+            res += f"\t{var}: {' ' * indentation[i]}{' ' * self.var_to_reg[var] * 2}{ANSI('CYAN', f'{self.var_to_reg[var]}')}\n"
+            i += 1
+
+        res += "]\n"
+
         return res
 
 
@@ -85,13 +100,13 @@ class LinearScanRegisterAllocator(object):
 
         # liveness of a variable on entry to each instruction
         # in order of start point
-        self.varliveness = []  # {var=var, liveness=[indexes]}
+        self.var_liveness = []  # {var=var, liveness=[indexes]}
         # list of all variables
-        self.allvars = []
-        self.vartoreg = {}
+        self.all_variables = []
+        self.var_to_reg = {}
 
     def compute_liveness_intervals(self):
-        """computes liveness intervals for the whole program. Note that the CFG
+        """Computes liveness intervals for the whole program. Note that the CFG
         is flattened: this is the reason why the linear scan register allocation
         algorithm does not handle liveness holes properly"""
         inst_index = 0
@@ -99,36 +114,38 @@ class LinearScanRegisterAllocator(object):
         max_use = {}
         vars = set()
 
+        # get the index of the instruction when a variable is generated and when it is killed
         for bb in self.cfg:
-            for i in bb.instrs:
-                live_out = remove_non_regs(i.live_out)
-                live_in = remove_non_regs(i.live_in)
+            for instr in bb.instrs:
+                live_out = remove_non_regs(instr.live_out)
+                live_in = remove_non_regs(instr.live_in)
 
-                for var in live_out:
-                    if var not in min_gen:
-                        min_gen[var] = inst_index
-                        max_use[var] = inst_index
-                for var in live_in:
-                    max_use[var] = inst_index
+                for out_var in live_out:
+                    if out_var not in min_gen:
+                        min_gen[out_var] = inst_index
+                        max_use[out_var] = inst_index
+
+                for in_var in live_in:
+                    max_use[in_var] = inst_index
 
                 vars |= live_out | live_in
 
                 inst_index += 1
 
-        for v in vars:
-            gen = min_gen[v]
-            kill = max_use[v]
-            self.varliveness.insert(0, {"var": v, "interv": range(gen, kill)})
+        for var in vars:
+            gen = min_gen[var]
+            kill = max_use[var]
+            self.var_liveness.insert(0, {"var": var, "interval": range(gen, kill)})
 
         try:
-            self.varliveness.sort(key=lambda x: x['interv'][0])
+            self.var_liveness.sort(key=lambda x: x['interval'][0])
         except IndexError:
-            # XXX: added myself
-            for i in self.varliveness:
-                if i['interv'].start == i['interv'].stop:
-                    raise RuntimeError("Variable " + i['var'].name + " is only used at instruction " + repr(i['interv'].start) + "; it may be useless or there may be another mistake earlier during compilation")
+            # XXX: better error message, this is an important compilation error to tell the user
+            for i in self.var_liveness:
+                if i['interval'].start == i['interval'].stop:
+                    raise RuntimeError(f"Variable {i['var'].name} is only used at instruction {i['interval'].start}; it may be useless or there may be another mistake earlier during compilation")
 
-        self.allvars = list(vars)
+        self.all_variables = list(vars)
 
     def __call__(self):
         """Linear-scan register allocation (a variant of the more general
@@ -137,47 +154,61 @@ class LinearScanRegisterAllocator(object):
         self.compute_liveness_intervals()
 
         live = []
-        freeregs = set(range(0, self.nregs - 2))  # -2 for spill room
-        numspill = 0
+        free_regs = set(range(0, self.nregs - 2))  # -2 for spill room
+        num_spill = 0
 
-        for livei in self.varliveness:
-            start = livei["interv"][0]
+        for live_interval in self.var_liveness:
+            start = live_interval["interval"][0]
 
             # expire old intervals
             i = 0
             while i < len(live):
-                notlivecandidate = live[i]
-                if notlivecandidate["interv"][-1] < start:
+                not_live_candidate = live[i]
+                if not_live_candidate["interval"][-1] < start:
                     live.pop(i)
-                    freeregs.add(self.vartoreg[notlivecandidate["var"]])
+                    free_regs.add(self.var_to_reg[not_live_candidate["var"]])
                 i += 1
 
-            if len(freeregs) == 0:
-                tospill = live[-1]
+            if len(free_regs) == 0:
+                to_spill = live[-1]
                 # keep the longest interval
-                if tospill["interv"][-1] > livei["interv"][-1]:
-                    # we have to spill "tospill"
-                    self.vartoreg[livei["var"]] = self.vartoreg[tospill["var"]]
-                    self.vartoreg[tospill["var"]] = SPILL_FLAG
+                if to_spill["interval"][-1] > live_interval["interval"][-1]:
+                    # actually spill
+                    self.var_to_reg[live_interval["var"]] = self.var_to_reg[to_spill["var"]]
+                    self.var_to_reg[to_spill["var"]] = SPILL_FLAG
                     live.pop(-1)  # remove spill from active
-                    live.append(livei)  # add i to active
+                    live.append(live_interval)  # add i to active
                 else:
-                    self.vartoreg[livei["var"]] = SPILL_FLAG
-                numspill += 1
+                    self.var_to_reg[live_interval["var"]] = SPILL_FLAG
+                num_spill += 1
 
             else:
-                self.vartoreg[livei["var"]] = freeregs.pop()
-                live.append(livei)
+                self.var_to_reg[live_interval["var"]] = free_regs.pop()
+                live.append(live_interval)
 
             # sort the active intervals by increasing end point
-            live.sort(key=lambda li: li['interv'][-1])
+            live.sort(key=lambda li: li['interval'][-1])
 
-        return RegisterAllocation(self.vartoreg, numspill, self.nregs)
+        return RegisterAllocation(self.var_to_reg, num_spill, self.nregs)
 
-    def __repr__(self):
-        res = 'Liveness intervals:\n'
+    def get_liveness_intervals(self):
+        res = ANSI("YELLOW", "Liveness intervals")
+        res += " [\n"
 
-        for i in self.varliveness:
-            res += '\t' + repr(i['var']) + ' is live in the interval (' + repr(i['interv'].start) + ', ' + repr(i['interv'].stop) + ')\n'
+        variables_name_len = list(map(len, map(str, map(lambda v: v['var'], self.var_liveness))))
+        max_len = max(variables_name_len)
+        indentation = list(map(lambda x: max_len - x, variables_name_len))
+
+        i = 0
+        for interval in self.var_liveness:
+            var = interval['var']
+            start = interval['interval'].start
+            stop = interval['interval'].stop
+
+            # res += f"{' ' * 4}Variable {ANSI('GREEN', f'{var}')} is {ANSI('BOLD', 'live')} in the instruction interval {ANSI('CYAN', f'({start} - {stop})')},\n"
+            res += f"{' ' * 4}Variable {ANSI('GREEN', f'{var}')} is {ANSI('BOLD', 'live')} in the instruction interval {' ' * indentation[i]}{ANSI('CYAN', f'({start} - {stop})')},\n"
+            i += 1
+
+        res += "]\n"
 
         return res

@@ -3,6 +3,7 @@
 """Helper functions used by the code generator"""
 
 from regalloc import RegisterAllocation
+from logger import ANSI
 
 REG_FP = 11
 REG_SCRATCH = 12
@@ -20,16 +21,17 @@ CALL_OFFSET = (len(REGS_CALLEESAVE) + len(REGS_CALLERSAVE) + 2) * 4
 
 def get_register_string(regid):
     if regid == REG_LR:
-        return 'lr'
-    if regid == REG_SP:
-        return 'sp'
-    return 'r' + repr(regid)
+        return ANSI("BOLD", "lr")
+    elif regid == REG_SP:
+        return ANSI("BOLD", "sp")
+    return ANSI("BOLD", f"r{regid}")
 
 
 def save_regs(reglist):
     if len(reglist) == 0:
         return ''
-    res = '\tpush {'
+
+    res = f"{' ' * 4}{ANSI('CYAN', 'push')} " + "{"
     for i in range(0, len(reglist)):
         if i > 0:
             res += ', '
@@ -41,7 +43,8 @@ def save_regs(reglist):
 def restore_regs(reglist):
     if len(reglist) == 0:
         return ''
-    res = '\tpop {'
+
+    res = f"{' ' * 4}{ANSI('CYAN', 'pop')} " + "{"
     for i in range(0, len(reglist)):
         if i > 0:
             res += ', '
@@ -51,7 +54,7 @@ def restore_regs(reglist):
 
 
 def comment(cont):
-    return '@ ' + cont + '\n'
+    return ANSI("BLACK", f"@ {cont}\n")
 
 
 def codegen_append(vec, code):
@@ -68,7 +71,7 @@ def check_if_variable_needs_static_link(node, symbol):
     real_offset = static_link_analysis(node, symbol)
 
     if real_offset > 0:
-        return '\tadd ' + get_register_string(REG_SCRATCH) + ', ' + get_register_string(REG_FP) + ', #' + str(real_offset) + '\n'
+        return f"{' ' * 4}{ANSI('YELLOW', 'add')} {get_register_string(REG_SCRATCH)}, {get_register_string(REG_FP)}, #{ANSI('ITALIC', f'{real_offset}')}\n"
 
 
 # if a nested function uses a variable of its (grand)parent, its offset will be wrong because
@@ -77,6 +80,7 @@ def check_if_variable_needs_static_link(node, symbol):
 def static_link_analysis(node, symbol):
     function_definition = node.get_function()
 
+    # TODO: there has to be a better way instead of using startswith
     if symbol.allocinfo.symname.startswith("_l_") and symbol.fname != function_definition.symbol.name:
         return get_static_link_offset(function_definition, symbol.fname, 0)
 
@@ -109,7 +113,6 @@ def get_static_link_offset(node, function_name, offset):
 
 
 def enter_function_body(self, block):
-    self.curfun = block
     self.spillvarloc = dict()
     self.spillvarloctop = -block.stackroom
 
@@ -119,16 +122,17 @@ def gen_spill_load_if_necessary(self, var):
     if not self.materialize_spilled_var_if_necessary(var):
         # not a spilled variable
         return ''
+
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
-    res = '\tldr ' + rd + ', [' + get_register_string(REG_FP) + ', #' + repr(offs) + ']'
-    res += '\t' + comment('<<- fill')
+    res = f"{' ' * 4}{ANSI('BLUE', 'ldr')} {rd}, [{get_register_string(REG_FP)}, #{ANSI('ITALIC', f'{offs}')}]"
+    res += f"{' ' * 4}{comment('<- fill')}"
     return res
 
 
 def get_register_for_variable(self, var):
     self.materialize_spilled_var_if_necessary(var)
-    res = get_register_string(self.vartoreg[var])
+    res = get_register_string(self.var_to_reg[var])
     return res
 
 
@@ -136,10 +140,11 @@ def gen_spill_store_if_necessary(self, var):
     if not self.materialize_spilled_var_if_necessary(var):
         # not a spilled variable
         return ''
+
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
-    res = '\tstr ' + rd + ', [' + get_register_string(REG_FP) + ', #' + repr(offs) + ']'
-    res += '\t' + comment('<<- spill')
+    res = f"{' ' * 4}{ANSI('BLUE', 'str')} {rd}, [{get_register_string(REG_FP)}, #{ANSI('ITALIC', f'{offs}')}]"
+    res += f"{' ' * 4}{comment('<- spill')}"
     self.dematerialize_spilled_var_if_necessary(var)
     return res
 

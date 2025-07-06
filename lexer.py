@@ -102,62 +102,7 @@ class Lexer:
             try:
                 t = self.text[self.pos]
             except Exception:
-                t = 'end of file'  # at end of file this will fail because self.pos >= len(self.text)
+                yield 'end of file', 'EOF'
+                break
             yield 'illegal', t
             break
-
-
-# Test support
-__test_program = '''VAR x, y, squ;
-VAR arr[5]: char;
-var multid[5][5]: short;
-
-{This is a comment. You can write anything you want in a comment}
-
-PROCEDURE square;
-VAR test;
-BEGIN
-   test := 1234;
-   squ := x * x
-END;
-
-BEGIN
-   x := -1;
-
-   read x;
-   if x > 100 then begin
-      print -x
-   end else begin
-      print x
-   end;
-
-   x := 1;
-   WHILE x <= 10 DO
-   BEGIN
-      CALL square;
-      x:=x+1;
-      !squ
-   END;
-
-   x := 101;
-   while x <= 105 do begin
-    arr[x-100] := x;
-    !arr[x-100];
-    x := x + 1
-   end;
-
-   x := 1;
-   y := 1;
-   while x <= 5 do begin
-    while y <= 5 do begin
-      multid[x][y] := arr[x];
-      !multid[x][y];
-      x := x + 1;
-      y := y + 1
-    end
-  end
-END.'''
-
-if __name__ == '__main__':
-    for t, w in Lexer(__test_program).tokens():
-        print(t, w)

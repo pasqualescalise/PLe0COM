@@ -12,48 +12,49 @@ is used for adding constant literals."""
 from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, check_if_variable_needs_static_link
 from datalayout import LocalSymbolLayout
 from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat
+from logger import ANSI
 
 localconsti = 0
 
 
 def new_local_const_label():
     global localconsti
-    lab = '.const' + repr(localconsti)
+    const_label = ANSI('GREEN', f".const{localconsti}")
     localconsti += 1
-    return lab
+    return const_label
 
 
 def new_local_const(val):
-    lab = new_local_const_label()
-    trail = lab + ':\n\t.word ' + val + '\n'
-    return lab, trail
+    label = new_local_const_label()
+    trail = f"{ANSI('MAGENTA', f'{label}')}:\n{' ' * 4}.word {val}\n"
+    return label, trail
 
 
 def symbol_codegen(self, regalloc):
     if self.allocinfo is None:
         return ""
     if not isinstance(self.allocinfo, LocalSymbolLayout):
-        return '\t.comm ' + self.allocinfo.symname + ', ' + repr(self.allocinfo.bsize) + "\n"
+        return f"{' ' * 4}.comm {ANSI('GREEN', f'{self.allocinfo.symname}')}, {self.allocinfo.bsize}\n"
     else:
-        return '\t.equ ' + self.allocinfo.symname + ', ' + repr(self.allocinfo.fpreloff) + "\n"
+        return f"{' ' * 4}.equ {ANSI('GREEN', f'{self.allocinfo.symname}')}, {self.allocinfo.fpreloff}\n"
 
 
 Symbol.codegen = symbol_codegen
 
 
 def irnode_codegen(self, regalloc):
-    res = ['\t' + comment("IRnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
-    if 'children' in dir(self) and len(self.children):
+    res = [f"{' ' * 4}{comment(f'IRNode {self.type()}, {id(self)}')}", '']
+    if "children" in dir(self) and len(self.children):
         for node in self.children:
             try:
                 try:
-                    labl = node.get_label()
-                    res[0] += labl.name + ':\n'
+                    label = node.get_label()
+                    res[0] += ANSI("MAGENTA", f"{' ' * 2}{label.name}:\n")
                 except Exception:
                     pass
                 res = codegen_append(res, node.codegen(regalloc))
             except RuntimeError as e:
-                raise RuntimeError("Node " + repr(id(node)) + " did not generate any code; Error: " + repr(e))
+                raise RuntimeError(f"Node {node.type()}, {id(node)} did not generate any code; error: {e}")
     return res
 
 
@@ -61,18 +62,19 @@ IRNode.codegen = irnode_codegen
 
 
 def block_codegen(self, regalloc):
-    res = [comment('block'), '']
+    res = [f"{' ' * 4}{comment('block')}", '']
     for sym in self.symtab:
         res = codegen_append(res, sym.codegen(regalloc))
 
     if self.parent is None:
-        res[0] += '\t.global __pl0_start\n'
-        res[0] += "__pl0_start:\n"
+        res[0] += f"{' ' * 4}.global {ANSI('MAGENTA', '__pl0_start')}\n\n"
+        res[0] += ANSI("MAGENTA", "__pl0_start:\n")
 
+    # prelude
     res[0] += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += '\tmov ' + get_register_string(REG_FP) + ', ' + get_register_string(REG_SP) + '\n'
+    res[0] += f"{' ' * 4}{ANSI('BLUE', 'mov')} {get_register_string(REG_FP)}, {get_register_string(REG_SP)}\n"
     stacksp = self.stackroom + regalloc.spill_room()
-    res[0] += '\tsub ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + repr(stacksp) + '\n'
+    res[0] += f"{' ' * 4}{ANSI('YELLOW', 'sub')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{ANSI('ITALIC', f'{stacksp}')}\n"
 
     regalloc.enter_function_body(self)
     try:
@@ -81,13 +83,13 @@ def block_codegen(self, regalloc):
         pass
 
     last_statement_of_block = self.body.children[-1]
-    if (type(last_statement_of_block) == BranchStat and last_statement_of_block.target is None):
+    if type(last_statement_of_block) == BranchStat and last_statement_of_block.target is None:
         # optmization: if the last statement is a return this instructions are useless
         pass
     else:
-        res[0] += '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
+        res[0] += f"{' ' * 4}{ANSI('BLUE', 'mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n"
         res[0] += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-        res[0] += '\tbx lr\n'
+        res[0] += f"{' ' * 4}{ANSI('RED', 'bx')} {get_register_string(REG_LR)}\n"
 
     res[0] = res[0] + res[1]
     res[1] = ''
@@ -111,7 +113,7 @@ DefinitionList.codegen = deflist_codegen
 
 
 def fun_codegen(self, regalloc):
-    res = '\n' + self.symbol.name + ':\n'
+    res = ANSI("MAGENTA", f"\n{self.symbol.name}:\n")
     res += self.body.codegen(regalloc)
     return res
 
@@ -125,49 +127,51 @@ def binstat_codegen(self, regalloc):
     ra = regalloc.get_register_for_variable(self.srca)
     rb = regalloc.get_register_for_variable(self.srcb)
     rd = regalloc.get_register_for_variable(self.dest)
-    param = ra + ', ' + rb
+
+    param = f"{ra}, {rb}"
     if self.op == "plus":
-        res += '\tadd ' + rd + ', ' + param + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'add')} {rd}, {param}\n"
     elif self.op == "minus":
-        res += '\tsub ' + rd + ', ' + param + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'sub')} {rd}, {param}\n"
     elif self.op == "times":
-        res += '\tmul ' + rd + ', ' + param + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'mul')} {rd}, {param}\n"
     elif self.op == "slash":
-        res += '\tdiv ' + rd + ', ' + param + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'div')} {rd}, {param}\n"
     elif self.op == "shl":
-        res += '\tlsl ' + rd + ', ' + param + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'lsl')} {rd}, {param}\n"
     elif self.op == "shr":
-        res += '\tlsr ' + rd + ', ' + param + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'lsr')} {rd}, {param}\n"
     elif self.op == "mod":
-        res += '\tadd ' + rd + ', ' + param + '\n'
-        res += '\tsub ' + get_register_string(REG_SCRATCH) + ', ' + rb + ', #1\n'
-        res += '\tand ' + rd + ', ' + rd + ', ' + get_register_string(REG_SCRATCH) + '\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'add')} {rd}, {param}\n"
+        res += f"{' ' * 4}{ANSI('YELLOW', 'sub')} {get_register_string(REG_SCRATCH)}, {rb}, #{ANSI('ITALIC', '1')}\n"
+        res += f"{' ' * 4}{ANSI('YELLOW', 'and')} {rd}, {rd}, {get_register_string(REG_SCRATCH)}\n"
     elif self.op == "eql":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmoveq ' + rd + ', #1\n'
-        res += '\tmovne ' + rd + ', #0\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'cmp')} {param}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'moveq')} {rd}, #{ANSI('ITALIC', '1')}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movne')} {rd}, #{ANSI('ITALIC', '0')}\n"
     elif self.op == "neq":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmoveq ' + rd + ', #0\n'
-        res += '\tmovne ' + rd + ', #1\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'cmp')} {param}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'moveq')} {rd}, #{ANSI('ITALIC', '0')}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movne')} {rd}, #{ANSI('ITALIC', '1')}\n"
     elif self.op == "lss":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovlt ' + rd + ', #1\n'
-        res += '\tmovge ' + rd + ', #0\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'cmp')} {param}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movlt')} {rd}, #{ANSI('ITALIC', '1')}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movge')} {rd}, #{ANSI('ITALIC', '0')}\n"
     elif self.op == "leq":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovle ' + rd + ', #1\n'
-        res += '\tmovgt ' + rd + ', #0\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'cmp')} {param}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movle')} {rd}, #{ANSI('ITALIC', '1')}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movgt')} {rd}, #{ANSI('ITALIC', '0')}\n"
     elif self.op == "gtr":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovgt ' + rd + ', #1\n'
-        res += '\tmovle ' + rd + ', #0\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'cmp')} {param}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movgt')} {rd}, #{ANSI('ITALIC', '1')}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movle')} {rd}, #{ANSI('ITALIC', '0')}\n"
     elif self.op == "geq":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovge ' + rd + ', #1\n'
-        res += '\tmovlt ' + rd + ', #0\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'cmp')} {param}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movge')} {rd}, #{ANSI('ITALIC', '1')}\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'movlt')} {rd}, #{ANSI('ITALIC', '0')}\n"
     else:
-        raise RuntimeError("Operation " + repr(self.op) + " unexpected")
+        raise RuntimeError(f"Operation {self.op} unexpected")
+
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
@@ -177,9 +181,10 @@ BinStat.codegen = binstat_codegen
 def print_codegen(self, regalloc):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rp = regalloc.get_register_for_variable(self.src)
+
     res += save_regs(REGS_CALLERSAVE)
-    res += '\tmov ' + get_register_string(0) + ', ' + rp + '\n'
-    res += '\tbl __pl0_print\n'
+    res += f"{' ' * 4}{ANSI('BLUE', 'mov')} {get_register_string(0)}, {rp}\n"
+    res += f"{' ' * 4}{ANSI('RED', 'bl')} {ANSI('MAGENTA', '__pl0_print')}\n"
     res += restore_regs(REGS_CALLERSAVE)
     return res
 
@@ -192,14 +197,14 @@ def read_codegen(self, regalloc):
 
     # punch a hole in the saved registers if one of them is the destination
     # of this "instruction"
-    savedregs = list(REGS_CALLERSAVE)
-    if regalloc.vartoreg[self.dest] in savedregs:
-        savedregs.remove(regalloc.vartoreg[self.dest])
+    saved_regs = list(REGS_CALLERSAVE)
+    if regalloc.var_to_reg[self.dest] in saved_regs:
+        saved_regs.remove(regalloc.var_to_reg[self.dest])
 
-    res = save_regs(savedregs)
-    res += '\tbl __pl0_read\n'
-    res += '\tmov ' + rd + ', ' + get_register_string(0) + '\n'
-    res += restore_regs(savedregs)
+    res = save_regs(saved_regs)
+    res += f"{' ' * 4}{ANSI('RED', 'bl')} {ANSI('MAGENTA', '__pl0_read')}\n"
+    res += f"{' ' * 4}{ANSI('BLUE', 'mov')} {rd}, {get_register_string(0)}\n"
+    res += restore_regs(saved_regs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
 
@@ -209,55 +214,66 @@ ReadCommand.codegen = read_codegen
 
 def branch_codegen(self, regalloc):
     if self.target is None:
-        # the branch is a return
-        res = '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
+        # this branch is a return
+        res = f"{' ' * 4}{ANSI('BLUE', 'mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n"
         res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-        res += '\tbx lr\n'
+        res += f"{' ' * 4}{ANSI('RED', 'bx')} {get_register_string(REG_LR)}\n"
         return res
 
-    targetl = self.target.name
-    if not self.returns:
+    target_label = ANSI('MAGENTA', self.target.name)
+    if not self.is_call:
+        # just a branch
         if self.cond is None:
-            return '\tb ' + targetl + '\n'
+            return f"{' ' * 4}{ANSI('RED', 'b')} {target_label}\n"
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
-            res += '\ttst ' + rcond + ', ' + rcond + '\n'
-            return res + '\t' + ('beq' if self.negcond else 'bne') + ' ' + targetl + '\n'
+
+            res += f"{' ' * 4}{ANSI('RED', 'tst')} {rcond}, {rcond}\n"
+            op = ANSI("RED", "beq" if self.negcond else "bne")
+            res += f"{' ' * 4}{op} {target_label}\n"
+            return res
+
     else:
+        # this branch is a call
         if self.cond is None:
             res = save_regs(REGS_CALLERSAVE)
-            res += '\tbl ' + targetl + '\n'
+            res += f"{' ' * 4}{ANSI('RED', 'bl')} {target_label}\n"
             res += restore_regs(REGS_CALLERSAVE)
 
             # restore space left by the parameters
             if self.space_needed_for_parameters > 0:
-                res += '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed_for_parameters) + '\n'
+                res += f"{' ' * 4}{ANSI('YELLOW', 'add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{ANSI('ITALIC', f'{self.space_needed_for_parameters}')}\n"
 
             return res
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
-            res += '\ttst ' + rcond + ', ' + rcond + '\n'
-            res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
+
+            res += f"{' ' * 4}{ANSI('RED', 'tst')} {rcond}, {rcond}\n"
+
+            # TODO: test if this is correct
+            op = ANSI("RED", "beq" if self.negcond else "bne")
+            res += f"{' ' * 4}{op} {rcond}, 1f\n"
+
             res += save_regs(REGS_CALLERSAVE)
-            res += '\tbl ' + targetl + '\n'
+            res += f"{' ' * 4}{ANSI('RED', 'bl')} {target_label}\n"
             res += restore_regs(REGS_CALLERSAVE)
 
             # restore space left by the parameters
             if self.space_needed_for_parameters > 0:
-                res += '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed_for_parameters) + '\n'
+                res += f"{' ' * 4}{ANSI('YELLOW', 'add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{ANSI('ITALIC', f'{self.space_needed_for_parameters}')}\n"
 
+            # TODO: what does this mean?
             res += '1:'
             return res
-    return comment('impossible!')
 
 
 BranchStat.codegen = branch_codegen
 
 
 def emptystat_codegen(self, regalloc):
-    return '\t' + comment('Empty statement')
+    return f"{' ' * 4}{comment('Empty statement')}"
 
 
 EmptyStat.codegen = emptystat_codegen
@@ -267,17 +283,17 @@ def ldptrto_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
     res = ''
     trail = ''
-    ai = self.symbol.allocinfo
-    if type(ai) is LocalSymbolLayout:
-        off = ai.fpreloff
+
+    alloc_info = self.symbol.allocinfo
+    if type(alloc_info) is LocalSymbolLayout:
+        off = alloc_info.fpreloff
         if off > 0:
-            res = '\tadd ' + rd + ', ' + get_register_string(REG_FP) + ', #' + repr(off) + '\n'
+            res = f"{' ' * 4}{ANSI('YELLOW', 'add')} {rd}, {get_register_string(REG_FP)}, #{ANSI('ITALIC', f'{off}')}\n"
         else:
-            res = '\tsub ' + rd + ', ' + get_register_string(REG_FP) + ', #' + repr(-off) + '\n'
+            res = f"{' ' * 4}{ANSI('YELLOW', 'sub')} {rd}, {get_register_string(REG_FP)}, #{ANSI('ITALIC', f'{-off}')}\n"
     else:
-        lab, tmp = new_local_const(ai.symname)
-        trail += tmp
-        res = '\tldr ' + rd + ', ' + lab + '\n'
+        label, trail = new_local_const(alloc_info.symname)
+        res = f"{' ' * 4}{ANSI('BLUE', 'ldr')} {rd}, {label}\n"
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
@@ -287,35 +303,40 @@ LoadPtrToSym.codegen = ldptrto_codegen
 def storestat_codegen(self, regalloc):
     res = ''
     trail = ''
+
     if self.dest.alloct == 'param':
-        res += '\tpush {' + regalloc.get_register_for_variable(self.symbol) + '}\n'
+        res += f"{' ' * 4}{ANSI('CYAN', 'push')} {{{regalloc.get_register_for_variable(self.symbol)}}}\n"
         return [res, trail]
+
     elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg':
-        res += '\tmov ' + regalloc.get_register_for_variable(self.dest) + ', ' + regalloc.get_register_for_variable(self.symbol) + '\n'
+        res += f"{' ' * 4}{ANSI('BLUE', 'mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n"
         return [res, trail]
+
     elif self.dest.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.dest)
-        dest = '[' + regalloc.get_register_for_variable(self.dest) + ']'
+        dest = f"[{regalloc.get_register_for_variable(self.dest)}]"
+
     else:
-        ai = self.dest.allocinfo
-        if type(ai) is LocalSymbolLayout:
+        alloc_info = self.dest.allocinfo
+        if type(alloc_info) is LocalSymbolLayout:
             static_link = check_if_variable_needs_static_link(self, self.dest)
             if static_link:
                 res += static_link
                 # if the static link is necessary use the offset contained in the scratch register
-                dest = '[' + get_register_string(REG_SCRATCH) + ', #' + ai.symname + ']'
+                dest = f"[{get_register_string(REG_SCRATCH)}, #{ANSI('GREEN', f'{alloc_info.symname}')}]"
             else:
-                dest = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
+                dest = f"[{get_register_string(REG_FP)}, #{ANSI('GREEN', f'{alloc_info.symname}')}]"
+
         else:
-            lab, tmp = new_local_const(ai.symname)
-            trail += tmp
-            res += '\tldr ' + get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
-            dest = '[' + get_register_string(REG_SCRATCH) + ']'
+            label, trail = new_local_const(alloc_info.symname)
+            res = f"{' ' * 4}{ANSI('BLUE', 'ldr')} {get_register_string(REG_SCRATCH)}, {label}\n"
+            dest = f"[{get_register_string(REG_SCRATCH)}]"
 
     if type(self.dest.stype) is PointerType:
         desttype = self.dest.stype.pointstotype
     else:
         desttype = self.dest.stype
+
     typeid = ['b', 'h', None, ''][desttype.size // 8 - 1]
     if typeid != '' and 'unsigned' in desttype.qual_list:
         typeid = 's' + type
@@ -323,7 +344,8 @@ def storestat_codegen(self, regalloc):
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
 
-    return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
+    res += f"{' ' * 4}{ANSI('BLUE', 'str')}{typeid} {rsrc}, {dest}\n"
+    return [res, trail]
 
 
 StoreStat.codegen = storestat_codegen
@@ -332,30 +354,34 @@ StoreStat.codegen = storestat_codegen
 def loadstat_codegen(self, regalloc):
     res = ''
     trail = ''
+
     if self.symbol.alloct == 'return':
-        res += '\tpop {' + regalloc.get_register_for_variable(self.dest) + '}\n'
+        res += f"{' ' * 4}{ANSI('CYAN', 'pop')} {{{regalloc.get_register_for_variable(self.dest)}}}\n"
         return [res, trail]
+
     elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg':
-        res += '\tmov ' + regalloc.get_register_for_variable(self.dest) + ', ' + regalloc.get_register_for_variable(self.symbol) + '\n'
+        res += f"{' ' * 4}{ANSI('BLUE', 'mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n"
         return [res, trail]
+
     elif self.symbol.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
-        src = '[' + regalloc.get_register_for_variable(self.symbol) + ']'
+        src = f"[{regalloc.get_register_for_variable(self.symbol)}]"
+
     else:
-        ai = self.symbol.allocinfo
-        if type(ai) is LocalSymbolLayout:
+        alloc_info = self.symbol.allocinfo
+        if type(alloc_info) is LocalSymbolLayout:
             static_link = check_if_variable_needs_static_link(self, self.symbol)
             if static_link:
                 res += static_link
                 # if the static link is necessary use the offset contained in the scratch register
-                src = '[' + get_register_string(REG_SCRATCH) + ', #' + ai.symname + ']'
+                src = f"[{get_register_string(REG_SCRATCH)}, #{ANSI('GREEN', f'{alloc_info.symname}')}]"
             else:
-                src = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
+                src = f"[{get_register_string(REG_FP)}, #{ANSI('GREEN', f'{alloc_info.symname}')}]"
+
         else:
-            lab, tmp = new_local_const(ai.symname)
-            trail += tmp
-            res += '\tldr ' + get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
-            src = '[' + get_register_string(REG_SCRATCH) + ']'
+            label, trail = new_local_const(alloc_info.symname)
+            res = f"{' ' * 4}{ANSI('BLUE', 'ldr')} {get_register_string(REG_SCRATCH)}, {label}\n"
+            src = f"[{get_register_string(REG_SCRATCH)}]"
 
     if type(self.symbol.stype) is PointerType:
         desttype = self.symbol.stype.pointstotype
@@ -366,7 +392,7 @@ def loadstat_codegen(self, regalloc):
         typeid = 's' + type
 
     rdst = regalloc.get_register_for_variable(self.dest)
-    res += '\tldr' + typeid + ' ' + rdst + ', ' + src + '\n'
+    res += f"{' ' * 4}{ANSI('BLUE', 'ldr')} {typeid} {rdst}, {src}\n"
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return [res, trail]
 
@@ -375,12 +401,14 @@ LoadStat.codegen = loadstat_codegen
 
 
 def savespacestat_codegen(self, regalloc):
-    comm = ''
+    res = f"{' ' * 4}{ANSI('YELLOW', 'add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{ANSI('ITALIC', f'{self.space_needed}')}"
+
     if self.space_needed > 0:
-        comm = comment('ignoring a return value')
+        res += f" {comment('ignoring a return value')}"
     else:
-        comm = comment('saving space for return values')
-    return '\tadd ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + str(self.space_needed) + ' ' + comm
+        res += f" {comment('saving space for return values')}"
+
+    return res
 
 
 SaveSpaceStat.codegen = savespacestat_codegen
@@ -388,19 +416,22 @@ SaveSpaceStat.codegen = savespacestat_codegen
 
 def loadimm_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
-    val = self.val
-    if val >= -256 and val < 256:
-        if val < 0:
-            rv = -val - 1
-            op = 'mvn '
+    res = ''
+    trail = ''
+
+    if self.val >= -256 and self.val < 256:
+        if self.val < 0:
+            rv = -self.val - 1
+            op = f"{ANSI('BLUE', 'mvn')}"
         else:
-            rv = val
-            op = 'mov '
-        res = '\t' + op + rd + ', #' + repr(rv) + '\n'
-        trail = ''
+            rv = self.val
+            op = f"{ANSI('BLUE', 'mov')}"
+
+        res += f"{' ' * 4}{op} {rd}, #{ANSI('ITALIC', f'{rv}')}\n"
     else:
-        lab, trail = new_local_const(repr(val))
-        res = '\tldr ' + rd + ', ' + lab + '\n'
+        label, trail = new_local_const(repr(self.val))
+        res += f"{' ' * 4}{ANSI('BLUE', 'ldr')} {rd}, {label}\n"
+
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
@@ -411,16 +442,18 @@ def unarystat_codegen(self, regalloc):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rs = regalloc.get_register_for_variable(self.src)
     rd = regalloc.get_register_for_variable(self.dest)
+
     if self.op == 'plus':
         if rs != rd:
-            res += '\tmov ' + rd + ', ' + rs + '\n'
+            res += f"{' ' * 4}{ANSI('BLUE', 'mov')} {rd}, {rs}\n"
     elif self.op == 'minus':
-        res += '\tmvn ' + rd + ', ' + rs + '\n'
-        res += '\tadd ' + rd + ', ' + rd + ', #1\n'
+        res += f"{' ' * 4}{ANSI('BLUE', 'mvn')} {rd}, {rs}\n"
+        res += f"{' ' * 4}{ANSI('YELLOW', 'add')} {rd}, {rd}, #{ANSI('ITALIC', '1')}\n"
     elif self.op == 'odd':
-        res += '\tand ' + rd + ', ' + rs + ', #1\n'
+        res += f"{' ' * 4}{ANSI('YELLOW', 'and')} {rd}, {rs}, #{ANSI('ITALIC', '1')}\n"
     else:
-        raise RuntimeError("Operation " + repr(self.op) + " unexpected")
+        raise RuntimeError(f"Unexpected operation {self.op}")
+
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
 
@@ -429,7 +462,7 @@ UnaryStat.codegen = unarystat_codegen
 
 
 def generate_code(program, regalloc):
-    res = '\t.text\n'
-    res += '\t.arch armv6\n'
-    res += '\t.syntax unified\n'
+    res = f"{' ' * 4}.text\n"
+    res += f"{' ' * 4}.arch armv6\n"
+    res += f"{' ' * 4}.syntax unified\n"
     return res + program.codegen(regalloc)

@@ -5,6 +5,8 @@ Includes cfg construction and liveness analysis."""
 
 from functools import reduce
 
+from ir import BranchStat, StatList, FunctionDef
+from logger import ANSI, remove_formatting
 from support import get_node_list
 
 
@@ -15,22 +17,25 @@ class BasicBlock(object):
         Keeps information on labels (list of labels that refer to this BB)
         """
         self.next = next
+
         if instrs:
             self.instrs = instrs
         else:
             self.instrs = []
+
         try:
-            # XXX: added myself
-            if self.instrs[-1].returns:
+            if self.instrs[-1].is_call:
                 self.target = None
             else:
                 self.target = self.instrs[-1].target
         except AttributeError:
             self.target = None  # last instruction is not a branch
+
         if labels:
             self.labels = labels
         else:
             self.labels = []
+
         self.target_bb = None
 
         # liveness in respect to the whole cfg
@@ -40,42 +45,57 @@ class BasicBlock(object):
         # compute kill and gen set for this block, as if it was a black box
         self.kill = set([])  # assigned
         self.gen = set([])  # use before assign
+
         for i in instrs:
-            uses = set(i.collect_uses())
+            uses = set(i.used_variables())
             try:
-                kills = set(i.collect_kills())
+                kills = set(i.killed_variables())
             except AttributeError:
                 kills = set()
-            # print(i.human_repr(), uses, kills)
+
             uses.difference_update(self.kill)
+
             self.gen.update(uses)
             self.kill |= kills
+
         # Total number of registers needed
         self.total_vars_used = len(self.gen.union(self.kill))
 
     def __repr__(self):
-        res = 'Id: ' + repr(id(self)) + '\n'
-        res += 'Next: ' + repr(id(self.next)) + '\n'
-        res += 'Target: ' + repr(self.target) + '\n'
-        res += 'Instructions: \n'
+        res = f"{ANSI('YELLOW', 'Basic Block')} {id(self)} " + "{\n"
+        if self.next:
+            res += f"{' ' * 4}{ANSI('BLUE', 'Next:')} {id(self.next)},\n"
+        else:
+            res += f"{' ' * 4}{ANSI('BLUE', 'Next:')} {self.next},\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'Target:')} {self.target},\n"
+        res += f"{' ' * 4}{ANSI('BLUE', 'Instructions:')}\n"
         for i in self.instrs:
-            res += '\t' + repr(i) + '\n'
+            res += f"{' ' * 8}{i}\n"
+
+        res += "}\n"
 
         return res
 
     def graphviz_repr(self):
         """Print in graphviz dot format"""
-        instrs = repr(self.labels) + '\\n' if len(self.labels) else ''
+        instrs = f"{self.labels}" + '\\n' if len(self.labels) else ''
         instrs += '\\n'.join([repr(i) for i in self.instrs])
-        res = repr(id(self)) + ' [label="BB' + repr(id(self)) + '{\\n' + instrs + '}"];\n'
+        res = f'{id(self)} [label="BB {id(self)}' + '\\n' + f'{instrs}"];\n'
         if self.next:
-            res += repr(id(self)) + ' -> ' + repr(id(self.next)) + ' [label="' + repr(self.next.live_in) + '"];\n'
+            if len(self.next.live_in) > 0:
+                res += f'{id(self)} -> {id(self.next)} [label="{self.next.live_in}"];\n'
+            else:
+                res += f'{id(self)} -> {id(self.next)} [label="{{}}"];\n'
         if self.target_bb:
-            res += repr(id(self)) + ' -> ' + repr(id(self.target_bb)) + ' [style=dashed,label="' + repr(
-                self.target_bb.live_in) + '"];\n'
+            if len(self.target_bb.live_in) > 0:
+                res += f'{id(self)} -> {id(self.target_bb)} [style=dashed,label="{self.target_bb.live_in}"];\n'
+            else:
+                res += f'{id(self)} -> {id(self.target_bb)} [style=dashed,label="{{}}"];\n'
         if not (self.next or self.target_bb):
-            res += repr(id(self)) + ' -> ' + 'exit' + repr(id(self.get_function())) + ' [label="' + repr(
-                self.live_out) + '"];\n'
+            if len(self.live_out) > 0:
+                res += f'{id(self)} -> exit{id(self.get_function())} [label="{self.live_out}"];\n'
+            else:
+                res += f'{id(self)} -> exit{id(self.get_function())} [label="{{}}"];\n'
         return res
 
     def succ(self):
@@ -83,29 +103,34 @@ class BasicBlock(object):
 
     def liveness_iteration(self):
         """Compute live_in and live_out approximation
-        Returns: check of fixed point"""
+        Returns: True if a fixed point is reached, False otherwise"""
         lin = len(self.live_in)
         lout = len(self.live_out)
+
         if self.next or self.target_bb:
             self.live_out = reduce(lambda x, y: x.union(y), [s.live_in for s in self.succ()], set([]))
         else:  # Consider live out all the global vars
             func = self.get_function()
             if func != 'global':
                 self.live_out = set(func.get_global_symbols())
+
         self.live_in = self.gen.union(self.live_out - self.kill)
         return not (lin == len(self.live_in) and lout == len(self.live_out))
 
     def compute_instr_level_liveness(self):
         """Compute live_in and live_out for each instruction"""
         currently_alive = self.live_out
+
         for i in reversed(self.instrs):
             i.live_out = set(currently_alive)
             try:
-                currently_alive -= set(i.collect_kills())
+                currently_alive -= set(i.killed_variables())
             except AttributeError:
                 pass
-            currently_alive |= set(i.collect_uses())
+
+            currently_alive |= set(i.used_variables())
             i.live_in = set(currently_alive)
+
         if not currently_alive == self.live_in:
             raise RuntimeError('Instruction level liveness or block level liveness incorrect')
 
@@ -121,65 +146,71 @@ class BasicBlock(object):
         return self.instrs[0].get_function()
 
 
-def stat_list_to_bb(sl):
-    """Support function for converting AST StatList to BBs"""
-    from ir import BranchStat
+def stat_list_to_bb(stat_list):
     bbs = []
-    newbb = []  # accumulator for stmts to be inserted in the next BB
-    labels = []  # accumulator for the labels that refer to this BB
-    for n in sl.children:
+    # accumulator for statements to be inserted in the next BasicBlock
+    instructions = []
+    # accumulator for the labels that refer to this BasicBlock
+    labels = []
+
+    for statement in stat_list.children:
         try:
-            label = n.get_label()
+            label = statement.get_label()
             if label:
-                if len(newbb):
-                    bb = BasicBlock(instrs=newbb, labels=labels)
-                    newbb = []
-                    if len(bbs):
+                if len(instructions) > 0:
+                    bb = BasicBlock(instrs=instructions, labels=labels)
+                    instructions = []
+
+                    if len(bbs) > 0:
                         bbs[-1].next = bb
                     bbs.append(bb)
+
                     labels = [label]
                 else:
+                    # empty statement, keep just the label
                     labels.append(label)
         except Exception:
             pass  # instruction doesn't have a label
 
-        newbb.append(n)
+        instructions.append(statement)
 
-        if isinstance(n, BranchStat) and not n.returns:
-            bb = BasicBlock(instrs=newbb, labels=labels)
-            newbb = []
+        # if this is BranchStat is a function call, it marks the end of a BasicBlock
+        if isinstance(statement, BranchStat) and not statement.is_call:
+            bb = BasicBlock(instrs=instructions, labels=labels)
+            instructions = []
+
             if len(bbs):
                 bbs[-1].next = bb
             bbs.append(bb)
+
             labels = []
 
-    if len(newbb) or len(labels):
-        bb = BasicBlock(instrs=newbb, labels=labels)
+    if len(instructions) > 0 or len(labels) > 0:
+        bb = BasicBlock(instrs=instructions, labels=labels)
+
         if len(bbs):
             bbs[-1].next = bb
         bbs.append(bb)
+
     return bbs
 
 
-def remove_non_regs(set):
-    return {var for var in set if var.alloct == 'reg'}
-
-
-class CFG(list):
+class ControlFlowGraph(list):
     """Control Flow Graph representation"""
 
     def __init__(self, root):
         super().__init__()
-        from ir import StatList
         stat_lists = [n for n in get_node_list(root, quiet=True) if isinstance(n, StatList)]
-        self += sum([stat_list_to_bb(sl) for sl in stat_lists], [])
+        self += sum([stat_list_to_bb(sl) for sl in stat_lists], [])  # XXX: I really don't like this syntax
+
         for bb in self:
             if bb.target:
                 bb.target_bb = self.find_target_bb(bb.target)
             bb.remove_useless_next()
 
     def heads(self):
-        """Get bbs that are only reached via function call or global entry point"""
+        """Get a dictionary of BasicBlocks that are only reached via function
+        call or global entry point"""
         defs = []
         for bb1 in self:
             head = True
@@ -189,13 +220,14 @@ class CFG(list):
                     break
             if head:
                 defs.append(bb1)
-        from ir import FunctionDef
+
         res = {}
         for bb in defs:
             first = bb.instrs[0]
             parent = first.parent
             while parent and type(parent) != FunctionDef:
                 parent = parent.parent
+
             if not parent:
                 res['global'] = bb
             else:
@@ -214,53 +246,46 @@ class CFG(list):
     def print_cfg_to_dot(self, filename):
         """Print the CFG in graphviz dot to file"""
         f = open(filename, "w")
-        f.write("digraph G {\n")
+        dot = "digraph G {\n"
         for n in self:
-            f.write(n.graphviz_repr())
-        h = self.heads()
-        for p in h:
-            bb = h[p]
+            dot += n.graphviz_repr()
+
+        heads = self.heads()
+        for p in heads:
+            bb = heads[p]
             if p == 'global':
-                f.write('main [shape=box];\n')
-                f.write('main -> ' + repr(id(bb)) + ' [label="' + repr(bb.live_in) + '"];\n')
+                dot += 'main [shape=box];\n'
+                if len(bb.live_in):
+                    dot += f'main -> {id(bb)} [label="{bb.live_in}"];\n'
+                else:
+                    dot += f'main -> {id(bb)} [label="{{}}"];\n'
             else:
-                f.write(p.symbol.name + ' [shape=box];\n')
-                f.write(p.symbol.name + ' -> ' + repr(id(bb)) + ' [label="' + repr(bb.live_in) + '"];\n')
-        f.write("}\n")
+                dot += f"{p.symbol.name} [shape=box];\n"
+                if len(bb.live_in):
+                    dot += f'{p.symbol.name} -> {id(bb)} [label="{bb.live_in}"];\n'
+                else:
+                    dot += f'{p.symbol.name} -> {id(bb)} [label="{{}}"];\n'
+        dot += "}\n"
+        f.write(remove_formatting(dot))
         f.close()
 
     def print_liveness(self):
-        print('Liveness sets:')
         for bb in self:
-            print('BASIC BLOCK:')
             print(bb)
-            print('\tGen set: ')
-            for i in bb.gen:
-                print('\t\t' + repr(i))
-            print('\tKill set: ')
-            for i in bb.kill:
-                print('\t\t' + repr(i))
-            print('\tLive in set: ')
-            for i in bb.live_in:
-                print('\t\t' + repr(i))
-            print('\tLive out set: ')
-            for i in bb.live_out:
-                print('\t\t' + repr(i))
-            print("\n\n")
-        print('Instruction liveness:\n')
-        for bb in self:
-            print('BASIC BLOCK:')
-            print(bb)
-            for i in bb.instrs:
-                print('\tInstruction: ' + repr(i))
-                print('\tLive in set: ')
-                for j in i.live_in:
-                    print('\t\t' + repr(j))
-                print('\tLive out set: ')
-                for j in i.live_out:
-                    print('\t\t' + repr(j))
+            print(f"{ANSI('YELLOW', 'Liveness Sets')}" + " {")
+            print(f"{' ' * 4}{ANSI('BLUE', 'Gen set:')} {bb.gen},")
+            print(f"{' ' * 4}{ANSI('BLUE', 'Kill set:')} {bb.kill},\n")
+            print(f"{' ' * 4}{ANSI('BLUE', 'Live in set:')} {bb.live_in},")
+            print(f"{' ' * 4}{ANSI('BLUE', 'Live out set:')} {bb.live_out}")
+            print("}\n")
 
-                print("\n\n")
+            print(f"{ANSI('YELLOW', 'Instruction Liveness')}" + " {")
+            for i in bb.instrs:
+                print(f"{' ' * 4}{ANSI('BLUE', 'Instruction:')} '{i}' " + "{")
+                print(f"{' ' * 8}{ANSI('CYAN', 'Live in set:')} {i.live_in},")
+                print(f"{' ' * 8}{ANSI('CYAN', 'Live out set:')} {i.live_out}")
+                print(f"{' ' * 4}" + "}")
+            print("}\n\n")
 
     def find_target_bb(self, label):
         """Return the BB that contains a given label;
@@ -268,25 +293,25 @@ class CFG(list):
         for bb in self:
             if label in bb.labels:
                 return bb
-        raise RuntimeError('Label ' + repr(label) + ' not found in any Basic Block')
+        raise RuntimeError(f"Label {label} not found in any Basic Block")
 
     def liveness(self):
         """Standard live variable analysis"""
         out = []
         for bb in self:
             out.append(bb.liveness_iteration())
+
         while sum(out):
             out = []
             for bb in self:
                 out.append(bb.liveness_iteration())
+
         for bb in self:
             bb.compute_instr_level_liveness()
 
     def return_analysis(self):
         """Check that if a function returns, each path of the CFG ends with a return"""
-        tails = self.tails()
-
-        for bb in tails:
+        for bb in self.tails():
             function_definition = bb.get_function()
             if function_definition == 'global':
                 continue  # the main does not return anything
@@ -294,15 +319,9 @@ class CFG(list):
             number_of_returns = len(function_definition.returns)
             if number_of_returns > 0:
                 last_instruction = bb.instrs[-1]
-                from ir import BranchStat
                 if type(last_instruction) is BranchStat and last_instruction.target is None:
                     pass
                 else:
-                    raise RuntimeError("Function does not return correctly")
+                    raise RuntimeError(f"At least one path of the function '{function_definition.symbol.name}' doesn't end with a return, even if one is needed")
 
-            if number_of_returns == 0:
-                print("Function " + function_definition.symbol.name + " does not return any value")
-            elif number_of_returns == 1:
-                print("Function " + function_definition.symbol.name + " returns 1 value")
-            else:
-                print("Function " + function_definition.symbol.name + " returns " + str(len(function_definition.returns)) + " values")
+        print(ANSI("GREEN", "All procedures that need to return parameters correctly return them\n"))

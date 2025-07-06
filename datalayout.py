@@ -5,6 +5,7 @@ is not a register, is allocated in the local stack frame (LocalSymbol) or in
 the data section of the executable (GlobalSymbol)."""
 
 from codegenhelp import CALL_OFFSET
+from logger import ANSI
 from ir import StoreStat
 
 
@@ -21,7 +22,7 @@ class LocalSymbolLayout(SymbolLayout):
         self.bsize = bsize
 
     def __repr__(self):
-        return self.symname + ": fp + (" + repr(self.fpreloff) + ") [def byte " + repr(self.bsize) + "]"
+        return f"{self.symname} @ [fp + ({self.fpreloff})], size {self.bsize}"
 
 
 class GlobalSymbolLayout(SymbolLayout):
@@ -30,7 +31,7 @@ class GlobalSymbolLayout(SymbolLayout):
         self.bsize = bsize
 
     def __repr__(self):
-        return self.symname + ": def byte " + repr(self.bsize)
+        return f"{self.symname} @ size {self.bsize}"
 
 
 # remove the symbol from the symbol table and convert it to a register
@@ -54,13 +55,13 @@ def perform_memory_to_register_promotion(root):
         if symbol.alloct not in ['auto', 'global'] and symbol.stype.size > 0:
             continue
 
-        print("SYMBOL: " + repr(symbol))
+        print(f"{ANSI('BLUE', 'SYMBOL:')} {symbol}")
 
         if symbol.used_in_nested_procedure:
-            print("Can't promote because the symbol is used in a nested procedure\n\n")
+            print(ANSI('RED', "Can't promote because the symbol is used in a nested procedure\n"))
             continue
 
-        print("Promoted\n\n")
+        print(ANSI('GREEN', "Promoted\n"))
         to_promote.append(symbol)
 
     for symbol in to_promote:
@@ -83,7 +84,7 @@ def perform_data_layout_of_function(funcroot):
     param_offs = minimum_fixed_offset
     returns_offs = minimum_fixed_offset
 
-    # need to keep track of the function called to perfectly allocate return values and parameters
+    # need to keep track of the function called to correctly allocate return values and parameters
     current_function = None
     if len(funcroot.body.symtab) > 0:
         current_function = funcroot.body.symtab[0].fname
@@ -104,23 +105,25 @@ def perform_data_layout_of_function(funcroot):
                 param_offs = minimum_fixed_offset
                 current_function = var.fname
 
-            prefix = "_p_" + funcroot.symbol.name + "_" + var.fname + "_"
+            name = f"_p_{funcroot.symbol.name}_{var.fname}_{var.name}"
             param_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, param_offs, bsize))
+            var.set_alloc_info(LocalSymbolLayout(name, param_offs, bsize))
 
         elif var.alloct == 'return':
-            prefix = "_r_" + var.fname + "_" + funcroot.symbol.name + "_"
+            name = f"_r_{var.fname}_{funcroot.symbol.name}_{var.name}"
             returns_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, returns_offs, bsize))
+            var.set_alloc_info(LocalSymbolLayout(name, returns_offs, bsize))
 
         else:
-            prefix = "_l_" + funcroot.symbol.name + "_"
+            name = f"_l_{funcroot.symbol.name}_{var.name}"
             offs -= bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, offs, bsize))
+            var.set_alloc_info(LocalSymbolLayout(name, offs, bsize))
 
     funcroot.body.stackroom = -offs
 
-    # XXX: added myself
+    if current_function is not None:
+        print(f"{ANSI('CYAN', f'{current_function}')} {funcroot.body.symtab}")
+
     for defin in funcroot.body.defs.children:
         perform_data_layout_of_function(defin)
 
@@ -153,15 +156,17 @@ def perform_data_layout_of_program(root):
                 param_offs = minimum_fixed_offset
                 current_function = var.fname
 
-            prefix = "_p_main_" + var.fname + "_"
+            name = f"_p_main_{var.fname}_{var.name}"
             param_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, param_offs, bsize))
+            var.set_alloc_info(LocalSymbolLayout(name, param_offs, bsize))
 
         elif var.alloct == 'return':
-            prefix = "_r_" + var.fname + "_main_"
+            name = f"_r_{var.fname}_main_{var.name}"
             returns_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(prefix + var.name, returns_offs, bsize))
+            var.set_alloc_info(LocalSymbolLayout(name, returns_offs, bsize))
 
         else:
-            prefix = "_g_"
-            var.set_alloc_info(GlobalSymbolLayout(prefix + var.name, bsize))
+            name = f"_g_{var.name}"
+            var.set_alloc_info(GlobalSymbolLayout(name, bsize))
+
+    print(f"{ANSI('CYAN', 'main')} {root.symtab}")

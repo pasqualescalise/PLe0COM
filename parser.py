@@ -3,7 +3,7 @@
 """PL/0 recursive descent parser adapted from Wikipedia"""
 
 import ir
-from logger import logger
+from logger import logger, log_indentation, ANSI
 from functools import reduce
 
 
@@ -19,26 +19,29 @@ class Parser:
         self.current_function = "main"
 
     def getsym(self):
-        """Update sym"""
+        """Get next symbol from the lexer"""
         try:
             self.sym = self.new_sym
             self.value = self.new_value
             self.new_sym, self.new_value = next(self.the_lexer)
         except StopIteration:
             return 2
-        print('Get symbol:', self.new_sym, self.new_value)
+        log_indentation(f'{ANSI("MAGENTA", "Next symbol:")} {self.new_sym} {self.new_value}')
         return 1
 
     def error(self, msg):
-        print('\033[31m' + msg, self.new_sym, self.new_value, '\033[39m')
+        log_indentation(ANSI("RED", f"{msg} {self.new_sym} {self.new_value}"))
         raise RuntimeError('Raised error during parsing')
 
     def accept(self, s):
-        print('Trying to accept', s, '==', self.new_sym)
+        accepted_color = ANSI("RED", f"{self.new_sym} == {s}")
+        if (self.new_sym == s):
+            accepted_color = ANSI("GREEN", f"{self.new_sym} == {s}")
+        log_indentation(f'Trying to accept {accepted_color}')
         return self.getsym() if self.new_sym == s else 0
 
     def expect(self, s):
-        print('Expecting', s)
+        log_indentation(f'{ANSI("CYAN", "Expecting:")} {s}')
         if self.accept(s):
             return 1
         self.error("Expect: unexpected symbol")
@@ -76,21 +79,19 @@ class Parser:
     def factor(self, symtab):
         if self.accept('ident'):
             var = symtab.find(self, self.value)
-            offs = self.array_offset(var, symtab)
-            if offs is None:
+            offset = self.array_offset(var, symtab)
+            if offset is None:
                 return ir.Var(var=var, symtab=symtab)
             else:
-                return ir.ArrayElement(var=var, offset=offs, symtab=symtab)
-        if self.accept('number'):
+                return ir.ArrayElement(var=var, offset=offset, symtab=symtab)
+        elif self.accept('number'):
             return ir.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
-            # XXX: added myself
             expr = self.expression(symtab=symtab)
             self.expect('rparen')
             return expr
-        else:
-            self.error("Factor: syntax error")
-            self.getsym()
+
+        self.error("Factor: syntax error")
 
     @logger
     def term(self, symtab):
@@ -157,7 +158,18 @@ class Parser:
 
     @logger
     def statement(self, symtab):
-        if self.accept('ident'):
+        if self.accept('beginsym'):
+            statement_list = ir.StatList(symtab=symtab)
+
+            statement_list.append(self.statement(symtab))
+            while self.accept('semicolon'):
+                statement_list.append(self.statement(symtab))
+
+            self.expect('endsym')
+            log_indentation(f'{ANSI("BOLD", statement_list.get_content())}')
+            return statement_list
+
+        elif self.accept('ident'):
             target = symtab.find(self, self.value)
             offset = self.array_offset(target, symtab)
             self.expect('becomes')
@@ -206,15 +218,6 @@ class Parser:
 
             return ir.CallStat(call_expr=ir.CallExpr(function_symbol=function_symbol, parameters=parameters, symtab=symtab), function_symbol=function_symbol, returns=returns, symtab=symtab)
 
-        elif self.accept('beginsym'):
-            statement_list = ir.StatList(symtab=symtab)
-            statement_list.append(self.statement(symtab))
-            while self.accept('semicolon'):
-                statement_list.append(self.statement(symtab))
-            self.expect('endsym')
-            statement_list.print_content()
-            return statement_list
-
         elif self.accept('ifsym'):
             cond = self.condition(symtab)
             self.expect('thensym')
@@ -242,18 +245,23 @@ class Parser:
             return ir.WhileStat(cond=cond, body=body, symtab=symtab)
 
         elif self.accept('forsym'):
-            # check that init is an assign statement
+            log_indentation(ANSI("YELLOW", "First part of for statement"))
+            # check that there is an assign statement
             if self.new_sym != "ident":
-                self.error("First for part must be assignment")
+                self.error("First part of for statement must be assignment")
             init = self.statement(symtab)
 
             self.expect('semicolon')
+
+            log_indentation(ANSI("YELLOW", "Second part of for statement"))
             cond = self.condition(symtab)
 
             self.expect('semicolon')
-            # check that step is an assign statement
+
+            log_indentation(ANSI("YELLOW", "Third part of for statement"))
+            # check that there is an assign statement
             if self.new_sym != "ident":
-                self.error("Third for part must be assignment")
+                self.error("Third part of for statement must be assignment")
             step = self.statement(symtab)
 
             self.expect('dosym')
@@ -288,20 +296,25 @@ class Parser:
             return ir.ReturnStat(children=returns, symtab=symtab)
 
     @logger
-    def block(self, symtab, alloct='auto'):
-        local_vars = ir.SymbolTable()
-        defs = ir.DefinitionList()
+    def block(self, parent_symtab, alloct='auto'):
+        # variables definition
+        local_symtab = ir.SymbolTable()
 
         while self.accept('constsym') or self.accept('varsym'):
             if self.sym == 'constsym':
-                self.constdef(local_vars, alloct)
+                self.constdef(local_symtab, alloct)
                 while self.accept('comma'):
-                    self.constdef(local_vars, alloct)
+                    self.constdef(local_symtab, alloct)
             else:
-                self.vardef(local_vars, alloct)
+                self.vardef(local_symtab, alloct)
                 while self.accept('comma'):
-                    self.vardef(local_vars, alloct)
+                    self.vardef(local_symtab, alloct)
             self.expect('semicolon')
+
+        log_indentation(ANSI("GREEN", "Parsed variables definition"))
+
+        # functions definition
+        function_defs = ir.DefinitionList()
 
         while self.accept('procsym'):
             self.expect('ident')
@@ -330,7 +343,7 @@ class Parser:
 
             for i in range(len(parameters)):
                 # reversed in the symtab for easier datalayout
-                local_vars.append(parameters[len(parameters) - i - 1])
+                local_symtab.append(parameters[len(parameters) - i - 1])
 
             # if the function returns something - it's not mandatory
             returns = []
@@ -357,24 +370,27 @@ class Parser:
 
             # returns are always after the parameters in the SymbolTable bacause of the datalayout (an order had to be chosen)
             for i in range(len(returns)):
-                local_vars.append(returns[i])
+                local_symtab.append(returns[i])
 
             self.expect('semicolon')
 
-            symtab.append(ir.Symbol(fname, ir.TYPENAMES['function']))
+            parent_symtab.append(ir.Symbol(fname, ir.TYPENAMES['function']))
 
             # make sure to save and restore the current function while parsing the new one
             parent = self.current_function
             self.current_function = fname
-            fbody = self.block(ir.SymbolTable(local_vars + symtab[:]))  # local_vars is the symtab of the procedure block
+            fbody = self.block(ir.SymbolTable(local_symtab + parent_symtab[:]))  # local_vars is the symtab of the procedure block
             self.current_function = parent
 
             self.expect('semicolon')
-            defs.append(ir.FunctionDef(symbol=symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
+            function_defs.append(ir.FunctionDef(symbol=parent_symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
 
-        # XXX: added myself, local variables need to be more prevalent than global ones to preserve scope
-        stat = self.statement(ir.SymbolTable(local_vars + symtab[:]))
-        return ir.Block(gl_sym=symtab, lc_sym=local_vars, defs=defs, body=stat)
+        log_indentation(ANSI("GREEN", "Parsed functions definition"))
+
+        # parse the block statements
+        # XXX: local variables need to be more prevalent than global ones to preserve scope
+        statements = self.statement(ir.SymbolTable(local_symtab + parent_symtab[:]))
+        return ir.Block(gl_sym=parent_symtab, lc_sym=local_symtab, defs=function_defs, body=statements)
 
     @logger
     def constdef(self, local_vars, alloct='auto'):
@@ -395,20 +411,29 @@ class Parser:
         self.expect('ident')
         name = self.value
         size = []
+
+        # array
         while self.accept('lspar'):
             self.expect('number')
             size.append(int(self.value))
             self.expect('rspar')
 
         type = ir.TYPENAMES['int']
+
+        # label
         if self.accept('colon'):
             self.accept('ident')
             type = ir.TYPENAMES[self.value]
 
+        new_var = ''
+
         if len(size) > 0:
-            symtab.append(ir.Symbol(name, ir.ArrayType(None, size, type), alloct=alloct, fname=self.current_function))
+            new_var = ir.Symbol(name, ir.ArrayType(None, size, type), alloct=alloct, fname=self.current_function)
         else:
-            symtab.append(ir.Symbol(name, type, alloct=alloct, fname=self.current_function))
+            new_var = ir.Symbol(name, type, alloct=alloct, fname=self.current_function)
+
+        symtab.append(new_var)
+        log_indentation(f"{ANSI('GREEN', 'Parsed variable:')} {str(new_var)}")
 
     @logger
     def program(self):

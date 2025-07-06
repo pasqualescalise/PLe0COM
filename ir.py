@@ -9,6 +9,9 @@ in a separate module though)."""
 from functools import reduce
 from copy import deepcopy
 
+from logger import log_indentation, ANSI
+import logger
+
 # UTILITIES
 
 tempcount = 0
@@ -16,7 +19,7 @@ tempcount = 0
 
 def new_temporary(symtab, type):
     global tempcount
-    temp = Symbol(name='t' + str(tempcount), stype=type, alloct='reg')
+    temp = Symbol(name=f"t{tempcount}", stype=type, alloct='reg')
     tempcount += 1
     return temp
 
@@ -50,8 +53,6 @@ class Type:
         if 'unsigned' in self.qual_list:
             n += 'u'
         n += 'int'  # no float types exist at the moment
-        n += repr(self.size)
-        n += '_t'
         return n
 
 
@@ -84,7 +85,7 @@ class LabelType(Type):
 
     def __call__(self, target=None):
         self.ids += 1
-        return Symbol(name='label' + repr(self.ids), stype=self, value=target)
+        return Symbol(name=f"label{self.ids}", stype=self, value=target)
 
 
 class FunctionType(Type):
@@ -140,17 +141,23 @@ class Symbol:
         self.allocinfo = allocinfo
 
     def __repr__(self):
-        base = self.alloct + ' ' + self.stype.name + ' ' + self.name + (self.value if type(self.value) == str else '')
+        base = f"{self.alloct} {self.stype.name}"
+
+        if type(self.stype) == FunctionType or type(self.stype) == LabelType:
+            base = f"{base} {ANSI('MAGENTA', f'{self.name}')}"
+        elif self.alloct != "reg":
+            base = f"{base} {ANSI('GREEN', f'{self.name}')}"
+        else:
+            # base = f"{base} {self.name}{self.value if type(self.value) == str else ''}"
+            base = f"{base} {ANSI('RED', f'{self.name}')}"
         if self.allocinfo is not None:
-            base = base + "; " + repr(self.allocinfo)
-        # TODO: remove this
-        base += " " + repr(id(self))
+            base = f"{base} {{{ANSI('YELLOW', ANSI('ITALIC', f'{self.allocinfo}'))}}}"
         return base
 
 
 class SymbolTable(list):
     def find(self, node, name):
-        print('Looking up', name)
+        log_indentation(ANSI("UNDERLINE", f'Looking up {name}'))
         for s in self:
             if s.alloct == "param":
                 # for parameters it's not enough to check the name, also
@@ -168,12 +175,13 @@ class SymbolTable(list):
                 except AttributeError:
                     pass  # trying to use find outside of the parser
                 return s
-        raise RuntimeError('Looking up for symbol ' + name + ' in function ' + node.current_function + ' failed!')
+        raise RuntimeError(f"Looking up for symbol {name} in function {node.current_function} failed!")
 
     def __repr__(self):
-        res = 'SymbolTable:\n'
-        for s in self:
-            res += repr(s) + '\n'
+        res = f"{ANSI('CYAN', 'SymbolTable')} " + '{\n'
+        for symbol in self:
+            res += f"\t{symbol}\n"
+        res += "}"
         return res
 
     def exclude(self, barred_types):
@@ -184,6 +192,7 @@ class SymbolTable(list):
 
 class IRNode:  # abstract
     def __init__(self, parent=None, children=None, symtab=None):
+        self.symtab = symtab
         self.parent = parent
         if children:
             self.children = children[:]
@@ -191,69 +200,92 @@ class IRNode:  # abstract
                 try:
                     c.parent = self
                 except Exception:
+                    # TODO: error checking
                     pass
         else:
             self.children = []
-        self.symtab = symtab
 
     def __repr__(self):
         try:
-            label = self.get_label().name + ': '
+            label = f"Label {self.get_label().name}: "
         except Exception:
             label = ''
-            pass
+
         try:
             hre = self.human_repr()
-            return label + hre
+            return f"{label}{hre}"
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
-                 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol'} & set(dir(self))
 
-        res = repr(type(self)) + ' ' + repr(id(self)) + ' {\n'
+        res = f"{ANSI('CYAN', f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
-            res += 'parent = ' + repr(id(self.parent)) + '\n'
+            # res += f"\nparent: {id(self.parent)};\n"
+            res += "\n"
+            pass
         else:
             # a missing parent is not a bug only for the root node, but at this
             # level of abstraction there is no way to distinguish between the root
             # node and a node with a missing parent
-            res += '                                                                      <<<<<----- BUG? MISSING PARENT\n'
+            res += ANSI("RED", " MISSING PARENT\n")
 
-        res = label + res
+        res = f"{label}{res}"
 
-        if 'children' in dir(self) and len(self.children):
-            res += '\tchildren:\n'
-            for node in self.children:
-                rep = repr(node)
-                res += '\n'.join(['\t' + s for s in rep.split('\n')]) + '\n'
-        for d in attrs:
-            node = getattr(self, d)
-            rep = repr(node)
-            res += '\t' + d + ': ' + '\n'.join(['\t' + s for s in rep.split('\n')]) + '\n'
-        res += '}'
+        if "children" in dir(self) and len(self.children):
+            res += f"{' ' * 4}children: " + "{\n"
+            for child in self.children:
+                if isinstance(child, EmptyStat):
+                    res += f"{' ' * 7}{child}\n"  # label
+                else:
+                    rep = repr(child).split("\n")
+                    res += "\n".join([f"{' ' * 4}{' ' * 4}" + s for s in rep])
+                    res += "\n"
+            res += f"{' ' * 4}" + "}\n"
+
+        for attr in attrs:
+            node = getattr(self, attr)
+            rep = repr(node).split("\n")
+            if len(rep) > 1:
+                reps = "\n".join([f"{' ' * 8}" + s for s in rep[1:]])
+                rep = f"{rep[0]}\n{reps}"
+            else:
+                rep = f"{rep[0]}"
+            res += f"{' ' * 4}{ANSI('CYAN', f'{attr}')} {ANSI('BOLD', '->')} {rep}\n"
+
+        res += "}"
         return res
 
+    def type(self):
+        return str(type(self)).split("'")[1]
+
     def navigate(self, action, *args, quiet=False):
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
-                 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+
         if 'children' in dir(self) and len(self.children):
             if not quiet:
-                print('\nNavigated to', len(self.children), 'children of', type(self), id(self))
+                log_indentation(f'Navigating to {ANSI("CYAN", len(self.children))} children of {ANSI("CYAN", self.type())}, {id(self)}')
             for node in self.children:
                 try:
+                    logger.indentation += 1
                     node.navigate(action, *args, quiet=quiet)
+                    logger.indentation -= 1
                 except AttributeError:
-                    pass
-        for d in attrs:
+                    logger.indentation -= 1
+
+        for attr in attrs:
             try:
                 if not quiet:
-                    print('\nNavigated to attribute', d, 'of', type(self), id(self))
-                getattr(self, d).navigate(action, *args, quiet=quiet)
+                    log_indentation(f'Navigating to attribute {ANSI("CYAN", attr)} of {ANSI("CYAN", self.type())}, {id(self)}')
+                logger.indentation += 1
+                node = getattr(self, attr)
+                node.navigate(action, *args, quiet=quiet)
+                logger.indentation -= 1
             except AttributeError:
-                pass
+                logger.indentation -= 1
         if not quiet:
-            print('\nNavigated to', type(self), id(self),)
+            log_indentation(f'Navigating to {ANSI("CYAN", self.type())}, {id(self)}')
+
         # XXX: shitty solution
         try:
             action(self, *args)
@@ -358,6 +390,7 @@ class IRNode:  # abstract
 
 class Const(IRNode):
     def __init__(self, parent=None, value=0, symb=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New Const Node (id: {id(self)})'))
         super().__init__(parent, None, symtab)
         self.value = value
         self.symbol = symb
@@ -376,10 +409,11 @@ class Var(IRNode):
     """loads in a temporary the value pointed to by the symbol"""
 
     def __init__(self, parent=None, var=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New Var Node (id: {id(self)})'))
         super().__init__(parent, None, symtab)
         self.symbol = var
 
-    def collect_uses(self):
+    def used_variables(self):
         return [self.symbol]
 
     def lower(self):
@@ -396,13 +430,14 @@ class ArrayElement(IRNode):
     def __init__(self, parent=None, var=None, offset=None, symtab=None):
         """offset can NOT be a list of exps in case of multi-d arrays; it should
         have already been flattened beforehand"""
+        log_indentation(ANSI("BOLD", f'New ArrayElement Node (id: {id(self)})'))
         super().__init__(parent, [offset], symtab)
         self.symbol = var
         self.offset = offset
 
-    def collect_uses(self):
+    def used_variables(self):
         a = [self.symbol]
-        a += self.offset.collect_uses()
+        a += self.offset.used_variables()
         return a
 
     def lower(self):
@@ -428,17 +463,21 @@ class Expr(IRNode):  # abstract
     def get_operator(self):
         return self.children[0]
 
-    def collect_uses(self):
+    def used_variables(self):
         uses = []
         for c in self.children:
             try:
-                uses += c.collect_uses()
+                uses += c.used_variables()
             except AttributeError:
                 pass
         return uses
 
 
 class BinExpr(Expr):
+    def __init__(self, parent=None, children=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New BinExpr Node (id: {id(self)})'))
+        super().__init__(parent, children, symtab)
+
     def get_operands(self):
         return self.children[1:]
 
@@ -460,6 +499,10 @@ class BinExpr(Expr):
 
 
 class UnExpr(Expr):
+    def __init__(self, parent=None, children=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New UnExpr Node (id: {id(self)})'))
+        super().__init__(parent, children, symtab)
+
     def get_operand(self):
         return self.children[1]
 
@@ -473,10 +516,11 @@ class UnExpr(Expr):
 
 class CallExpr(Expr):
     def __init__(self, parent=None, function_symbol=None, parameters=[], symtab=None):
+        log_indentation(ANSI("BOLD", f'New CallExpr Node (id: {id(self)})'))
         super().__init__(parent, parameters, symtab)
         self.function_symbol = function_symbol
 
-    # returns RuntimeError if the number of parameters or of returns is wrong
+    # raises RuntimeError if the number of parameters or of returns is wrong
     # TODO: add type checking
     def check_parameters_and_returns(self):
         # check that the number of parameters is correct
@@ -529,10 +573,10 @@ class Stat(IRNode):  # abstract
     def get_label(self):
         return self.label
 
-    def collect_uses(self):
+    def used_variables(self):
         return []
 
-    def collect_kills(self):
+    def killed_variables(self):
         return []
 
 
@@ -542,10 +586,11 @@ class SaveSpaceStat(Stat):  # low-level node
         not matter for datalayout"""
 
     def __init__(self, parent=None, space_needed=0, symtab=None):
+        log_indentation(ANSI("BOLD", f'New SaveSpaceStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.space_needed = space_needed
 
-    def collect_uses(self):
+    def used_variables(self):
         return []
 
     def human_repr(self):
@@ -559,6 +604,7 @@ class CallStat(Stat):
     """Procedure call"""
 
     def __init__(self, parent=None, call_expr=None, function_symbol=None, returns=[], symtab=None):
+        log_indentation(ANSI("BOLD", f'New CallStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.call = call_expr
         self.call.parent = self
@@ -568,8 +614,8 @@ class CallStat(Stat):
             if ret != "_":
                 ret.parent = self
 
-    def collect_uses(self):
-        return self.call.collect_uses() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
+    def used_variables(self):
+        return self.call.used_variables() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
 
     def lower(self):
         self.function_definition = self.get_function_definition(self.function_symbol)
@@ -578,7 +624,7 @@ class CallStat(Stat):
         for param in self.function_definition.parameters:
             space_needed_for_parameters += param.stype.size // 8
 
-        branch = BranchStat(target=self.function_symbol, symtab=self.symtab, returns=True, space_needed_for_parameters=space_needed_for_parameters)
+        branch = BranchStat(target=self.function_symbol, symtab=self.symtab, is_call=True, space_needed_for_parameters=space_needed_for_parameters)
 
         stats = [self.call, branch]
 
@@ -599,6 +645,7 @@ class CallStat(Stat):
 
 class IfStat(Stat):
     def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elsepart=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New IfStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.thenpart = thenpart
@@ -655,6 +702,7 @@ class IfStat(Stat):
 
 class WhileStat(Stat):
     def __init__(self, parent=None, cond=None, body=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New WhileStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.body = body
@@ -675,6 +723,7 @@ class WhileStat(Stat):
 
 class ForStat(Stat):
     def __init__(self, parent=None, init=None, cond=None, step=None, body=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New ForStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.init = init
         self.cond = cond
@@ -729,33 +778,39 @@ class ForStat(Stat):
 
 class AssignStat(Stat):
     def __init__(self, parent=None, target=None, offset=None, expr=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New AssignStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.symbol = target
+
+        # TODO: why do this?
         try:
             self.symbol.parent = self
         except AttributeError:
             pass
+
         self.expr = expr
         self.expr.parent = self
         self.offset = offset
         if self.offset is not None:
             self.offset.parent = self
 
-    def collect_uses(self):
+    def used_variables(self):
         try:
-            a = self.symbol.collect_uses()
+            a = self.symbol.used_variables()
         except AttributeError:
             a = []
+
         try:
-            a += self.offset.collect_uses()
+            a += self.offset.used_variables()
         except AttributeError:
             pass
+
         try:
-            return a + self.expr.collect_uses()
+            return a + self.expr.used_variables()
         except AttributeError:
             return a
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.symbol]
 
     def lower(self):
@@ -785,11 +840,12 @@ class AssignStat(Stat):
 
 class PrintStat(Stat):
     def __init__(self, parent=None, exp=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New PrintStat Node (id: {id(self)})'))
         super().__init__(parent, [exp], symtab)
         self.expr = exp
 
-    def collect_uses(self):
-        return self.expr.collect_uses()
+    def used_variables(self):
+        return self.expr.used_variables()
 
     def lower(self):
         pc = PrintCommand(src=self.expr.destination(), symtab=self.symtab)
@@ -799,20 +855,22 @@ class PrintStat(Stat):
 
 class PrintCommand(Stat):  # low-level node
     def __init__(self, parent=None, src=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New PrintCommand Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.src = src
         if src.alloct != 'reg':
             raise RuntimeError('Trying to print a symbol not stored in a register')
 
-    def collect_uses(self):
+    def used_variables(self):
         return [self.src]
 
     def human_repr(self):
-        return 'print ' + repr(self.src)
+        return f"{ANSI('BLUE', 'print')} {self.src}"
 
 
 class ReadStat(Stat):
     def __init__(self, parent=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New ReadStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
 
     def lower(self):
@@ -824,6 +882,7 @@ class ReadStat(Stat):
 
 class ReadCommand(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New ReadCommand Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.dest = dest
         if dest.alloct != 'reg':
@@ -832,18 +891,19 @@ class ReadCommand(Stat):  # low-level node
     def destination(self):
         return self.dest
 
-    def collect_uses(self):
+    def used_variables(self):
         return []
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.dest]
 
     def human_repr(self):
-        return 'read ' + repr(self.dest)
+        return f"{ANSI('BLUE', 'read')} {self.dest}"
 
 
 class ReturnStat(Stat):
     def __init__(self, parent=None, children=[], symtab=None):
+        log_indentation(ANSI("BOLD", f'New ReturnStat Node (id: {id(self)})'))
         super().__init__(parent, children, symtab)
         for child in self.children:
             child.parent = self
@@ -870,23 +930,24 @@ class ReturnStat(Stat):
 
 
 class BranchStat(Stat):  # low-level node
-    def __init__(self, parent=None, cond=None, target=None, returns=False, negcond=False, space_needed_for_parameters=0, symtab=None):
+    def __init__(self, parent=None, cond=None, target=None, is_call=False, negcond=False, space_needed_for_parameters=0, symtab=None):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
-        If returns is True, this is a branch-and-link instruction.
+        If is_call is True, this is a branch-and-link instruction.
         If target is None, the branch is a return and the 'target' is computed at runtime"""
+        log_indentation(ANSI("BOLD", f'New BranchStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.negcond = negcond
         if not (self.cond is None) and self.cond.alloct != 'reg':
             raise RuntimeError('Trying to branch on a condition not stored in a register')
         self.target = target
-        self.returns = returns
+        self.is_call = is_call
         # needed for returns -> parameters need to be popped after returning from a call
         self.space_needed_for_parameters = space_needed_for_parameters
 
-    def collect_uses(self):
+    def used_variables(self):
         if self.cond is not None:
             return [self.cond]
         return []
@@ -899,27 +960,31 @@ class BranchStat(Stat):  # low-level node
     def human_repr(self):
         if self.target is None:
             return 'return to previous function'
-        elif self.returns:
-            h = 'call '
+        elif self.is_call:
+            h = 'call'
         else:
-            h = 'branch '
+            h = 'branch'
         if not (self.cond is None):
-            c = 'on ' + ('not ' if self.negcond else '') + repr(self.cond)
+            c = f" on {'not ' if self.negcond else ''}{self.cond}"
         else:
             c = ''
-        return h + c + ' to ' + repr(self.target)
+        return f"{h}{c} to {self.target}"
 
 
 class EmptyStat(Stat):  # low-level node
     pass
 
     def __repr__(self):
+        if self.get_label() != '':
+            return ANSI('MAGENTA', f"{self.get_label().name}: ")
         return 'empty statement'
 
-    def collect_uses(self):
+    def used_variables(self):
         return []
 
     def human_repr(self):
+        if self.get_label() != '':
+            return self.get_label()
         return 'empty statement'
 
 
@@ -928,6 +993,7 @@ class LoadPtrToSym(Stat):  # low-level node
         """Loads to the 'dest' symbol the location in memory (as an absolute
         address) of 'symbol'. This instruction is used as a starting point for
         lowering nodes which need any kind of pointer arithmetic."""
+        log_indentation(ANSI("BOLD", f'New LoadPtrToSym Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         self.dest = dest
@@ -936,17 +1002,17 @@ class LoadPtrToSym(Stat):  # low-level node
         if self.dest.alloct != 'reg':
             raise RuntimeError('The destination is not to a register')
 
-    def collect_uses(self):
+    def used_variables(self):
         return [self.symbol]
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.dest]
 
     def destination(self):
         return self.dest
 
     def human_repr(self):
-        return repr(self.dest) + ' <- &(' + repr(self.symbol) + ')'
+        return f"{self.dest} {ANSI('BOLD', '<-')} &({self.symbol})"
 
 
 class StoreStat(Stat):  # low-level node
@@ -957,6 +1023,7 @@ class StoreStat(Stat):  # low-level node
         the second case the dest symbol is used as a pointer to an arbitrary
         location in memory.
         Special cases for parameters and returns defined in the codegen"""
+        log_indentation(ANSI("BOLD", f'New StoreStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         if self.symbol.alloct != 'reg':
@@ -965,12 +1032,12 @@ class StoreStat(Stat):  # low-level node
         # set only for stores from register to register (mov instructions), tells which symbol this specific mov kills
         self.killhint = killhint
 
-    def collect_uses(self):
+    def used_variables(self):
         if self.dest.alloct == 'reg':
             return [self.symbol, self.dest]
         return [self.symbol]
 
-    def collect_kills(self):
+    def killed_variables(self):
         if self.dest.alloct == 'reg':
             if self.killhint:
                 return [self.killhint]
@@ -983,8 +1050,8 @@ class StoreStat(Stat):  # low-level node
 
     def human_repr(self):
         if self.dest.alloct == 'reg' and self.symbol.alloct != 'reg':
-            return '[' + repr(self.dest) + '] <- ' + repr(self.symbol)
-        return repr(self.dest) + ' <- ' + repr(self.symbol)
+            return f"[{self.dest}] {ANSI('BOLD', '<-')} {self.symbol}"
+        return f"{self.dest} {ANSI('BOLD', '<-')} {self.symbol}"
 
 
 class LoadStat(Stat):  # low-level node
@@ -994,6 +1061,7 @@ class LoadStat(Stat):  # low-level node
         register). In the first case, the value contained in the symbol itself is
         loaded; in the second case the symbol is used as a pointer to an arbitrary
         location in memory."""
+        log_indentation(ANSI("BOLD", f'New LoadStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.symbol = symbol
         self.dest = dest
@@ -1001,12 +1069,12 @@ class LoadStat(Stat):  # low-level node
         if self.dest.alloct != 'reg':
             raise RuntimeError('Trying to load a value not to a register')
 
-    def collect_uses(self):
+    def used_variables(self):
         if self.usehint:
             return [self.symbol, self.usehint]
         return [self.symbol]
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.dest]
 
     def destination(self):
@@ -1014,34 +1082,36 @@ class LoadStat(Stat):  # low-level node
 
     def human_repr(self):
         if self.symbol.alloct == 'reg' and self.dest.alloct != 'reg':
-            return repr(self.dest) + ' <- [' + repr(self.symbol) + ']'
+            return f"{self.dest} {ANSI('BOLD', '<-')} [{self.symbol}]"
         else:
-            return repr(self.dest) + ' <- ' + repr(self.symbol)
+            return f"{self.dest} {ANSI('BOLD', '<-')} {self.symbol}"
 
 
 class LoadImmStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, val=0, symtab=None):
+        log_indentation(ANSI("BOLD", f'New LoadImmStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.val = val
         self.dest = dest
         if self.dest.alloct != 'reg':
             raise RuntimeError('Trying to load a value not to a register')
 
-    def collect_uses(self):
+    def used_variables(self):
         return []
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.dest]
 
     def destination(self):
         return self.dest
 
     def human_repr(self):
-        return repr(self.dest) + ' <- ' + repr(self.val)
+        return f"{self.dest} {ANSI('BOLD', '<-')} {self.val}"
 
 
 class BinStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, op=None, srca=None, srcb=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New BinStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.dest = dest  # symbol
         self.op = op
@@ -1052,21 +1122,22 @@ class BinStat(Stat):  # low-level node
         if self.srca.alloct != 'reg' or self.srcb.alloct != 'reg':
             raise RuntimeError('A source of the Binstat is not a register')
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.dest]
 
-    def collect_uses(self):
+    def used_variables(self):
         return [self.srca, self.srcb]
 
     def destination(self):
         return self.dest
 
     def human_repr(self):
-        return repr(self.dest) + ' <- ' + repr(self.srca) + ' ' + self.op + ' ' + repr(self.srcb)
+        return f"{self.dest} {ANSI('BOLD', '<-')} {self.srca} {ANSI('BOLD', f'{self.op}')} {self.srcb}"
 
 
 class UnaryStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, op=None, src=None, symtab=None):
+        log_indentation(ANSI("BOLD", f'New UnaryStat Node (id: {id(self)})'))
         super().__init__(parent, [], symtab)
         self.dest = dest
         self.op = op
@@ -1076,45 +1147,46 @@ class UnaryStat(Stat):  # low-level node
         if self.src.alloct != 'reg':
             raise RuntimeError('The source of the UnaryStat is not a register')
 
-    def collect_kills(self):
+    def killed_variables(self):
         return [self.dest]
 
-    def collect_uses(self):
+    def used_variables(self):
         return [self.src]
 
     def destination(self):
         return self.dest
 
     def human_repr(self):
-        return repr(self.dest) + ' <- ' + self.op + ' ' + repr(self.src)
+        return f"{self.dest} {ANSI('BOLD', '<-')} {ANSI('BOLD', f'{self.op}')} {self.src}"
 
 
 class StatList(Stat):  # low-level node
     def __init__(self, parent=None, children=None, symtab=None):
-        print('StatList : new', id(self))
+        log_indentation(ANSI("BOLD", f'New StatList Node (id: {id(self)})'))
         super().__init__(parent, children, symtab)
 
     def append(self, elem):
         elem.parent = self
-        print('StatList: appending', id(elem), 'of type', type(elem), 'to', id(self))
+        log_indentation(f'Appending statement {id(elem)} of type {elem.type()} to StatList {id(self)}')
         self.children.append(elem)
 
-    def collect_uses(self):
+    def used_variables(self):
         u = []
         for c in self.children:
-            u += c.collect_uses()
+            u += c.used_variables()
         return u
 
-    def print_content(self):
-        print('StatList', id(self), ': [', end=' ')
+    def get_content(self):
+        content = f'Recap StatList {id(self)}: [\n'
         for n in self.children:
-            print(id(n), end=' ')
-        print(']')
+            content += f"{' ' * 4}{n.type()}, {id(n)};\n"
+        content += ']'
+        return content
 
     def flatten(self):
         """Remove nested StatLists"""
         if type(self.parent) == StatList:
-            print('Flattening', type(self), id(self), 'into parent', type(self.parent), id(self.parent))
+            log_indentation(ANSI("GREEN", f'Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}'))
             if self.get_label():
                 emptystat = EmptyStat(self, symtab=self.symtab)
                 self.children.insert(0, emptystat)
@@ -1124,7 +1196,7 @@ class StatList(Stat):  # low-level node
             i = self.parent.children.index(self)
             self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
         else:
-            print('Not flattening', id(self), 'into parent', id(self.parent), 'of type', type(self.parent))
+            log_indentation(f'{ANSI("RED", "NOT")} flattening {ANSI("CYAN", f"{self.type()}")}, {id(self)} into parent {ANSI("CYAN", f"{self.parent.type()}")}, {id(self.parent)}')
 
     def destination(self):
         for i in range(-1, -len(self.children) - 1, -1):
@@ -1137,6 +1209,7 @@ class StatList(Stat):  # low-level node
 
 class Block(Stat):  # low-level node
     def __init__(self, parent=None, gl_sym=None, lc_sym=None, defs=None, body=None):
+        log_indentation(ANSI("BOLD", f'New Block Node (id: {id(self)})'))
         super().__init__(parent, [], lc_sym)
         self.global_symtab = gl_sym
         self.body = body
@@ -1144,7 +1217,7 @@ class Block(Stat):  # low-level node
         self.body.parent = self
         self.defs.parent = self
         self.stackroom = 0
-        # XXX: added myself, just for printing
+        # XXX: used just for printing
         self.local_symtab = lc_sym
 
 
@@ -1152,6 +1225,7 @@ class Block(Stat):  # low-level node
 
 class Definition(IRNode):
     def __init__(self, parent=None, symbol=None):
+        log_indentation(ANSI("BOLD", f'New Definition Node (id: {id(self)})'))
         super().__init__(parent, [], None)
         self.parent = parent
         self.symbol = symbol
@@ -1159,6 +1233,7 @@ class Definition(IRNode):
 
 class FunctionDef(Definition):
     def __init__(self, parent=None, symbol=None, parameters=[], body=None, returns=[]):
+        log_indentation(ANSI("BOLD", f'New Functions Definition Node (id: {id(self)})'))
         super().__init__(parent, symbol)
         self.body = body
         self.body.parent = self
@@ -1171,6 +1246,7 @@ class FunctionDef(Definition):
 
 class DefinitionList(IRNode):
     def __init__(self, parent=None, children=None):
+        log_indentation(ANSI("BOLD", f'New Definition List Node (id: {id(self)})'))
         super().__init__(parent, children, None)
 
     def append(self, elem):

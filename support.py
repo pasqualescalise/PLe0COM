@@ -5,17 +5,10 @@ the same thing in this compiler).
 These functions expose high level interfaces (passes) for actions that can be
 applied to multiple IR nodes."""
 
-
-def print_statement_list(node):
-    """Navigation action: printing
-    (only for StatList nodes the content is printed)"""
-    try:
-        node.print_content()
-    except AttributeError:
-        pass  # not a StatList
+from logger import log_indentation, ANSI
 
 
-def get_node_list(root, quiet=False):
+def get_node_list(root, quiet=True):
     """Get a list of all nodes in the AST"""
 
     def register_nodes(left):
@@ -27,7 +20,7 @@ def get_node_list(root, quiet=False):
         return right
 
     node_list = []
-    root.navigate(register_nodes(node_list), quiet)
+    root.navigate(register_nodes(node_list), quiet=quiet)
     return node_list
 
 
@@ -36,76 +29,18 @@ def lowering(node):
     (all high level nodes can be lowered to lower-level representation)"""
     try:
         check = node.lower()
-        print('Lowering', type(node), id(node))
+        log_indentation(ANSI("GREEN", f'Lowered {node.type()}, {id(node)}'))
         if not check:
-            raise RuntimeError("Node " + repr(node) + " did not return anything after lowering")
-    except AttributeError as e:
-        print(e)
-        print('Lowering not yet implemented for type ' + repr(type(node)))
+            raise RuntimeError(f"Node {repr(node)} did not return anything after lowering")
+    except AttributeError:
+        # print(e)
+        log_indentation(ANSI("UNDERLINE", f'Lowering not yet implemented for type {node.type()}'))
 
 
 def flattening(node):
     """Navigation action: flattening
-    (only StatList nodes are actually flattened)"""
+    (nested StatList nodes are flattened into a single StatList)"""
     try:
         node.flatten()
     except AttributeError:
-        print('Flattening not yet implemented for type ' + repr(type(node)))
-
-
-def dotty_wrapper(fout):
-    """Main function for graphviz dot output generation"""
-
-    def dotty_function(irnode):
-        from ir import Stat
-        attrs = {'body', 'cond', 'thenpart', 'elsepart', 'call', 'step', 'expr', 'target', 'defs'} & set(
-            dir(irnode))
-
-        res = repr(id(irnode)) + ' ['
-        if isinstance(irnode, Stat):
-            res += 'shape=box,'
-        res += 'label="' + repr(type(irnode)) + ' ' + repr(id(irnode))
-        try:
-            res += ': ' + repr(irnode.value)
-        except AttributeError:
-            pass
-        try:
-            res += ': ' + irnode.name
-        except AttributeError:
-            pass
-        try:
-            res += ': ' + getattr(irnode, 'symbol').name
-        except AttributeError:
-            pass
-        res += '" ];\n'
-
-        if 'children' in dir(irnode) and len(irnode.children):
-            for node in irnode.children:
-                res += repr(id(irnode)) + ' -> ' + repr(id(node)) + ' [pos=' + repr(
-                    irnode.children.index(node)) + '];\n'
-                if type(node) == str:
-                    res += repr(id(node)) + ' [label=' + node + '];\n'
-        for d in attrs:
-            node = getattr(irnode, d)
-            if d == 'target':
-                if irnode.target is None:
-                    res += repr(id(irnode)) + ' -> ' + 'return;\n'
-                else:
-                    res += repr(id(irnode)) + ' -> ' + repr(id(node.value)) + ' [label=' + node.name + '];\n'
-            else:
-                res += repr(id(irnode)) + ' -> ' + repr(id(node)) + ';\n'
-        fout.write(res)
-        return res
-
-    return dotty_function
-
-
-def print_dotty(root, filename):
-    """Print a graphviz dot representation to file"""
-    fout = open(filename, "w")
-    fout.write("digraph G {\n")
-    node_list = get_node_list(root, quiet=True)
-    dotty = dotty_wrapper(fout)
-    for n in node_list:
-        dotty(n)
-    fout.write("}\n")
+        log_indentation(ANSI("UNDERLINE", f'Flattening not yet implemented for type {node.type()}'))
