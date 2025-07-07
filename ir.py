@@ -9,7 +9,7 @@ in a separate module though)."""
 from functools import reduce
 from copy import deepcopy
 
-from logger import log_indentation, red, green, yellow, blue, magenta, cyan, bold, italic, underline
+from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
 
 # UTILITIES
@@ -232,15 +232,15 @@ class IRNode:  # abstract
         res = f"{label}{res}"
 
         if "children" in dir(self) and len(self.children):
-            res += f"{' ' * 4}children: " + "{\n"
+            res += ii("children: {\n")
             for child in self.children:
                 if isinstance(child, EmptyStat):
-                    res += f"{' ' * 7}{child}\n"  # label
+                    res += li(f"{child}\n")  # label
                 else:
                     rep = repr(child).split("\n")
-                    res += "\n".join([f"{' ' * 4}{' ' * 4}" + s for s in rep])
+                    res += "\n".join([f"{' ' * 8}" + s for s in rep])
                     res += "\n"
-            res += f"{' ' * 4}" + "}\n"
+            res += ii("}\n")
 
         for attr in attrs:
             node = getattr(self, attr)
@@ -250,7 +250,7 @@ class IRNode:  # abstract
                 rep = f"{rep[0]}\n{reps}"
             else:
                 rep = f"{rep[0]}"
-            res += f"{' ' * 4}{cyan(f'{attr}')} {bold('->')} {rep}\n"
+            res += ii(f"{cyan(f'{attr}')} {bold('->')} {rep}\n")
 
         res += "}"
         return res
@@ -1178,7 +1178,7 @@ class StatList(Stat):  # low-level node
     def get_content(self):
         content = f"Recap StatList {id(self)}: [\n"
         for n in self.children:
-            content += f"{' ' * 4}{n.type()}, {id(n)};\n"
+            content += ii(f"{n.type()}, {id(n)};\n")
         content += "]"
         return content
 

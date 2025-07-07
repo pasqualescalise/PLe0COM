@@ -3,7 +3,7 @@
 """Helper functions used by the code generator"""
 
 from regalloc import RegisterAllocation
-from logger import black, yellow, blue, cyan, bold, italic
+from logger import ii, black, yellow, blue, cyan, bold, italic
 
 REG_FP = 11
 REG_SCRATCH = 12
@@ -31,12 +31,12 @@ def save_regs(reglist):
     if len(reglist) == 0:
         return ''
 
-    res = f"{' ' * 4}{cyan('push')} " + "{"
+    res = ii(f"{cyan('push')} " + "{")
     for i in range(0, len(reglist)):
         if i > 0:
-            res += ', '
+            res += ", "
         res += get_register_string(reglist[i])
-    res += '}\n'
+    res += "}\n"
     return res
 
 
@@ -44,12 +44,12 @@ def restore_regs(reglist):
     if len(reglist) == 0:
         return ''
 
-    res = f"{' ' * 4}{cyan('pop')} " + "{"
+    res = ii(f"{cyan('pop')} " + "{")
     for i in range(0, len(reglist)):
         if i > 0:
-            res += ', '
+            res += ", "
         res += get_register_string(reglist[i])
-    res += '}\n'
+    res += "}\n"
     return res
 
 
@@ -71,7 +71,7 @@ def check_if_variable_needs_static_link(node, symbol):
     real_offset = static_link_analysis(node, symbol)
 
     if real_offset > 0:
-        return f"{' ' * 4}{yellow('add')} {get_register_string(REG_SCRATCH)}, {get_register_string(REG_FP)}, #{italic(f'{real_offset}')}\n"
+        return ii(f"{yellow('add')} {get_register_string(REG_SCRATCH)}, {get_register_string(REG_FP)}, #{italic(f'{real_offset}')}\n")
 
 
 # if a nested function uses a variable of its (grand)parent, its offset will be wrong because
@@ -125,8 +125,8 @@ def gen_spill_load_if_necessary(self, var):
 
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
-    res = f"{' ' * 4}{blue('ldr')} {rd}, [{get_register_string(REG_FP)}, #{italic(f'{offs}')}]"
-    res += f"{' ' * 4}{comment('<- fill')}"
+    res = ii(f"{blue('ldr')} {rd}, [{get_register_string(REG_FP)}, #{italic(f'{offs}')}]")
+    res += ii(f"{comment('<- fill')}")
     return res
 
 
@@ -143,8 +143,8 @@ def gen_spill_store_if_necessary(self, var):
 
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
-    res = f"{' ' * 4}{blue('str')} {rd}, [{get_register_string(REG_FP)}, #{italic(f'{offs}')}]"
-    res += f"{' ' * 4}{comment('<- spill')}"
+    res = ii(f"{blue('str')} {rd}, [{get_register_string(REG_FP)}, #{italic(f'{offs}')}]")
+    res += ii(f"{comment('<- spill')}")
     self.dematerialize_spilled_var_if_necessary(var)
     return res
 

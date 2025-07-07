@@ -67,7 +67,7 @@ def compile_program(text):
 
     print(h2("LIVENESS ANALYSIS"))
     cfg.liveness()
-    cfg.print_liveness()
+    print(cfg.liveness_analysis_representation())
 
     # XXX: AND OTHER OPTIMIZATIONS GO HERE
     print(h2("RETURN ANALYSIS"))

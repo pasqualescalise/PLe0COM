@@ -6,7 +6,7 @@ Includes cfg construction and liveness analysis."""
 from functools import reduce
 
 from ir import BranchStat, StatList, FunctionDef
-from logger import remove_formatting, green, yellow, blue, cyan
+from logger import ii, di, remove_formatting, green, yellow, blue, cyan
 from support import get_node_list
 
 
@@ -64,13 +64,13 @@ class BasicBlock(object):
     def __repr__(self):
         res = f"{yellow('Basic Block')} {id(self)} " + "{\n"
         if self.next:
-            res += f"{' ' * 4}{blue('Next:')} {id(self.next)},\n"
+            res += ii(f"{blue('Next:')} {id(self.next)},\n")
         else:
-            res += f"{' ' * 4}{blue('Next:')} {self.next},\n"
-        res += f"{' ' * 4}{blue('Target:')} {self.target},\n"
-        res += f"{' ' * 4}{blue('Instructions:')}\n"
+            res += ii(f"{blue('Next:')} {self.next},\n")
+        res += ii(f"{blue('Target:')} {self.target},\n")
+        res += ii(f"{blue('Instructions:')}\n")
         for i in self.instrs:
-            res += f"{' ' * 8}{i}\n"
+            res += di(f"{i}\n")
 
         res += "}\n"
 
@@ -269,23 +269,28 @@ class ControlFlowGraph(list):
         f.write(remove_formatting(dot))
         f.close()
 
-    def print_liveness(self):
-        for bb in self:
-            print(bb)
-            print(f"{yellow('Liveness Sets')}" + " {")
-            print(f"{' ' * 4}{blue('Gen set:')} {bb.gen},")
-            print(f"{' ' * 4}{blue('Kill set:')} {bb.kill},\n")
-            print(f"{' ' * 4}{blue('Live in set:')} {bb.live_in},")
-            print(f"{' ' * 4}{blue('Live out set:')} {bb.live_out}")
-            print("}\n")
+    def liveness_analysis_representation(self):
+        res = ""
 
-            print(f"{yellow('Instruction Liveness')}" + " {")
+        for bb in self:
+            res += f"{bb}\n"
+
+            res += yellow("Liveness Sets") + " {\n"
+            res += ii(f"{blue('Gen set:')} {bb.gen},\n")
+            res += ii(f"{blue('Kill set:')} {bb.kill},\n\n")
+            res += ii(f"{blue('Live in set:')} {bb.live_in},\n")
+            res += ii(f"{blue('Live out set:')} {bb.live_out}\n")
+            res += "}\n\n"
+
+            res += yellow("Instruction liveness") + " {\n"
             for i in bb.instrs:
-                print(f"{' ' * 4}{blue('Instruction:')} '{i}' " + "{")
-                print(f"{' ' * 8}{cyan('Live in set:')} {i.live_in},")
-                print(f"{' ' * 8}{cyan('Live out set:')} {i.live_out}")
-                print(f"{' ' * 4}" + "}")
-            print("}\n\n")
+                res += ii(f"{blue('Instruction:')} '{i}' " + "{\n")
+                res += di(f"{cyan('Live in set:')} {i.live_in},\n")
+                res += di(f"{cyan('Live out set:')} {i.live_out}\n")
+                res += ii("}\n")
+            res += "}\n\n---\n\n"
+
+        return res
 
     def find_target_bb(self, label):
         """Return the BB that contains a given label;

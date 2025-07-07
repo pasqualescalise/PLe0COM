@@ -28,6 +28,22 @@ def log_indentation(str):
     print(f"{' ' * indentation * 4}{str}")
 
 
+def ii(str):
+    return f"{' ' * 4}{str}"
+
+
+def hi(str):
+    return f"{' ' * 2}{str}"
+
+
+def di(str):
+    return f"{' ' * 8}{str}"
+
+
+def li(str):
+    return f"{' ' * 7}{str}"
+
+
 BASE = "\033["
 RST = BASE + "0m"
 CODE = {
