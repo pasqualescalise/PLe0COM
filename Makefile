@@ -4,6 +4,7 @@ CFLAGS := -g -static -march=armv6 -z noexecstack
 ASSEMBLY := out.s
 EXECUTABLE := out
 RUN_COMMAND := qemu-arm -cpu arm1136 
+DEBUGGER := pwndbg
 
 TESTS_SRC_DIR:= "./tests"
 TESTS_EXP_DIR := "./tests/expected"
@@ -24,7 +25,7 @@ compile:
 
 execute:
 	printf "\n\e[36mRUNNING\e[0m\n\n";
-	if [ $(gdb) ]; then\
+	if [ $(dbg) ]; then\
 		$(RUN_COMMAND) -g 7777 $(EXECUTABLE);\
 	elif [ $(test) ]; then\
 		test_name=$$(basename "$(test)" .pl0);\
@@ -69,8 +70,8 @@ check_output:
 clean:
 	rm $(ASSEMBLY) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
 
-gdb:
-	gdb-multiarch --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
+dbg:
+	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
 
 showpdf:
 	dot -Tpdf $(CFG_DOT_FILE) -o $(CFG_PDF_FILE)
@@ -80,4 +81,4 @@ showpng:
 	dot -Tpng $(CFG_DOT_FILE) -o $(CFG_PNG_FILE)
 	xdg-open $(CFG_PNG_FILE) &
 
-.PHONY: compile test clean gdb showpdf showpng
+.PHONY: compile test clean dbg showpdf showpng
