@@ -137,7 +137,8 @@ def binstat_codegen(self, regalloc):
     elif self.op == "times":
         res += ii(f"{yellow('mul')} {rd}, {param}\n")
     elif self.op == "slash":
-        res += ii(f"{yellow('div')} {rd}, {param}\n")
+        # XXX: this should never happen, since there is no "div" instruction in armv6
+        pass
     elif self.op == "shl":
         res += ii(f"{yellow('lsl')} {rd}, {param}\n")
     elif self.op == "shr":

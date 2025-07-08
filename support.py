@@ -33,7 +33,6 @@ def lowering(node):
         if not check:
             raise RuntimeError(f"Node {repr(node)} did not return anything after lowering")
     except AttributeError:
-        # print(e)
         log_indentation(underline(f"Lowering not yet implemented for type {node.type()}"))
 
 

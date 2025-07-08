@@ -206,6 +206,7 @@ class IRNode:  # abstract
 
     def __repr__(self):
         try:
+            # TODO: print this better (a non-empty statement with a label)
             label = f"Label {self.get_label().name}: "
         except Exception:
             label = ''
@@ -492,8 +493,47 @@ class BinExpr(Expr):
 
         dest = new_temporary(self.symtab, desttype)
 
-        stmt = BinStat(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
-        statl = [self.children[1], self.children[2], stmt]
+        if self.children[0] != "slash":
+            stmt = BinStat(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
+            statl = [self.children[1], self.children[2], stmt]
+            return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
+
+        """
+        implement the division as a while loop
+        so that `res = op1 / op2`
+        becomes something like
+
+        res = 0;
+        while (op2 >= 0) {
+            op2 = op2 - op1;
+            res++;
+        }
+        """
+        zero_destination = LoadImmStat(dest=dest, val=0, symtab=self.symtab)
+
+        one = new_temporary(self.symtab, TYPENAMES['int'])
+        load_one = LoadImmStat(dest=one, val=1, symtab=self.symtab)
+
+        entry_label = TYPENAMES['label']()
+        entry_stat = EmptyStat(self.parent, symtab=self.symtab)
+        entry_stat.set_label(entry_label)
+
+        exit_label = TYPENAMES['label']()
+        exit_stat = EmptyStat(self.parent, symtab=self.symtab)
+        exit_stat.set_label(exit_label)
+
+        condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
+        loop_condition = BinStat(dest=condition_variable, op="geq", srca=srca, srcb=srcb, symtab=self.symtab)
+
+        test_condition = BranchStat(cond=condition_variable, target=exit_label, negcond=True, symtab=self.symtab)
+
+        loop_update = BinStat(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
+
+        calc_result = BinStat(dest=dest, op="plus", srca=dest, srcb=one, symtab=self.symtab)
+
+        loop_resume = BranchStat(target=entry_label, symtab=self.symtab)
+
+        statl = [self.children[1], self.children[2], zero_destination, load_one, entry_stat, loop_condition, test_condition, loop_update, calc_result, loop_resume, exit_stat]
         return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
 
