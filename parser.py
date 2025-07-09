@@ -306,10 +306,34 @@ class Parser:
                 while self.accept('comma'):
                     self.constdef(local_symtab, alloct)
             else:
-                self.vardef(local_symtab, alloct)
+                # get all the newly defined symbols
+                new_symbols = []
+                new_symbols.append(self.vardef(alloct))
                 while self.accept('comma'):
-                    self.vardef(local_symtab, alloct)
-            self.expect('semicolon')
+                    new_symbols.append(self.vardef(alloct))
+
+                # get the type of the new symbols
+                if not self.accept('colon'):
+                    self.error("Some variables were defined without explicit types")
+
+                self.accept('ident')
+
+                if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
+                    self.error(f"The type {self.value} is not valid for a variable")
+
+                type = ir.TYPENAMES[self.value]
+
+                # set the types for the new symbols and add them to the symtab
+                for new_symbol in new_symbols:
+                    if new_symbol.stype is None:
+                        new_symbol.stype = type
+                    elif isinstance(new_symbol.stype, ir.ArrayType):
+                        size = new_symbol.stype.dims
+                        new_symbol.stype = ir.ArrayType(None, size, type)
+                    local_symtab.append(new_symbol)
+                    log_indentation(f"{green('Parsed variable:')} {str(new_symbol)}")
+
+                self.expect('semicolon')
 
         log_indentation(green("Parsed variables definition"))
 
@@ -407,7 +431,7 @@ class Parser:
             local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, fname=self.current_function), int(self.value))
 
     @logger
-    def vardef(self, symtab, alloct='auto'):
+    def vardef(self, alloct='auto'):
         self.expect('ident')
         name = self.value
         size = []
@@ -418,22 +442,14 @@ class Parser:
             size.append(int(self.value))
             self.expect('rspar')
 
-        type = ir.TYPENAMES['int']
-
-        # label
-        if self.accept('colon'):
-            self.accept('ident')
-            type = ir.TYPENAMES[self.value]
-
         new_var = ''
 
         if len(size) > 0:
-            new_var = ir.Symbol(name, ir.ArrayType(None, size, type), alloct=alloct, fname=self.current_function)
+            new_var = ir.Symbol(name, ir.ArrayType(None, size, None), alloct=alloct, fname=self.current_function)
         else:
-            new_var = ir.Symbol(name, type, alloct=alloct, fname=self.current_function)
+            new_var = ir.Symbol(name, None, alloct=alloct, fname=self.current_function)
 
-        symtab.append(new_var)
-        log_indentation(f"{green('Parsed variable:')} {str(new_var)}")
+        return new_var
 
     @logger
     def program(self):

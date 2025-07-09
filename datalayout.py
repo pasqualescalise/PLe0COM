@@ -6,7 +6,7 @@ the data section of the executable (GlobalSymbol)."""
 
 from codegenhelp import CALL_OFFSET
 from logger import red, green, blue, cyan
-from ir import StoreStat
+from ir import StoreStat, ArrayType, PointerType
 
 
 class SymbolLayout(object):
@@ -48,6 +48,7 @@ def promote_symbol(symbol, root):
 
 # a variable can be promoted from being stored in memory to being stored in a register if
 #   - the variable is not used in any nested procedure
+#   - the variable address is needed for something (example -> ArrayType, PointerType)
 def perform_memory_to_register_promotion(root):
     to_promote = []
 
@@ -56,6 +57,10 @@ def perform_memory_to_register_promotion(root):
             continue
 
         print(f"{blue('SYMBOL:')} {symbol}")
+
+        if isinstance(symbol.stype, ArrayType) or isinstance(symbol.stype, PointerType):
+            print(red("Can't promote because the symbol address needs to be accessible\n"))
+            continue
 
         if symbol.used_in_nested_procedure:
             print(red("Can't promote because the symbol is used in a nested procedure\n"))
@@ -144,7 +149,7 @@ def perform_data_layout_of_program(root):
         if var.stype.size == 0:
             continue
 
-        bsize = var.stype.size // 8
+        bsize = var.stype.size // 8  # in byte
 
         if var.alloct == 'param':
             # parameters are before the returns in the symbol table

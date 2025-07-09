@@ -310,7 +310,7 @@ def storestat_codegen(self, regalloc):
         res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(self.symbol)}}}\n")
         return [res, trail]
 
-    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg':
+    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.dest.stype, PointerType):
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         return [res, trail]
 
@@ -361,7 +361,7 @@ def loadstat_codegen(self, regalloc):
         res += ii(f"{cyan('pop')} {{{regalloc.get_register_for_variable(self.dest)}}}\n")
         return [res, trail]
 
-    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg':
+    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.symbol.stype, PointerType):
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         return [res, trail]
 

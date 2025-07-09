@@ -61,8 +61,9 @@ class ArrayType(Type):
         """dims is a list of dimensions: dims = [5]: array of 5 elements;
         dims = [5, 5]: 5x5 matrix; and so on"""
         self.dims = dims
-        super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
-        self.name = name if name else self.default_name()
+        if basetype is not None:
+            super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
+            self.name = name if name else self.default_name()
 
     def default_name(self):
         return self.basetype.name + repr(self.dims)
@@ -138,7 +139,7 @@ class Symbol:
         self.used_in_nested_procedure = used_in_nested_procedure
 
     def set_alloc_info(self, allocinfo):
-        self.allocinfo = allocinfo
+        self.allocinfo = allocinfo  # in byte
 
     def __repr__(self):
         base = f"{self.alloct} {self.stype.name}"
@@ -1088,7 +1089,7 @@ class StoreStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        if self.dest.alloct == 'reg' and self.symbol.alloct != 'reg':
+        if isinstance(self.dest.stype, PointerType):
             return f"[{self.dest}] {bold('<-')} {self.symbol}"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
@@ -1120,10 +1121,9 @@ class LoadStat(Stat):  # low-level node
         return self.dest
 
     def human_repr(self):
-        if self.symbol.alloct == 'reg' and self.dest.alloct != 'reg':
+        if isinstance(self.symbol.stype, PointerType):
             return f"{self.dest} {bold('<-')} [{self.symbol}]"
-        else:
-            return f"{self.dest} {bold('<-')} {self.symbol}"
+        return f"{self.dest} {bold('<-')} {self.symbol}"
 
 
 class LoadImmStat(Stat):  # low-level node

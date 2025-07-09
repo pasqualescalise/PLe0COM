@@ -1,0 +1,13 @@
+VAR x, y, result : int;
+VAR arr[5][10], arr2[10] : int;
+
+BEGIN
+	x := 10;
+	y := 5;
+	result := x - y;
+	print result;
+	arr[0][0] := 2;
+	arr2[5] := 3;
+	result := arr[0][0] + arr2[5];
+	print result
+END.
