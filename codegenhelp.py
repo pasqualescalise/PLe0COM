@@ -14,6 +14,8 @@ REG_PC = 15
 REGS_CALLEESAVE = [4, 5, 6, 7, 8, 9, 10]
 REGS_CALLERSAVE = [0, 1, 2, 3]
 
+REGISTER_SIZE = 32
+
 # each time a call gets made, the caller saved and the callee saved registers
 # gets pushed on the stack, + the current frame pointer and return pointer
 CALL_OFFSET = (len(REGS_CALLEESAVE) + len(REGS_CALLERSAVE) + 2) * 4

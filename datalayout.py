@@ -4,7 +4,7 @@
 is not a register, is allocated in the local stack frame (LocalSymbol) or in
 the data section of the executable (GlobalSymbol)."""
 
-from codegenhelp import CALL_OFFSET
+from codegenhelp import CALL_OFFSET, REGISTER_SIZE
 from logger import red, green, blue, cyan
 from ir import StoreStat, ArrayType, PointerType
 
@@ -64,6 +64,10 @@ def perform_memory_to_register_promotion(root):
 
         if symbol.used_in_nested_procedure:
             print(red("Can't promote because the symbol is used in a nested procedure\n"))
+            continue
+
+        if symbol.stype.size != REGISTER_SIZE:
+            print(red("Can't promote because the symbol is not the same size as the registers\n"))
             continue
 
         print(green("Promoted\n"))

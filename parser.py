@@ -30,7 +30,7 @@ class Parser:
         return 1
 
     def error(self, msg):
-        log_indentation(red(f"{msg} {self.new_sym} {self.new_value}"))
+        log_indentation(red(f"{msg} - Current symbol: {self.new_sym} {self.new_value}"))
         raise RuntimeError("Raised error during parsing")
 
     def accept(self, s):

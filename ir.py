@@ -9,6 +9,7 @@ in a separate module though)."""
 from functools import reduce
 from copy import deepcopy
 
+from codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
 
@@ -94,20 +95,22 @@ class FunctionType(Type):
         super().__init__('function', 0, 'Function', [])
 
 
-class PointerType(Type):
+class PointerType(Type):  # can't define a variable as type PointerType, it's used for arrays
     def __init__(self, ptrto):
         """ptrto is the type of the object that this pointer points to."""
-        super().__init__('&' + ptrto.name, 32, 'Int', ['unsigned'])
+        super().__init__('&' + ptrto.name, REGISTER_SIZE, 'Int', ['unsigned'])
         self.pointstotype = ptrto
 
 
 TYPENAMES = {
     'int': Type('int', 32, 'Int'),
     'short': Type('short', 16, 'Int'),
-    'char': Type('char', 8, 'Int'),
-    'uchar': Type('uchar', 8, 'Int', ['unsigned']),
+    'byte': Type('byte', 8, 'Int'),
+
     'uint': Type('uint', 32, 'Int', ['unsigned']),
     'ushort': Type('ushort', 16, 'Int', ['unsigned']),
+    'ubyte': Type('ubyte', 8, 'Int', ['unsigned']),
+
     # 'float': Type('float', 32, 'Float'),
     'label': LabelType(),
     'function': FunctionType(),

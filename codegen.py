@@ -340,13 +340,11 @@ def storestat_codegen(self, regalloc):
         desttype = self.dest.stype
 
     typeid = ['b', 'h', None, ''][desttype.size // 8 - 1]
-    if typeid != '' and 'unsigned' in desttype.qual_list:
-        typeid = 's' + type
 
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
 
-    res += ii(f"{blue('str')}{typeid} {rsrc}, {dest}\n")
+    res += ii(f"{blue(f'str{typeid}')} {rsrc}, {dest}\n")
     return [res, trail]
 
 
@@ -389,12 +387,13 @@ def loadstat_codegen(self, regalloc):
         desttype = self.symbol.stype.pointstotype
     else:
         desttype = self.symbol.stype
+
     typeid = ['b', 'h', None, ''][desttype.size // 8 - 1]
-    if typeid != '' and 'unsigned' in desttype.qual_list:
-        typeid = 's' + type
+    if typeid != '' and 'unsigned' not in desttype.qual_list:
+        typeid = f"s{typeid}"
 
     rdst = regalloc.get_register_for_variable(self.dest)
-    res += ii(f"{blue('ldr')} {typeid} {rdst}, {src}\n")
+    res += ii(f"{blue(f'ldr{typeid}')} {rdst}, {src}\n")
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return [res, trail]
 
