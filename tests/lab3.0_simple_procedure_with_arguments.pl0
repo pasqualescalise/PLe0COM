@@ -1,5 +1,5 @@
 PROCEDURE multiply(int x, int y);
-	VAR result;
+	VAR result : int;
 	BEGIN
 		result := x * y;
 		print result

@@ -1,15 +1,15 @@
 PROCEDURE power(int base, int exponent);
-	VAR result;
+	VAR result : int;
 
 	PROCEDURE square(int x);
-		VAR ressquare;
+		VAR ressquare : int;
 		BEGIN
 			ressquare := x * x;
 			print ressquare
 		END;
 
 	PROCEDURE powerOfTwo(int exponent);
-		VAR resshift;
+		VAR resshift : int;
 		BEGIN
 			{parentheses needed because shift has a higher precedence than -}
 			resshift := 2 << (exponent - 1);
@@ -17,7 +17,7 @@ PROCEDURE power(int base, int exponent);
 		END;
 
 	PROCEDURE powerWithFors(int base, int exponent);
-		VAR respow, i;
+		VAR respow, i : int;
 		BEGIN
 			respow := base;
 			for i := 0; i < (exponent - 1); i := i + 1 DO BEGIN

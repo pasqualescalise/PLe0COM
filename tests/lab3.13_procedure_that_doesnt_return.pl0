@@ -1,4 +1,4 @@
-VAR result;
+VAR result : int;
 
 PROCEDURE function(int x, int y) -> (int);
 	BEGIN

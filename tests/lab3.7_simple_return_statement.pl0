@@ -1,4 +1,4 @@
-VAR result;
+VAR result : int;
 
 PROCEDURE multiply(int x, int y) -> (int);
 	BEGIN

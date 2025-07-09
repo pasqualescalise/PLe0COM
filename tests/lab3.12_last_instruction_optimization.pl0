@@ -1,7 +1,7 @@
-VAR result;
+VAR result : int;
 
 PROCEDURE choose(int x, int y) -> (int);
-	VAR result;
+	VAR result : int;
 
 	BEGIN
 		result := x * y;

@@ -1,10 +1,10 @@
-VAR result;
+VAR result : int;
 
 PROCEDURE f1(int x, int y);
-	VAR result, ret;
+	VAR result, ret : int;
 
 	PROCEDURE f2(int x, int y) -> (int);
-		VAR space;
+		VAR space : int;
 
 		PROCEDURE f3(int x, int y);
 			BEGIN
@@ -12,7 +12,7 @@ PROCEDURE f1(int x, int y);
 			END;
 
 		PROCEDURE f4(int x, int y);
-			VAR space;
+			VAR space : int;
 			BEGIN
 				result := result + x
 			END;

@@ -1,10 +1,10 @@
-VAR base, exponent;
+VAR base, exponent : int;
 
 PROCEDURE func1(int x, int y);
-	VAR result;
+	VAR result : int;
 
 	PROCEDURE square(int x);
-		VAR ressquare;
+		VAR ressquare : int;
 		BEGIN
 			ressquare := x * x;
 			print ressquare
@@ -13,10 +13,10 @@ PROCEDURE func1(int x, int y);
 		END;
 
 	PROCEDURE powerWithFors(int x, int y);
-		VAR respow;
+		VAR respow : int;
 
 		PROCEDURE func2(int x, int y);
-			VAR respow, i;
+			VAR respow, i : int;
 			BEGIN
 				respow := 1;
 				for i := 0; i < y; i := i + 1 DO BEGIN

@@ -1,4 +1,4 @@
-VAR i;
+VAR i : int;
 
 BEGIN
 	i := 10;

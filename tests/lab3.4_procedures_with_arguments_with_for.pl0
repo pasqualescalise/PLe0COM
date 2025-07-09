@@ -1,7 +1,7 @@
-VAR base, exponent;
+VAR base, exponent : int;
 
 PROCEDURE power(int x, int y);
-	VAR result, i;
+	VAR result, i : int;
 	BEGIN
 		result := 1;
 		for i := 0; i < y; i := i + 1 DO BEGIN

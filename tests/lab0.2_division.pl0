@@ -1,4 +1,4 @@
-VAR x, y, result;
+VAR x, y, result : int;
 
 BEGIN
 	x := 10;

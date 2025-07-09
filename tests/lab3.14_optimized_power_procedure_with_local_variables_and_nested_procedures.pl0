@@ -1,5 +1,5 @@
 PROCEDURE power(int base, int exponent);
-	VAR result;
+	VAR result : int;
 
 	PROCEDURE square(int x);
 		BEGIN
@@ -13,7 +13,7 @@ PROCEDURE power(int base, int exponent);
 		END;
 
 	PROCEDURE powerWithFors(int base, int exponent);
-		VAR respow, i;
+		VAR respow, i : int;
 		BEGIN
 			respow := base;
 			for i := 0; i < (exponent - 1); i := i + 1 DO BEGIN

@@ -1,7 +1,7 @@
-VAR result;
+VAR result : int;
 
 PROCEDURE f1(int x, int y);
-	VAR result;
+	VAR result : int;
 
 	PROCEDURE f2(int x, int y);
 		BEGIN

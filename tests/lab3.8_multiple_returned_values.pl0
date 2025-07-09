@@ -1,4 +1,4 @@
-VAR sum, multiplication;
+VAR sum, multiplication : int;
 
 PROCEDURE sumAndMultiply(int x, int y) -> (int, int);
 	BEGIN

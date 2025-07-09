@@ -1,7 +1,7 @@
-VAR sum_res, multiplication;
+VAR sum_res, multiplication : int;
 
 PROCEDURE sumAndMultiply(int x, int y) -> (int, int);
-	VAR sum_res, multiplication;
+	VAR sum_res, multiplication : int;
 
 	PROCEDURE sum(int x, int y) -> (int);
 		BEGIN
