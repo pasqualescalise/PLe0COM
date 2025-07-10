@@ -2,6 +2,8 @@
 
 """Simple lexer for PL/0 using generators"""
 
+from re import match
+
 # Tokens can have multiple definitions if needed
 TOKEN_DEFS = {
     'lparen': ['('],
@@ -44,7 +46,8 @@ TOKEN_DEFS = {
     'period': ['.'],
     'oddsym': ['odd'],
     'print': ['!', 'print'],
-    'read': ['?', 'read']
+    'read': ['?', 'read'],
+    'quote': ['"']
 }
 
 
@@ -56,6 +59,9 @@ class Lexer:
         self.pos = 0
         self.str_to_token = list([(s, t) for t, ss in TOKEN_DEFS.items() for s in ss])
         self.str_to_token.sort(key=lambda a: -len(a[0]))
+
+        self.parsed_string = None
+        self.skip_quote = False
 
     def skip_whitespace(self):
         in_comment = False
@@ -73,12 +79,24 @@ class Lexer:
                 return t, s
         return None, None
 
+    def get_valid_string(self):
+        if self.parsed_string is not None:
+            self.parsed_string = None
+            return True
+
+        regex_match = match(r'\"(?:[^\"\\\\n{]|\\.)*\"', '"' + self.text[self.pos:])
+        if regex_match:
+            found = regex_match.group(0)
+            self.parsed_string = found[1:-1]
+            return True
+
+        return False
+
     def check_regex(self, regex):
-        import re
-        match = re.match(regex, self.text[self.pos:])
-        if not match:
+        regex_match = match(regex, self.text[self.pos:])
+        if not regex_match:
             return None
-        found = match.group(0)
+        found = regex_match.group(0)
         self.pos += len(found)
         return found
 
@@ -89,11 +107,26 @@ class Lexer:
             self.skip_whitespace()
             t, s = self.check_symbol()
             if s:
+                if t == 'quote' and not self.skip_quote:
+                    if self.parsed_string == "":
+                        self.pos -= 1
+                        self.parsed_string = None
+                        self.skip_quote = True
+                        yield 'string', ""
+                        continue
+
+                    if not self.get_valid_string():
+                        break
+                self.skip_quote = False
                 yield t, s
                 continue
             t = self.check_regex(r'[0-9]+')
             if t:
                 yield 'number', int(t)
+                continue
+            if self.parsed_string is not None:
+                self.pos += len(self.parsed_string)
+                yield 'string', self.parsed_string
                 continue
             t = self.check_regex(r'\w+')
             if t:
@@ -106,3 +139,5 @@ class Lexer:
                 break
             yield 'illegal', t
             break
+
+        yield 'illegal', None

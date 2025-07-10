@@ -111,7 +111,8 @@ TYPENAMES = {
     'ushort': Type('ushort', 16, 'Int', ['unsigned']),
     'ubyte': Type('ubyte', 8, 'Int', ['unsigned']),
 
-    # 'float': Type('float', 32, 'Float'),
+    'char': Type('char', 8, 'Char', ['unsigned']),
+
     'label': LabelType(),
     'function': FunctionType(),
 }
