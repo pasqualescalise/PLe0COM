@@ -104,7 +104,8 @@ class Lexer:
         """Returns a generator which will produce a stream of (token identifier, token value) pairs."""
 
         while self.pos < len(self.text):
-            self.skip_whitespace()
+            if self.parsed_string is None:
+                self.skip_whitespace()
             t, s = self.check_symbol()
             if s:
                 if t == 'quote' and not self.skip_quote:
