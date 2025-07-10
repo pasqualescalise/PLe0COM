@@ -17,7 +17,9 @@ CFG_PNG_FILE := cfg.png
 all: compile execute
 
 compile:
-	python3 main.py $(test) $(ASSEMBLY)
+	if [ $(test) ]; then\
+		python3 main.py $(test) $(ASSEMBLY);\
+	fi;
 	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE)
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
