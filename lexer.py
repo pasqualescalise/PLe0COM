@@ -84,7 +84,7 @@ class Lexer:
             self.parsed_string = None
             return True
 
-        regex_match = match(r'\"(?:[^\"\\\\n{]|\\.)*\"', '"' + self.text[self.pos:])
+        regex_match = match(r'\"(?:[^\"\\{]|\\.)*\"', '"' + self.text[self.pos:])
         if regex_match:
             found = regex_match.group(0)
             self.parsed_string = found[1:-1]
