@@ -90,6 +90,11 @@ class Parser:
             expr = self.expression(symtab=symtab)
             self.expect('rparen')
             return expr
+        elif self.accept('quote'):
+            self.accept('string')
+            new_string = self.value
+            self.accept('quote')
+            return ir.String(value=new_string, symtab=symtab)
 
         self.error("Factor: syntax error")
 
@@ -174,15 +179,8 @@ class Parser:
             offset = self.array_offset(target, symtab)
             self.expect('becomes')
 
-            if self.accept('quote'):
-                self.accept('string')
-                new_string = self.value
-                self.accept('quote')
-                string = new_string
-                return ir.AssignStat(target=target, offset=offset, expr=None, string=string, symtab=symtab)
-            else:
-                expr = self.expression(symtab)
-                return ir.AssignStat(target=target, offset=offset, expr=expr, string=None, symtab=symtab)
+            expr = self.expression(symtab)
+            return ir.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
 
         elif self.accept('callsym'):
             self.expect('ident')
@@ -277,8 +275,8 @@ class Parser:
             return ir.ForStat(init=init, cond=cond, step=step, body=body, symtab=symtab)
 
         elif self.accept('print'):
-            exp = self.expression(symtab)
-            return ir.PrintStat(exp=exp, symtab=symtab)
+            expr = self.expression(symtab)
+            return ir.PrintStat(expr=expr, symtab=symtab)
 
         elif self.accept('read'):
             self.expect('ident')

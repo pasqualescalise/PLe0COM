@@ -9,9 +9,15 @@
 extern void __pl0_start(void);
 
 
-void __pl0_print(int param)
+void __pl0_print_digit(int param)
 {
   printf("%d\n", param);
+}
+
+
+void __pl0_print_string(int param)
+{
+  printf("%s\n", param);
 }
 
 

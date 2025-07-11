@@ -6,7 +6,7 @@ the data section of the executable (GlobalSymbol)."""
 
 from codegenhelp import CALL_OFFSET, REGISTER_SIZE
 from logger import red, green, blue, cyan
-from ir import StoreStat, ArrayType, PointerType
+from ir import StoreStat, ArrayType, PointerType, DataSymbolTable
 
 
 class SymbolLayout(object):
@@ -83,8 +83,11 @@ def perform_memory_to_register_promotion(root):
 
 def perform_data_layout(root):
     perform_data_layout_of_program(root)
+
     for defin in root.defs.children:
         perform_data_layout_of_function(defin)
+
+    perform_data_layout_of_data_variables()
 
 
 def perform_data_layout_of_function(funcroot):
@@ -180,3 +183,8 @@ def perform_data_layout_of_program(root):
             var.set_alloc_info(GlobalSymbolLayout(name, bsize))
 
     print(f"{cyan('main')} {root.symtab}")
+
+
+def perform_data_layout_of_data_variables():
+    for symbol in DataSymbolTable.get_data_symtab():
+        symbol.set_alloc_info(GlobalSymbolLayout(symbol.name, symbol.stype.size))

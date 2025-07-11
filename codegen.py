@@ -11,7 +11,7 @@ is used for adding constant literals."""
 
 from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, check_if_variable_needs_static_link
 from datalayout import LocalSymbolLayout
-from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat
+from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, ArrayType, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat, DataSymbolTable
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic
 
 localconsti = 0
@@ -80,8 +80,9 @@ def block_codegen(self, regalloc):
     regalloc.enter_function_body(self)
     try:
         res = codegen_append(res, self.body.codegen(regalloc))
-    except AttributeError:
-        pass
+    except AttributeError as e:
+        print(red("Can't execute codegen"))
+        raise RuntimeError(e)
 
     last_statement_of_block = self.body.children[-1]
     if type(last_statement_of_block) == BranchStat and last_statement_of_block.target is None:
@@ -97,8 +98,9 @@ def block_codegen(self, regalloc):
 
     try:
         res = codegen_append(res, self.defs.codegen(regalloc))
-    except AttributeError:
-        pass
+    except AttributeError as e:
+        print(red("Can't execute codegen"))
+        raise RuntimeError(e)
 
     return res[0] + res[1]
 
@@ -186,7 +188,10 @@ def print_codegen(self, regalloc):
 
     res += save_regs(REGS_CALLERSAVE)
     res += ii(f"{blue('mov')} {get_register_string(0)}, {rp}\n")
-    res += ii(f"{red('bl')} {magenta('__pl0_print')}\n")
+    if self.print_string:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
+    else:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_digit')}\n")
     res += restore_regs(REGS_CALLERSAVE)
     return res
 
@@ -383,7 +388,13 @@ def loadstat_codegen(self, regalloc):
             res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, {label}\n")
             src = f"[{get_register_string(REG_SCRATCH)}]"
 
-    if type(self.symbol.stype) is PointerType:
+    # XXX: not entirely sure about this
+    if type(self.symbol.stype) is ArrayType:
+        desttype = self.symbol.stype.basetype
+        rdst = regalloc.get_register_for_variable(self.dest)
+        res += ii(f"{blue(f'mov')} {rdst}, {get_register_string(REG_SCRATCH)}\n")
+        return [res, trail]
+    elif type(self.symbol.stype) is PointerType:
         desttype = self.symbol.stype.pointstotype
     else:
         desttype = self.symbol.stype
@@ -462,8 +473,20 @@ def unarystat_codegen(self, regalloc):
 UnaryStat.codegen = unarystat_codegen
 
 
+def generate_data_section():
+    res = ii(".data\n")
+    for symbol in DataSymbolTable.get_data_symtab():
+        if symbol.stype.name == "char":
+            res += ii(f"{symbol.name}: .asciz \"{symbol.value}\"\n")
+        else:
+            raise NotImplementedError("Don't have implemented storing non-string values is .data section")
+
+    return res
+
+
 def generate_code(program, regalloc):
-    res = ii(".text\n")
+    res = generate_data_section()
+    res += ii(".text\n")
     res += ii(".arch armv6\n")
     res += ii(".syntax unified\n")
     return res + program.codegen(regalloc)

@@ -1,9 +1,9 @@
 VAR str[100] : char;
 
 BEGIN
-	str := "";
-	print str;
 	str := "Hello World!";
+	print str;
+	str := "";
 	print str;
 	str := "\"H\"e\"l\"l\"o\"\" \"\"W\"o\"r\"l\"d\"!\"";
 	print str;
@@ -12,5 +12,6 @@ BEGIN
 		World
 		!
 	";
-	print str
+	print str;
+	print "Hello inlined World!"
 END.
