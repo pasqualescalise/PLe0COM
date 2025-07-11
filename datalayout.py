@@ -49,6 +49,7 @@ def promote_symbol(symbol, root):
 # a variable can be promoted from being stored in memory to being stored in a register if
 #   - the variable is not used in any nested procedure
 #   - the variable address is needed for something (example -> ArrayType, PointerType)
+#   - the symbol type is not the same size as the registers
 def perform_memory_to_register_promotion(root):
     to_promote = []
 
