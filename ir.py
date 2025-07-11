@@ -989,19 +989,18 @@ class PrintStat(Stat):
     def __init__(self, parent=None, expr=None, symtab=None):
         log_indentation(bold(f"New PrintStat Node (id: {id(self)})"))
         super().__init__(parent, [expr], symtab)
-        self.expr = expr
 
     def used_variables(self):
-        return self.expr.used_variables()
+        return self.children[0].used_variables()
 
     def lower(self):
         print_string = False
 
-        if self.expr and self.expr.destination().is_string():
+        if self.children[0] and self.children[0].destination().is_string():
             print_string = True
 
-        pc = PrintCommand(src=self.expr.destination(), print_string=print_string, symtab=self.symtab)
-        stlist = StatList(children=[self.expr, pc], symtab=self.symtab)
+        pc = PrintCommand(src=self.children[0].destination(), print_string=print_string, symtab=self.symtab)
+        stlist = StatList(children=[self.children[0], pc], symtab=self.symtab)
         return self.parent.replace(self, stlist)
 
 
