@@ -49,7 +49,7 @@ class Parser:
 
     def array_offset(self, target, symtab):
         offset = None
-        if isinstance(target.stype, ir.ArrayType):
+        if isinstance(target.stype, ir.ArrayType) and target.stype.basetype.basetype != 'Char':
             idxes = []
             for i in range(0, len(target.stype.dims)):
                 self.expect('lspar')
@@ -173,8 +173,16 @@ class Parser:
             target = symtab.find(self, self.value)
             offset = self.array_offset(target, symtab)
             self.expect('becomes')
-            expr = self.expression(symtab)
-            return ir.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
+
+            if self.accept('quote'):
+                self.accept('string')
+                new_string = self.value
+                self.accept('quote')
+                string = new_string
+                return ir.AssignStat(target=target, offset=offset, expr=None, string=string, symtab=symtab)
+            else:
+                expr = self.expression(symtab)
+                return ir.AssignStat(target=target, offset=offset, expr=expr, string=None, symtab=symtab)
 
         elif self.accept('callsym'):
             self.expect('ident')

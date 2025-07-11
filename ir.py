@@ -15,14 +15,22 @@ import logger
 
 # UTILITIES
 
-tempcount = 0
+temporary_count = 0
+data_variables_count = 0
 
 
 def new_temporary(symtab, type):
-    global tempcount
-    temp = Symbol(name=f"t{tempcount}", stype=type, alloct='reg')
-    tempcount += 1
+    global temporary_count
+    temp = Symbol(name=f"t{temporary_count}", stype=type, alloct='reg')
+    temporary_count += 1
     return temp
+
+
+def new_variable_name():
+    global data_variables_count
+    name = f"data{data_variables_count}"
+    data_variables_count += 1
+    return name
 
 
 # TYPES
@@ -117,14 +125,15 @@ TYPENAMES = {
     'function': FunctionType(),
 }
 
-ALLOC_CLASSES = ['global', 'auto', 'reg', 'imm', 'param', 'return']
+ALLOC_CLASSES = ['global', 'auto', 'data', 'reg', 'imm', 'param', 'return']
 
 
 class Symbol:
-    """There are 6 classes of allocation for symbols:\n
+    """There are 7 classes of allocation for symbols:\n
     - allocation to a register ('reg')
     - allocation to an arbitrary memory location, in the current stack frame
-      ('auto') or in the data section ('global')
+      ('auto') or in the .comm section ('global')
+    - allocation in the data section ('data')
     - allocation to an immediate ('imm')
     - allocation of function parameters('param')
     - allocation of function retuns('return') -> these are not 'real' symbols
@@ -192,6 +201,9 @@ class SymbolTable(list):
         return [symb for symb in self if symb.stype not in barred_types]
 
 
+data_symtab = SymbolTable()
+
+
 # IRNODE
 
 class IRNode:  # abstract
@@ -222,7 +234,7 @@ class IRNode:  # abstract
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol', 'string'} & set(dir(self))
 
         res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -302,8 +314,8 @@ class IRNode:  # abstract
         if 'children' in dir(self) and len(self.children) and old in self.children:
             self.children[self.children.index(old)] = new
             return True
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
-                 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+
         for d in attrs:
             try:
                 if getattr(self, d) == old:
@@ -821,7 +833,7 @@ class ForStat(Stat):
 
 
 class AssignStat(Stat):
-    def __init__(self, parent=None, target=None, offset=None, expr=None, symtab=None):
+    def __init__(self, parent=None, target=None, offset=None, expr=None, string=None, symtab=None):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.symbol = target
@@ -833,10 +845,14 @@ class AssignStat(Stat):
             pass
 
         self.expr = expr
-        self.expr.parent = self
+        if self.expr is not None:
+            self.expr.parent = self
+
         self.offset = offset
         if self.offset is not None:
             self.offset.parent = self
+
+        self.string = string
 
     def used_variables(self):
         try:
@@ -861,25 +877,87 @@ class AssignStat(Stat):
         """Assign statements translate to a store stmt, with the symbol and a
         temporary as parameters."""
 
-        src = self.expr.destination()
-        dst = self.symbol
+        if self.string is None:
+            src = self.expr.destination()
+            dst = self.symbol
 
-        stats = [self.expr]
+            stats = [self.expr]
 
-        if self.offset:
-            off = self.offset.destination()
-            desttype = dst.stype
-            if type(desttype) is ArrayType:  # this is always true at the moment
-                desttype = desttype.basetype
-            ptrreg = new_temporary(self.symtab, PointerType(desttype))
-            loadptr = LoadPtrToSym(dest=ptrreg, symbol=dst, symtab=self.symtab)
-            dst = new_temporary(self.symtab, PointerType(desttype))
-            add = BinStat(dest=dst, op='plus', srca=ptrreg, srcb=off, symtab=self.symtab)
-            stats += [self.offset, loadptr, add]
+            if self.offset:
+                off = self.offset.destination()
+                desttype = dst.stype
+                if type(desttype) is ArrayType:  # this is always true at the moment
+                    desttype = desttype.basetype
+                ptrreg = new_temporary(self.symtab, PointerType(desttype))
+                loadptr = LoadPtrToSym(dest=ptrreg, symbol=dst, symtab=self.symtab)
+                dst = new_temporary(self.symtab, PointerType(desttype))
+                add = BinStat(dest=dst, op='plus', srca=ptrreg, srcb=off, symtab=self.symtab)
+                stats += [self.offset, loadptr, add]
 
-        stats += [StoreStat(dest=dst, symbol=src, symtab=self.symtab)]
+            stats += [StoreStat(dest=dst, symbol=src, symtab=self.symtab)]
 
-        return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
+            return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
+
+        """
+        Assign a variable to a fixed string by putting the fixed string in the data section, then
+        copying one by one its characters from the fixed string to the variable one
+        """
+
+        global data_symtab
+        # put the string in the data symtab
+        data_variable = Symbol(name=new_variable_name(), stype=TYPENAMES['char'], value=self.string, alloct='data')
+        data_symtab.append(data_variable)
+
+        # load the fixed data string address
+        ptrreg_data = new_temporary(self.symtab, PointerType(data_variable.stype))
+        access_data = LoadPtrToSym(dest=ptrreg_data, symbol=data_variable, symtab=self.symtab)
+
+        # load the variable data string address
+        ptrreg_var = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
+        access_var = LoadPtrToSym(dest=ptrreg_var, symbol=self.symbol, symtab=self.symtab)
+
+        counter = new_temporary(self.symtab, TYPENAMES['int'])
+        counter_initialize = LoadImmStat(dest=counter, val=0, symtab=self.symtab)
+
+        zero = new_temporary(self.symtab, TYPENAMES['int'])
+        zero_initialize = LoadImmStat(dest=zero, val=0, symtab=self.symtab)
+
+        one = new_temporary(self.symtab, TYPENAMES['int'])
+        one_initialize = LoadImmStat(dest=one, val=1, symtab=self.symtab)
+
+        # load first char of data
+        character = new_temporary(self.symtab, TYPENAMES['char'])
+        load_data_char = LoadStat(dest=character, symbol=ptrreg_data, symtab=self.symtab)
+
+        # while the char loaded from the fixed string is different from 0x0,
+        # copy the chars from the fixed string to the variable one
+        dest = new_temporary(self.symtab, TYPENAMES['int'])
+        cond = BinStat(dest=dest, op='eql', srca=character, srcb=zero, symtab=self.symtab)
+
+        load_data_char = LoadStat(dest=character, symbol=ptrreg_data, symtab=self.symtab)
+
+        store_var_char = StoreStat(dest=ptrreg_var, symbol=character, symtab=self.symtab)
+
+        increment_data = BinStat(dest=ptrreg_data, op='plus', srca=ptrreg_data, srcb=one, symtab=self.symtab)
+        increment_var = BinStat(dest=ptrreg_var, op='plus', srca=ptrreg_var, srcb=one, symtab=self.symtab)
+        increment_counter = BinStat(dest=counter, op='plus', srca=counter, srcb=one, symtab=self.symtab)
+
+        body_stats = [load_data_char, store_var_char, increment_data, increment_var, increment_counter]
+
+        body = StatList(children=body_stats, symtab=self.symtab)
+        while_loop = WhileStat(cond=cond, body=body, symtab=self.symtab)
+
+        # put a terminator 0x0 byte in the variable string
+        end_zero_string = StoreStat(dest=ptrreg_var, symbol=zero, symtab=self.symtab)
+
+        stats = [access_data, access_var, counter_initialize, zero_initialize, one_initialize, load_data_char, while_loop, end_zero_string]
+        statl = StatList(children=stats, symtab=self.symtab)
+
+        # XXX: little trick to lower while statement here
+        while_loop.parent = statl
+        while_loop.lower()
+
+        return self.parent.replace(self, statl)
 
 
 class PrintStat(Stat):

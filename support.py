@@ -5,7 +5,7 @@ the same thing in this compiler).
 These functions expose high level interfaces (passes) for actions that can be
 applied to multiple IR nodes."""
 
-from logger import log_indentation, green, underline
+from logger import log_indentation, red, green, underline
 
 
 def get_node_list(root, quiet=True):
@@ -32,8 +32,11 @@ def lowering(node):
         log_indentation(green(f"Lowered {node.type()}, {id(node)}"))
         if not check:
             raise RuntimeError(f"Node {repr(node)} did not return anything after lowering")
-    except AttributeError:
-        log_indentation(underline(f"Lowering not yet implemented for type {node.type()}"))
+    except AttributeError as e:
+        if str(e).endswith("has no attribute 'lower'"):
+            log_indentation(underline(f"Lowering not yet implemented for type {node.type()}"))
+        else:
+            log_indentation(red(e))
 
 
 def flattening(node):
