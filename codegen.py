@@ -24,10 +24,20 @@ def new_local_const_label():
     return const_label
 
 
+# keep track of already given consts labels
+local_consts = {}
+
+
 def new_local_const(val):
+    if val in local_consts:
+        return local_consts[val], ""
+
     label = new_local_const_label()
     trail = f"{magenta(f'{label}')}:\n"
     trail += ii(f".word {val}\n")
+
+    local_consts[val] = label
+
     return label, trail
 
 
