@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 CC := arm-linux-gnueabi-gcc
 CFLAGS := -g -static -march=armv6 -z noexecstack
 
@@ -82,5 +84,9 @@ showpdf:
 showpng:
 	dot -Tpng $(CFG_DOT_FILE) -o $(CFG_PNG_FILE)
 	xdg-open $(CFG_PNG_FILE) &
+
+profile:
+	$(MAKE) compile test=$(test);
+	time $(RUN_COMMAND) $(EXECUTABLE);
 
 .PHONY: compile test clean dbg showpdf showpng
