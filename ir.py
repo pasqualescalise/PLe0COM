@@ -691,7 +691,7 @@ class SaveSpaceStat(Stat):  # low-level node
         else:
             return 'remove useless return values'
 
-    def replace_temporaries(self):
+    def replace_temporaries(self, mapping):
         pass
 
     def __deepcopy__(self, memo):

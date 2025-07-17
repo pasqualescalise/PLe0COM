@@ -22,19 +22,18 @@ def perform_post_lowering_optimizations(program):
 MAX_INSTRUCTION_TO_INLINE = 16
 
 
+# Replace all the temporaries in all the instructions with equivalent ones
 def replace_temporaries(instructions):
     mapping = {}  # keep track of already remapped temporaries
     for instruction in instructions:
         instruction.replace_temporaries(mapping)
 
+    return instructions
 
-# Remove all the return instructions and change the destination of
-# the store instructions to a register instead of a return symbol
+
+# Remove all the return instructions and if it's needed, add a branch to
+# an exit label to simulate a return
 def remove_returns(instructions, returns):
-    destinations = []  # temporaries to put the return values in
-    for i in range(len(returns)):
-        destinations.append(new_temporary(instructions[0].symtab, returns[i].stype))
-
     exit_label = TYPENAMES['label']()
     exit_stat = EmptyStat(instructions[0].parent, symtab=instructions[0].symtab)
     exit_stat.set_label(exit_label)
@@ -43,23 +42,10 @@ def remove_returns(instructions, returns):
 
     for i in range(len(instructions)):
         instruction = instructions[i]
-
-        try:
-            if instruction.marked_for_removal:
-                continue
-        except AttributeError:
-            instruction.marked_for_removal = False
+        instruction.marked_for_removal = False
 
         if isinstance(instruction, BranchStat) and instruction.is_return():
             instruction.marked_for_removal = True
-
-            if len(returns) > 0:
-                # go backwards and remove the stores
-                for j in range(1, len(returns) + 1):
-                    store_instruction = instructions[i - j]
-                    if isinstance(store_instruction, StoreStat) and store_instruction.dest.alloct == 'return':
-                        store_instruction.dest = list(reversed(destinations))[j - 1]
-                        store_instruction.killhint = store_instruction.dest
 
             if i < len(instructions) - 1:  # if this isn't the last istruction, add a jump to an exit label
                 no_exit_label = False
@@ -70,7 +56,7 @@ def remove_returns(instructions, returns):
         instructions.append(exit_stat)
 
     instructions = list(filter(lambda x: not x.marked_for_removal, instructions))
-    return instructions, destinations
+    return instructions
 
 
 def remove_save_space_statements(instructions, number_of_parameters, number_of_returns):
@@ -81,24 +67,12 @@ def remove_save_space_statements(instructions, number_of_parameters, number_of_r
     return instructions
 
 
-# Replace the symbols used to load return variables from actual return symbols
-# to symbols where those values are stored
-def change_return_assignments(instructions, number_of_returns, destinations):
-    if number_of_returns == 0:
-        return instructions
-
-    for i in range(number_of_returns * 2):
-        instruction = instructions[i]
-        if isinstance(instruction, LoadStat) and instruction.symbol.alloct == 'return':
-            instruction.symbol = destinations[i // 2]
-
-    return instructions
-
-
-def change_parameters_stores(instructions, parameters):
+# Change all StoreStat destinations from variables to temporaries, returning
+# the mapping of the variables to the temporaries
+def change_stores(instructions, variables):
     destinations = {}
-    for parameter in parameters:
-        destinations[parameter] = new_temporary(instructions[0].symtab, parameter.stype)
+    for var in variables:
+        destinations[var] = new_temporary(instructions[0].symtab, var.stype)
 
     for instruction in instructions:
         if isinstance(instruction, StoreStat) and instruction.dest in destinations:
@@ -108,7 +82,8 @@ def change_parameters_stores(instructions, parameters):
     return instructions, destinations
 
 
-def change_parameters_loads(instructions, destinations):
+# Change all LoadStat symbols from variables to temporaries using the provided mapping
+def change_loads(instructions, destinations):
     for instruction in instructions:
         if isinstance(instruction, LoadStat) and instruction.symbol in destinations:
             instruction.symbol = destinations[instruction.symbol]
@@ -130,30 +105,38 @@ def inline(self):
     if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
         target_definition_copy = deepcopy(target_definition)
 
-        # TODO: this creates a bug when get_function() returns 'main', really need to fix this stuff once and for all
-        target_definition_copy.symbol = self.get_function().symbol
+        if self.get_function() != 'main':
+            target_definition_copy.symbol = self.get_function().symbol
+        else:
+            target_definition_copy.symbol = ""  # TODO: check if this creates problems
 
-        function_instructions = target_definition_copy.body.body.children
-
-        replace_temporaries(function_instructions)
-        function_instructions, destinations = remove_returns(function_instructions, target_definition_copy.returns)
-
+        # split the current function in before:body-of-the-function-to-inline:after
         index = self.parent.children.index(self)
-
         previous_instructions = self.parent.children[:index]
-        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition_copy.parameters), len(target_definition_copy.returns))
-        previous_instructions, parameters_destinations = change_parameters_stores(previous_instructions, target_definition_copy.parameters)
-
-        function_instructions = change_parameters_loads(function_instructions, parameters_destinations)
-
+        function_instructions = target_definition_copy.body.body.children
         next_instructions = self.parent.children[index + 1:]
-        next_instructions = change_return_assignments(next_instructions, len(target_definition_copy.returns), destinations)
 
+        function_instructions = replace_temporaries(function_instructions)
+        function_instructions = remove_returns(function_instructions, target_definition_copy.returns)
+        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition_copy.parameters), len(target_definition_copy.returns))
+
+        # change parameters stores and loads into movs between registers
+        previous_instructions, parameters_destinations = change_stores(previous_instructions, target_definition_copy.parameters)
+        function_instructions = change_loads(function_instructions, parameters_destinations)
+
+        # change returns stores and loads into movs between registers
+        function_instructions, returns_destinations = change_stores(function_instructions, target_definition_copy.returns)
+        next_instructions = change_loads(next_instructions, returns_destinations)
+
+        # recompact everything
         self.parent.children = previous_instructions + function_instructions + next_instructions
 
         for child in self.parent.children:
             child.parent = self.parent
 
+        # reference counting: if no one is calling the inlined function, it can be removed
+        # TODO: this creates problems: if a function that does not pass the CFG optimizations is inlined, if
+        #       we remove it it's never checked; so maybe remove only before codegen?
         target_definition.called_by_counter -= 1
         if target_definition.called_by_counter == 0:
             target_definition.parent.remove(target_definition)
