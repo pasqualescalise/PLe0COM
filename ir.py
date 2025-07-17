@@ -1479,6 +1479,7 @@ class StatList(Stat):  # low-level node
         new_children = []
         for child in self.children:
             new_children.append(deepcopy(child, memo))
+
         return StatList(parent=self.parent, children=new_children, symtab=self.symtab)
 
 
@@ -1499,7 +1500,13 @@ class Block(Stat):  # low-level node
         pass
 
     def __deepcopy__(self, memo):
-        pass
+        new_body = deepcopy(self.body)
+        # TODO: is `new_defs = deepcopy(self.defs)` necessary?
+
+        new_block = Block(parent=self.parent, gl_sym=self.global_symtab, lc_sym=self.local_symtab, defs=self.defs, body=new_body)
+
+        new_body.parent = new_block
+        return new_block
 
 
 # DEFINITIONS
@@ -1523,6 +1530,14 @@ class FunctionDef(Definition):
 
     def get_global_symbols(self):
         return self.body.global_symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
+
+    def __deepcopy__(self, memo):
+        new_body = deepcopy(self.body)
+
+        new_definition = FunctionDef(parent=self.parent, symbol=self.symbol, parameters=self.parameters, body=new_body, returns=self.returns)
+
+        new_body.parent = new_definition
+        return new_definition
 
 
 class DefinitionList(IRNode):

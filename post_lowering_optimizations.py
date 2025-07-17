@@ -19,7 +19,7 @@ def perform_post_lowering_optimizations(program):
 
 # FUNCTION INLINING
 
-MAX_INSTRUCTION_TO_INLINE = 8
+MAX_INSTRUCTION_TO_INLINE = 15
 
 
 def get_function_definition(self, target_function_name):
@@ -63,7 +63,7 @@ def remove_returns(instructions, number_of_returns):
         except AttributeError:
             instruction.marked_for_removal = False
 
-        if isinstance(instruction, BranchStat) and instruction.target is None:  # is a return
+        if isinstance(instruction, BranchStat) and instruction.is_return():
             instruction.marked_for_removal = True
 
             if number_of_returns > 0:
@@ -106,18 +106,21 @@ def inline(self):
     target_definition = get_function_definition(self, target_function_name)
 
     if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
-        function_instructions = deepcopy(target_definition.body.body.children)
+        target_definition_copy = deepcopy(target_definition)
+        target_definition_copy.symbol = self.get_function().symbol
+
+        function_instructions = target_definition_copy.body.body.children
 
         replace_temporaries(function_instructions)
-        function_instructions, destinations = remove_returns(function_instructions, len(target_definition.returns))
+        function_instructions, destinations = remove_returns(function_instructions, len(target_definition_copy.returns))
 
         index = self.parent.children.index(self)
 
         previous_instructions = self.parent.children[:index]
-        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition.returns))
+        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition_copy.returns))
 
         next_instructions = self.parent.children[index + 1:]
-        next_instructions = change_return_assignments(next_instructions, len(target_definition.returns), destinations)
+        next_instructions = change_return_assignments(next_instructions, len(target_definition_copy.returns), destinations)
 
         self.parent.children = previous_instructions + function_instructions + next_instructions
 
