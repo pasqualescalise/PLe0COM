@@ -94,7 +94,9 @@ def remove_returns(instructions, returns):
     return instructions, destinations
 
 
-def remove_save_space_statements(instructions, number_of_returns):
+def remove_save_space_statements(instructions, number_of_parameters, number_of_returns):
+    if number_of_parameters > 0 and isinstance(instructions[-(number_of_parameters + 1)], SaveSpaceStat):
+        return instructions[:-(number_of_parameters + 1)] + instructions[-(number_of_parameters):]
     if number_of_returns > 0 and isinstance(instructions[-1], SaveSpaceStat):
         return instructions[:-1]
     return instructions
@@ -114,6 +116,31 @@ def change_return_assignments(instructions, number_of_returns, destinations):
     return instructions
 
 
+def change_parameters_stores(instructions, parameters):
+    destinations = {}
+    for parameter in parameters:
+        destinations[parameter] = new_temporary(instructions[0].symtab, parameter.stype)
+
+    for instruction in instructions:
+        if isinstance(instruction, StoreStat) and instruction.dest in destinations:
+            instruction.dest = destinations[instruction.dest]
+            instruction.killhint = instruction.dest
+
+    return instructions, destinations
+
+
+def change_parameters_loads(instructions, destinations):
+    for instruction in instructions:
+        if isinstance(instruction, LoadStat) and instruction.symbol in destinations:
+            instruction.symbol = destinations[instruction.symbol]
+
+    return instructions
+
+
+# If this call-BranchStat can be inlined, get all the instructions of the function,
+# apply transformations to them (substituting returns with branches to exit, ...),
+# get all the instructions before and after the call, apply transformations to them
+# (change store of parameters to store in registers, ...), then put everything together
 def inline(self):
     if not self.is_call:
         return
@@ -123,6 +150,8 @@ def inline(self):
 
     if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
         target_definition_copy = deepcopy(target_definition)
+
+        # TODO: this creates a bug when get_function() returns 'global', really need to fix this stuff once and for all
         target_definition_copy.symbol = self.get_function().symbol
 
         function_instructions = target_definition_copy.body.body.children
@@ -133,7 +162,10 @@ def inline(self):
         index = self.parent.children.index(self)
 
         previous_instructions = self.parent.children[:index]
-        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition_copy.returns))
+        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition_copy.parameters), len(target_definition_copy.returns))
+        previous_instructions, parameters_destinations = change_parameters_stores(previous_instructions, target_definition_copy.parameters)
+
+        function_instructions = change_parameters_loads(function_instructions, parameters_destinations)
 
         next_instructions = self.parent.children[index + 1:]
         next_instructions = change_return_assignments(next_instructions, len(target_definition_copy.returns), destinations)

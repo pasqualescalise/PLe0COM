@@ -32,6 +32,22 @@ PROCEDURE function_to_inline_empty_return();
 		return ()
 	END;
 
+PROCEDURE function_to_inline_param(int x, int y);
+	BEGIN
+		print x;
+		print y
+	END;
+
+PROCEDURE function_to_inline_param_return(int result) -> (int);
+	BEGIN
+		return (result - 1)
+	END;
+
+{
+	TODO: test returns don't cares
+
+}
+
 PROCEDURE function_not_to_inline();
 	VAR result1, result2 : int;
 	BEGIN
@@ -45,7 +61,12 @@ PROCEDURE function_not_to_inline();
 		print result2;
 		CALL function_to_inline_more_complex_return() -> (result1);
 		print result1;
-		CALL function_to_inline_empty_return()
+		CALL function_to_inline_empty_return();
+		result1 := 200;
+		result2 := 300;
+		CALL function_to_inline_param(result1, result2);
+		CALL function_to_inline_param_return(result1) -> (result2);
+		print result2
 	END;
 
 BEGIN
