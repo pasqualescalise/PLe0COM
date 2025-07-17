@@ -121,6 +121,10 @@ def h2(str):
     return f"\n{CODE['BOLD']}{CODE['BLUE']}{str}{RST}\n"
 
 
+def h3(str):
+    return f"\n{CODE['BOLD']}{CODE['UNDERLINE']}{str}{RST}\n"
+
+
 def remove_formatting(str):
     str = str.replace(RST, "")
     for code in CODE.values():

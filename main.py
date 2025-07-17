@@ -5,12 +5,13 @@
 import lexer
 import parser
 from support import get_node_list, flattening, lowering
-from datalayout import perform_data_layout, perform_memory_to_register_promotion
+from datalayout import perform_data_layout
 from cfg import ControlFlowGraph
 from regalloc import LinearScanRegisterAllocator
 from codegen import generate_code
 from logger import initialize_logger, h1, h2, remove_formatting, red, green, yellow, cyan, bold, italic, underline
 # from optimizations import loop_unrolling
+from post_lowering_optimizations import perform_post_lowering_optimizations
 
 
 def compile_program(text):
@@ -57,8 +58,10 @@ def compile_program(text):
     print(f"\n{green('Lowered and flattened program:')}\n{program}")
 
     # XXX: OTHER OPTIMIZATIONS GO HERE
-    print(h2("MEMORY-TO-REGISTER PROMOTION"))
-    perform_memory_to_register_promotion(program)
+    print(h2("POST-LOWERING OPTIMIZATIONS"))
+    perform_post_lowering_optimizations(program)
+
+    print(f"\n{green('Optimized program:')}\n{program}")
 
     ##############################################
 

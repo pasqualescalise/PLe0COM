@@ -4,9 +4,9 @@
 is not a register, is allocated in the local stack frame (LocalSymbol) or in
 the data section of the executable (GlobalSymbol)."""
 
-from codegenhelp import CALL_OFFSET, REGISTER_SIZE
-from logger import red, green, blue, cyan
-from ir import StoreStat, ArrayType, PointerType, DataSymbolTable
+from codegenhelp import CALL_OFFSET
+from logger import cyan
+from ir import DataSymbolTable
 
 
 class SymbolLayout(object):
@@ -32,53 +32,6 @@ class GlobalSymbolLayout(SymbolLayout):
 
     def __repr__(self):
         return f"{self.symname} @ size {self.bsize}"
-
-
-# remove the symbol from the symbol table and convert it to a register
-def promote_symbol(symbol, root):
-    instructions = root.body.children
-
-    root.symtab.remove(symbol)
-    symbol.alloct = 'reg'
-
-    for i in range(0, len(instructions)):
-        if type(instructions[i]) is StoreStat and instructions[i].dest == symbol:
-            instructions[i].killhint = symbol
-
-
-# a variable can be promoted from being stored in memory to being stored in a register if
-#   - the variable is not used in any nested procedure
-#   - the variable address is needed for something (example -> ArrayType, PointerType)
-#   - the symbol type is not the same size as the registers
-def perform_memory_to_register_promotion(root):
-    to_promote = []
-
-    for symbol in root.symtab:
-        if symbol.alloct not in ['auto', 'global'] and symbol.stype.size > 0:
-            continue
-
-        print(f"{blue('SYMBOL:')} {symbol}")
-
-        if isinstance(symbol.stype, ArrayType) or isinstance(symbol.stype, PointerType):
-            print(red("Can't promote because the symbol address needs to be accessible\n"))
-            continue
-
-        if symbol.used_in_nested_procedure:
-            print(red("Can't promote because the symbol is used in a nested procedure\n"))
-            continue
-
-        if symbol.stype.size != REGISTER_SIZE:
-            print(red("Can't promote because the symbol is not the same size as the registers\n"))
-            continue
-
-        print(green("Promoted\n"))
-        to_promote.append(symbol)
-
-    for symbol in to_promote:
-        promote_symbol(symbol, root)
-
-    for function_definition in root.defs.children:
-        perform_memory_to_register_promotion(function_definition.body)
 
 
 def perform_data_layout(root):

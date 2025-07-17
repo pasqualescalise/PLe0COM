@@ -264,12 +264,12 @@ def branch_codegen(self, regalloc):
 
             return res
         else:
+            # TODO: when does this happen?
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
 
             res += ii(f"{red('tst')} {rcond}, {rcond}\n")
 
-            # TODO: test if this is correct
             op = red("beq" if self.negcond else "bne")
             res += ii(f"{op} {rcond}, 1f\n")
 

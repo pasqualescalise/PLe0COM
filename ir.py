@@ -4,7 +4,18 @@
 Could be improved by relying less on class hierarchy and more on string tags
 and/or duck typing. Includes lowering and flattening functions. Every node must
 have a lowering function or a code generation function (codegen functions are
-in a separate module though)."""
+in a separate module though).
+
+There are two types of nodes: high and low level. The parser usually produces
+only high-level nodes; all high-level nodes implement the "lower" method, that
+converts the node into a StatList of low-level nodes. All of this StatLists are
+successively flattened. Low-level nodes need to implement a few methods:
+    + human_repr, to print them in a nice concise way
+    + replace_temporaries, to replace all their temporary variables with newer
+      ones, unless they are already present in the "mapping" dictionary
+    + __deepcopy__, to present what to do when the copy.deepcopy() method is
+      called on the node; usually just recreate the node, but not its symbols
+"""
 
 from functools import reduce
 from copy import deepcopy
@@ -21,7 +32,7 @@ data_variables_count = 0
 
 def new_temporary(symtab, type):
     global temporary_count
-    temp = Symbol(name=f"t{temporary_count}", stype=type, alloct='reg')
+    temp = Symbol(name=f"t{temporary_count}", stype=type, alloct='reg', is_temporary=True)
     temporary_count += 1
     return temp
 
@@ -32,6 +43,21 @@ def new_variable_name():
     data_variables_count += 1
     return name
 
+
+def replace_temporary_attributes(node, attributes, mapping):
+    for attribute in attributes:
+        try:
+            temp = getattr(node, attribute)
+        except AttributeError:
+            raise RuntimeError(f"Node {node} does not have the attribute {attribute}")
+
+        if temp.is_temporary:
+            if temp in mapping:
+                setattr(node, attribute, mapping[temp])
+            else:
+                new_temp = new_temporary(node.symtab, temp.stype)
+                mapping[temp] = new_temp
+                setattr(node, attribute, new_temp)
 
 # TYPES
 
@@ -95,7 +121,7 @@ class LabelType(Type):
 
     def __call__(self, target=None):
         self.ids += 1
-        return Symbol(name=f"label{self.ids}", stype=self, value=target)
+        return Symbol(name=f"label{self.ids}", stype=self, value=target, is_temporary=True)
 
 
 class FunctionType(Type):
@@ -140,7 +166,7 @@ class Symbol:
       because they can't be referenced, but are needed to know where on the stack
       to put return values"""
 
-    def __init__(self, name, stype, value=None, alloct='auto', fname='', used_in_nested_procedure=False):
+    def __init__(self, name, stype, value=None, alloct='auto', fname='', used_in_nested_procedure=False, is_temporary=False):
         self.name = name
         self.stype = stype
         self.value = value  # if not None, it is a constant
@@ -150,6 +176,8 @@ class Symbol:
         self.fname = fname
         # if a variable is used in a nested procedure in cannot be promoted to a register
         self.used_in_nested_procedure = used_in_nested_procedure
+        # temporaries are special since they can be replaced easily
+        self.is_temporary = is_temporary
 
     def set_alloc_info(self, allocinfo):
         self.allocinfo = allocinfo  # in byte
@@ -247,7 +275,7 @@ class IRNode:  # abstract
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns'} & set(dir(self))
 
         res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -337,36 +365,6 @@ class IRNode:  # abstract
             except AttributeError:
                 pass
         return False
-
-    # fix mistakes introduced by deepcoping node:
-    #   + assign the correct parents
-    #   + switch the new Symbols with the old ones, so all the symbols correspond to the correct object
-    def deepcopy_fix(self, symtab):
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs',
-                 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
-        if 'children' in dir(self) and len(self.children):
-            for node in self.children:
-                try:
-                    node.parent = self
-
-                    if type(node) is Symbol:
-                        real_symbol = symtab.find(None, node.name)
-                        self.replace(node, real_symbol)
-
-                    node.deepcopy_fix(symtab=symtab)
-                except AttributeError:
-                    pass
-        for d in attrs:
-            try:
-                getattr(self, d).parent = self
-
-                if type(getattr(self, d)) is Symbol:
-                    real_symbol = symtab.find(None, getattr(self, d).name)
-                    self.replace(getattr(self, d), real_symbol)
-
-                getattr(self, d).deepcopy_fix(symtab=symtab)
-            except AttributeError:
-                pass
 
     def get_function(self):
         if not self.parent:
@@ -617,11 +615,11 @@ class CallExpr(Expr):
     def check_parameters_and_returns(self):
         # check that the number of parameters is correct
         if len(self.children) != len(self.function_definition.parameters):
-            raise RuntimeError('Not specified the right amount of parameters')
+            raise RuntimeError(f"Not specified the right amount of parameters in function {self.function_symbol.name}")
 
         # check that the call asks for exactly as many values as the function returns (including dont'cares)
         if len(self.function_definition.returns) != len(self.parent.returns):
-            raise RuntimeError('Too few or too many values are being returned')
+            raise RuntimeError(f"Too few or too many values are being returned in function {self.function_symbol.name}")
 
     def lower(self):
         self.function_definition = self.get_function_definition(self.function_symbol)
@@ -690,6 +688,12 @@ class SaveSpaceStat(Stat):  # low-level node
             return 'save space for the return values'
         else:
             return 'remove useless return values'
+
+    def replace_temporaries(self):
+        pass
+
+    def __deepcopy__(self, memo):
+        return SaveSpaceStat(parent=self.parent, space_needed=self.space_needed, symtab=self.symtab)
 
 
 class CallStat(Stat):
@@ -859,6 +863,8 @@ class ForStat(Stat):
         stat_list = StatList(self.parent, [self.init, self.cond, branch, self.body, self.step, loop, exit_stat], self.symtab)
         return self.parent.replace(self, stat_list)
 
+    """
+    TODO:
     def unroll(self, unrolling_factor):
         return
         original_body = self.body.children[:]
@@ -888,6 +894,7 @@ class ForStat(Stat):
         #     pass
         # else:
         #     pass
+    """
 
 
 class AssignStat(Stat):
@@ -1042,6 +1049,12 @@ class PrintCommand(Stat):  # low-level node
     def human_repr(self):
         return f"{blue('print')} {self.src}"
 
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['src'], mapping)
+
+    def __deepcopy__(self, memo):
+        return PrintCommand(parent=self.parent, src=self.src, print_string=self.print_string, symtab=self.symtab)
+
 
 class ReadStat(Stat):
     def __init__(self, parent=None, symtab=None):
@@ -1075,6 +1088,12 @@ class ReadCommand(Stat):  # low-level node
     def human_repr(self):
         return f"{blue('read')} {self.dest}"
 
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest'], mapping)
+
+    def __deepcopy__(self, memo):
+        return ReadCommand(parent=self.parent, dest=self.dest, symtab=self.symtab)
+
 
 class ReturnStat(Stat):
     def __init__(self, parent=None, children=[], symtab=None):
@@ -1088,11 +1107,11 @@ class ReturnStat(Stat):
 
         function_definition = self.get_function()
         if function_definition == 'global':
-            raise RuntimeError('The main function should not have return statements')
+            raise RuntimeError(f"The main function should not have return statements in function {function_definition.symbol.name}")
 
         # check that the function returns as many values as the defined ones
         if len(function_definition.returns) != len(self.children):
-            raise RuntimeError('Too few or too many values are being returned')
+            raise RuntimeError(f"Too few or too many values are being returned in function {function_definition.symbol.name}")
 
         # put all values to return in the correct place in the stack
         for i in range(len(self.children)):
@@ -1150,6 +1169,23 @@ class BranchStat(Stat):  # low-level node
             c = ''
         return f"{h}{c} to {self.target}"
 
+    def replace_temporaries(self, mapping):
+        if self.cond is not None and self.cond.is_temporary:
+            if self.cond in mapping:
+                self.cond = mapping[self.cond]
+            else:
+                new_temp = new_temporary(self.symtab, self.cond.stype)
+                mapping[self.cond] = new_temp
+                self.cond = new_temp
+
+        if self.target and not self.is_call:
+            new_target = TYPENAMES['label']()
+            mapping[self.target] = new_target
+            self.target = new_target
+
+    def __deepcopy__(self, memo):
+        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, is_call=self.is_call, negcond=self.negcond, space_needed_for_parameters=self.space_needed_for_parameters, symtab=self.symtab)
+
 
 class EmptyStat(Stat):  # low-level node
     pass
@@ -1166,6 +1202,20 @@ class EmptyStat(Stat):  # low-level node
         if self.get_label() != '':
             return self.get_label()
         return 'empty statement'
+
+    def replace_temporaries(self, mapping):
+        if self.get_label() != '':
+            if self.get_label() in mapping:
+                self.set_label(mapping[self.get_label()])
+            else:
+                new_label = TYPENAMES['label']()
+                mapping[self.get_label()] = new_label
+                self.set_label(new_label)
+
+    def __deepcopy__(self, memo):
+        new = EmptyStat(parent=self.parent, symtab=self.symtab)
+        new.set_label(self.get_label())
+        return new
 
 
 class LoadPtrToSym(Stat):  # low-level node
@@ -1193,6 +1243,12 @@ class LoadPtrToSym(Stat):  # low-level node
 
     def human_repr(self):
         return f"{self.dest} {bold('<-')} &({self.symbol})"
+
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
+
+    def __deepcopy__(self, memo):
+        return LoadPtrToSym(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
 
 
 class StoreStat(Stat):  # low-level node
@@ -1233,6 +1289,12 @@ class StoreStat(Stat):  # low-level node
             return f"[{self.dest}] {bold('<-')} {self.symbol}"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
+
+    def __deepcopy__(self, memo):
+        return StoreStat(parent=self.parent, dest=self.dest, symbol=self.symbol, killhint=self.killhint, symtab=self.symtab)
+
 
 class LoadStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, symbol=None, usehint=None, symtab=None):
@@ -1265,6 +1327,12 @@ class LoadStat(Stat):  # low-level node
             return f"{self.dest} {bold('<-')} [{self.symbol}]"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
+
+    def __deepcopy__(self, memo):
+        return LoadStat(parent=self.parent, dest=self.dest, symbol=self.symbol, usehint=self.usehint, symtab=self.symtab)
+
 
 class LoadImmStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, val=0, symtab=None):
@@ -1286,6 +1354,12 @@ class LoadImmStat(Stat):  # low-level node
 
     def human_repr(self):
         return f"{self.dest} {bold('<-')} {self.val}"
+
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest'], mapping)
+
+    def __deepcopy__(self, memo):
+        return LoadImmStat(parent=self.parent, dest=self.dest, val=self.val, symtab=self.symtab)
 
 
 class BinStat(Stat):  # low-level node
@@ -1313,6 +1387,12 @@ class BinStat(Stat):  # low-level node
     def human_repr(self):
         return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.op}')} {self.srcb}"
 
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest', 'srca', 'srcb'], mapping)
+
+    def __deepcopy__(self, memo):
+        return BinStat(parent=self.parent, dest=self.dest, op=self.op, srca=self.srca, srcb=self.srcb, symtab=self.symtab)
+
 
 class UnaryStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, op=None, src=None, symtab=None):
@@ -1337,6 +1417,12 @@ class UnaryStat(Stat):  # low-level node
 
     def human_repr(self):
         return f"{self.dest} {bold('<-')} {bold(f'{self.op}')} {self.src}"
+
+    def replace_temporaries(self, mapping):
+        replace_temporary_attributes(self, ['dest', 'src'], mapping)
+
+    def __deepcopy__(self, memo):
+        return UnaryStat(parent=self.parent, dest=self.dest, op=self.op, src=self.src, symtab=self.symtab)
 
 
 class StatList(Stat):  # low-level node
@@ -1385,6 +1471,16 @@ class StatList(Stat):  # low-level node
                 pass
         return None
 
+    def replace_temporaries(self, mapping):
+        for child in self.children:
+            child.replace_temporaries(mapping)
+
+    def __deepcopy__(self, memo):
+        new_children = []
+        for child in self.children:
+            new_children.append(deepcopy(child, memo))
+        return StatList(parent=self.parent, children=new_children, symtab=self.symtab)
+
 
 class Block(Stat):  # low-level node
     def __init__(self, parent=None, gl_sym=None, lc_sym=None, defs=None, body=None):
@@ -1398,6 +1494,12 @@ class Block(Stat):  # low-level node
         self.stackroom = 0
         # XXX: used just for printing
         self.local_symtab = lc_sym
+
+    def replace_temporaries(self, mapping):
+        pass
+
+    def __deepcopy__(self, memo):
+        pass
 
 
 # DEFINITIONS
