@@ -1,0 +1,24 @@
+VAR result1, result2 : int;
+
+PROCEDURE function_simple_return() -> (int);
+	BEGIN
+		return (10 + 20)
+	END;
+
+PROCEDURE function_multiple_returns() -> (int, int);
+	BEGIN
+		return (10 + 20, 20)
+	END;
+
+BEGIN
+	CALL function_simple_return() -> (result1);
+	print result1;
+	CALL function_multiple_returns() -> (result1, result2);
+	print result1;
+	print result2;
+	CALL function_multiple_returns() -> (result1, result2);
+	print result1;
+	print result2;
+	CALL function_simple_return() -> (result1);
+	print result1
+END.

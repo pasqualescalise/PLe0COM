@@ -174,6 +174,12 @@ def perform_data_layout_of_program(root):
             var.set_alloc_info(LocalSymbolLayout(name, param_offs, bsize))
 
         elif var.alloct == 'return':
+            # if there are no parameters, this restarts the offset counter
+            # each time a new function is considered
+            if var.fname != current_function:
+                returns_offs = minimum_fixed_offset
+                current_function = var.fname
+
             name = f"_r_{var.fname}_main_{var.name}"
             returns_offs += bsize
             var.set_alloc_info(LocalSymbolLayout(name, returns_offs, bsize))
