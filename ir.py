@@ -1271,7 +1271,7 @@ class StoreStat(Stat):  # low-level node
         self.killhint = killhint
 
     def used_variables(self):
-        if self.dest.alloct == 'reg':
+        if self.dest.alloct == 'reg' and isinstance(self.dest.stype, PointerType):
             return [self.symbol, self.dest]
         return [self.symbol]
 

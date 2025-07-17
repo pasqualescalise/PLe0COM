@@ -82,7 +82,10 @@ class RegisterAllocation(object):
 
         i = 0
         for var in self.var_to_reg:
-            res += f"\t{var}: {' ' * indentation[i]}{' ' * self.var_to_reg[var] * 2}{cyan(f'{self.var_to_reg[var]}')}\n"
+            if self.var_to_reg[var] == 999:
+                res += f"\t{var}: {' ' * indentation[i]}{yellow('SPILLED REGISTER')}\n"
+            else:
+                res += f"\t{var}: {' ' * indentation[i]}{' ' * self.var_to_reg[var] * 2}{cyan(f'{self.var_to_reg[var]}')}\n"
             i += 1
 
         res += "]\n"

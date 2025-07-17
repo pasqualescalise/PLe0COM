@@ -80,6 +80,7 @@ def remove_returns(instructions, returns):
                     store_instruction = instructions[i - j]
                     if isinstance(store_instruction, StoreStat) and store_instruction.dest.alloct == 'return':
                         store_instruction.dest = list(reversed(destinations))[j - 1]
+                        store_instruction.killhint = store_instruction.dest
 
             if i < len(instructions) - 1:  # if this isn't the last istruction, add a jump to an exit label
                 no_exit_label = False
