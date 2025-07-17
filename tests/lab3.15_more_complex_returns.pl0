@@ -36,6 +36,14 @@ PROCEDURE function_with_if_elif_else(int x, int y) -> (int);
 		return (-1)
 	END;
 
+PROCEDURE function_with_if_and_dangling_return(int x, int y) -> (int);
+	BEGIN
+		if x > 1 then begin
+			return (y)
+		end;
+		return (100)
+	END;
+
 BEGIN
 	CALL function_simple_return() -> (result1);
 	print result1;
@@ -51,5 +59,7 @@ BEGIN
 	CALL function_with_if_else(1, 2) -> (result1);
 	print result1;
 	CALL function_with_if_elif_else(1, 2) -> (result1);
+	print result1;
+	CALL function_with_if_and_dangling_return(1, 2) -> (result1);
 	print result1
 END.

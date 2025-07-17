@@ -758,8 +758,8 @@ class IfStat(Stat):
         exit_stat.set_label(exit_label)
 
         # no elifs and no else
-        if not self.elifspart and not self.elsepart:
-            branch_to_exit = BranchStat(cond=self.cond.destination(), target=exit_label, symtab=self.symtab)
+        if len(self.elifspart.children) == 0 and not self.elsepart:
+            branch_to_exit = BranchStat(cond=self.cond.destination(), target=exit_label, negcond=True, symtab=self.symtab)
             stat_list = StatList(self.parent, [self.cond, branch_to_exit, self.thenpart, exit_stat], self.symtab)
             return self.parent.replace(self, stat_list)
 
