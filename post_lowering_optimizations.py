@@ -22,27 +22,6 @@ def perform_post_lowering_optimizations(program):
 MAX_INSTRUCTION_TO_INLINE = 16
 
 
-def get_function_definition(self, target_function_name):
-    parent_function = self.get_function()
-    while parent_function != 'global':
-        defs = parent_function.body.defs
-
-        for definition in defs.children:
-            if definition.symbol.name == target_function_name:
-                return definition
-
-        parent_function = parent_function.get_function()
-
-    program = self.find_the_program()
-    defs = program.defs
-
-    for definition in defs.children:
-        if definition.symbol.name == target_function_name:
-            return definition
-
-    raise RuntimeError(f"Can't find function definition of function {target_function_name}")
-
-
 def replace_temporaries(instructions):
     mapping = {}  # keep track of already remapped temporaries
     for instruction in instructions:
@@ -146,12 +125,12 @@ def inline(self):
         return
 
     target_function_name = self.target.name
-    target_definition = get_function_definition(self, target_function_name)
+    target_definition = self.get_function_definition(self.target)
 
     if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
         target_definition_copy = deepcopy(target_definition)
 
-        # TODO: this creates a bug when get_function() returns 'global', really need to fix this stuff once and for all
+        # TODO: this creates a bug when get_function() returns 'main', really need to fix this stuff once and for all
         target_definition_copy.symbol = self.get_function().symbol
 
         function_instructions = target_definition_copy.body.body.children
@@ -179,7 +158,7 @@ def inline(self):
         if target_definition.called_by_counter == 0:
             target_definition.parent.remove(target_definition)
 
-        if self.get_function() == 'global':
+        if self.get_function() == 'main':
             print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
         else:
             print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))

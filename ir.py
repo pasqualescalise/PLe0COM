@@ -368,7 +368,7 @@ class IRNode:  # abstract
 
     def get_function(self):
         if not self.parent:
-            return 'global'
+            return 'main'
         elif type(self.parent) == FunctionDef:
             return self.parent
         else:
@@ -382,30 +382,30 @@ class IRNode:  # abstract
 
     # returns the FuncDef with the symbol specified, if it's reachable
     # raises a RuntimeError if it doesn't find it
-    def get_function_definition(self, function_symbol):
-        function_definition = self.get_function()
+    def get_function_definition(self, target_function_symbol):
+        current_function = self.get_function()
 
         # it's the main function
-        if function_definition == 'global':
+        if current_function == 'main':
             program = self.find_the_program()
             for definition in program.defs.children:
-                if type(definition) == FunctionDef and definition.symbol == function_symbol:
+                if definition.symbol == target_function_symbol:
                     return definition
 
-            if function_definition == 'global':
-                raise RuntimeError('Can\'t find function ' + str(function_symbol))
+            if current_function == 'main':
+                raise RuntimeError(f"Can't find function definition of function {target_function_symbol}")
 
         # it's the current function
-        if function_definition.symbol == function_symbol:
-            return function_definition
+        if current_function.symbol == target_function_symbol:
+            return current_function
 
         # it's one of the functions defined in the current function
-        for definition in function_definition.body.defs.children:
-            if type(definition) == FunctionDef and definition.symbol == function_symbol:
+        for definition in current_function.body.defs.children:
+            if definition.symbol == target_function_symbol:
                 return definition
 
         # it's a function defined in the parent
-        return function_definition.get_function_definition(function_symbol)
+        return current_function.get_function_definition(target_function_symbol)
 
     def get_label(self):
         raise NotImplementedError
@@ -1108,7 +1108,7 @@ class ReturnStat(Stat):
         stats = self.children
 
         function_definition = self.get_function()
-        if function_definition == 'global':
+        if function_definition == 'main':
             raise RuntimeError(f"The main function should not have return statements in function {function_definition.symbol.name}")
 
         # check that the function returns as many values as the defined ones

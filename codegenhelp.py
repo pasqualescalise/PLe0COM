@@ -95,7 +95,7 @@ def static_link_analysis(node, symbol):
 def get_static_link_offset(node, function_name, offset):
     function_definition = node.get_function()
 
-    if function_definition == 'global':
+    if function_definition == 'main':
         raise RuntimeError("Main function does not have local variables")
 
     offset += CALL_OFFSET

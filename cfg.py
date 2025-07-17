@@ -111,7 +111,7 @@ class BasicBlock(object):
             self.live_out = reduce(lambda x, y: x.union(y), [s.live_in for s in self.succ()], set([]))
         else:  # Consider live out all the global vars
             func = self.get_function()
-            if func != 'global':
+            if func != 'main':
                 self.live_out = set(func.get_global_symbols())
 
         self.live_in = self.gen.union(self.live_out - self.kill)
@@ -229,7 +229,7 @@ class ControlFlowGraph(list):
                 parent = parent.parent
 
             if not parent:
-                res['global'] = bb
+                res['main'] = bb
             else:
                 res[parent] = bb
         return res
@@ -253,7 +253,7 @@ class ControlFlowGraph(list):
         heads = self.heads()
         for p in heads:
             bb = heads[p]
-            if p == 'global':
+            if p == 'main':
                 dot += 'main [shape=box];\n'
                 if len(bb.live_in):
                     dot += f'main -> {id(bb)} [label="{bb.live_in}"];\n'
@@ -318,7 +318,7 @@ class ControlFlowGraph(list):
         """Check that if a function returns, each path of the CFG ends with a return"""
         for bb in self.tails():
             function_definition = bb.get_function()
-            if function_definition == 'global':
+            if function_definition == 'main':
                 continue  # the main does not return anything
 
             number_of_returns = len(function_definition.returns)
