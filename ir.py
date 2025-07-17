@@ -275,7 +275,7 @@ class IRNode:  # abstract
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter'} & set(dir(self))
 
         res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -624,6 +624,8 @@ class CallExpr(Expr):
     def lower(self):
         self.function_definition = self.get_function_definition(self.function_symbol)
         self.check_parameters_and_returns()
+
+        self.function_definition.called_by_counter += 1
 
         stats = self.children[:]
 
@@ -1520,13 +1522,14 @@ class Definition(IRNode):
 
 
 class FunctionDef(Definition):
-    def __init__(self, parent=None, symbol=None, parameters=[], body=None, returns=[]):
+    def __init__(self, parent=None, symbol=None, parameters=[], body=None, returns=[], called_by_counter=0):
         log_indentation(bold(f"New Functions Definition Node (id: {id(self)})"))
         super().__init__(parent, symbol)
         self.body = body
         self.body.parent = self
         self.parameters = parameters
         self.returns = returns
+        self.called_by_counter = called_by_counter
 
     def get_global_symbols(self):
         return self.body.global_symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
@@ -1534,7 +1537,7 @@ class FunctionDef(Definition):
     def __deepcopy__(self, memo):
         new_body = deepcopy(self.body)
 
-        new_definition = FunctionDef(parent=self.parent, symbol=self.symbol, parameters=self.parameters, body=new_body, returns=self.returns)
+        new_definition = FunctionDef(parent=self.parent, symbol=self.symbol, parameters=self.parameters, body=new_body, returns=self.returns, called_by_counter=self.called_by_counter)
 
         new_body.parent = new_definition
         return new_definition
@@ -1548,3 +1551,6 @@ class DefinitionList(IRNode):
     def append(self, elem):
         elem.parent = self
         self.children.append(elem)
+
+    def remove(self, elem):
+        self.children.remove(elem)

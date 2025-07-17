@@ -142,6 +142,10 @@ def inline(self):
         for child in self.parent.children:
             child.parent = self.parent
 
+        target_definition.called_by_counter -= 1
+        if target_definition.called_by_counter == 0:
+            target_definition.parent.remove(target_definition)
+
         if self.get_function() == 'global':
             print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
         else:
