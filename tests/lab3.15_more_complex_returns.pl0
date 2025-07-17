@@ -10,6 +10,32 @@ PROCEDURE function_multiple_returns() -> (int, int);
 		return (10 + 20, 20)
 	END;
 
+PROCEDURE function_with_if_else(int x, int y) -> (int);
+	BEGIN
+		if x > 2 then begin
+			return (y)
+		end else begin
+			return (100)
+		end
+	END;
+
+PROCEDURE function_with_if_elif_else(int x, int y) -> (int);
+	BEGIN
+		if x > 2 then begin
+			return (y)
+		end elif x > 1000 then begin
+			print "Not reachable"
+		end elif x > 1000 then begin
+			return (0)
+		end elif x > 1000 then begin
+			print "Not reachable"
+		end else begin
+			return (100)
+		end;
+
+		return (-1)
+	END;
+
 BEGIN
 	CALL function_simple_return() -> (result1);
 	print result1;
@@ -20,5 +46,10 @@ BEGIN
 	print result1;
 	print result2;
 	CALL function_simple_return() -> (result1);
+	print result1;
+	result1 := 100;
+	CALL function_with_if_else(1, 2) -> (result1);
+	print result1;
+	CALL function_with_if_elif_else(1, 2) -> (result1);
 	print result1
 END.

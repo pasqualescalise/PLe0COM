@@ -767,6 +767,7 @@ class IfStat(Stat):
         self.thenpart.set_label(then_label)
         branch_to_then = BranchStat(cond=self.cond.destination(), target=then_label, symtab=self.symtab)
         branch_to_exit = BranchStat(target=exit_label, symtab=self.symtab)
+        no_exit_label = False  # decides whether or not to put the label at the end
 
         stats = [self.cond, branch_to_then]
 
@@ -777,17 +778,38 @@ class IfStat(Stat):
             branch_to_elif = BranchStat(cond=self.elifspart.children[i].destination(), target=elif_label, symtab=self.symtab)
             stats = stats[:] + [self.elifspart.children[i], branch_to_elif]
 
+        # NOTE: in general, avoid putting an exit label and a branch to it if the
+        #       last instruction is a return
+
         # else
         if self.elsepart:
-            stats = stats[:] + [self.elsepart, branch_to_exit]
+            last_else_instruction = self.elsepart.children[0].children[-1]
+            if isinstance(last_else_instruction, BranchStat) and last_else_instruction.is_return():
+                stats = stats[:] + [self.elsepart]
+                no_exit_label = True
+            else:
+                stats = stats[:] + [self.elsepart, branch_to_exit]
 
         stats.append(self.thenpart)
+        last_then_instruction = self.thenpart.children[0].children[-1]
+        if not (isinstance(last_then_instruction, BranchStat) and last_then_instruction.is_return()):
+            stats.append(branch_to_exit)
 
         # elifs statements
         for i in range(0, len(self.elifspart.children), 2):
-            stats = stats[:] + [branch_to_exit, self.elifspart.children[i + 1]]
+            elifspart = self.elifspart.children[i + 1]
+            last_elif_instruction = elifspart.children[0].children[-1]
 
-        stats.append(exit_stat)
+            if isinstance(last_elif_instruction, BranchStat) and last_elif_instruction.is_return():
+                stats = stats[:] + [elifspart]
+                no_exit_label &= True
+            else:
+                stats = stats[:] + [elifspart, branch_to_exit]
+                no_exit_label &= False  # if a single elif needs the exit label, put it there
+
+        if not no_exit_label:
+            stats.append(exit_stat)
+
         stat_list = StatList(self.parent, stats, self.symtab)
         return self.parent.replace(self, stat_list)
 
@@ -1110,8 +1132,13 @@ class BranchStat(Stat):  # low-level node
             return True
         return False
 
-    def human_repr(self):
+    def is_return(self):
         if self.target is None:
+            return True
+        return False
+
+    def human_repr(self):
+        if self.is_return():
             return 'return to previous function'
         elif self.is_call:
             h = 'call'
