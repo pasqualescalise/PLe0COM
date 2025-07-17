@@ -19,7 +19,7 @@ def perform_post_lowering_optimizations(program):
 
 # FUNCTION INLINING
 
-MAX_INSTRUCTION_TO_INLINE = 7
+MAX_INSTRUCTION_TO_INLINE = 8
 
 
 def get_function_definition(self, target_function_name):
@@ -90,10 +90,10 @@ def change_return_assignments(instructions, number_of_returns, destinations):
     if number_of_returns == 0:
         return instructions
 
-    for i in range(number_of_returns):
+    for i in range(number_of_returns * 2):
         instruction = instructions[i]
         if isinstance(instruction, LoadStat) and instruction.symbol.alloct == 'return':
-            instruction.symbol = destinations[i]
+            instruction.symbol = destinations[i // 2]
 
     return instructions
 
