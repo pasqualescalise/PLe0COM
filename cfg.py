@@ -327,6 +327,6 @@ class ControlFlowGraph(list):
                 if type(last_instruction) is BranchStat and last_instruction.target is None:
                     pass
                 else:
-                    raise RuntimeError(f"At least one path of the function '{function_definition.symbol.name}' doesn't end with a return, even if one is needed")
+                    raise RuntimeError(f"At least one path of the function '{function_definition.symbol.name}' doesn't end with a return, even if one is needed in {bb}")
 
         print(green("All procedures that need to return parameters correctly return them\n"))

@@ -4,7 +4,7 @@
 
 from copy import deepcopy
 
-from ir import BranchStat, StoreStat, ArrayType, PointerType, SaveSpaceStat, LoadStat
+from ir import BranchStat, StoreStat, ArrayType, PointerType, SaveSpaceStat, LoadStat, TYPENAMES, EmptyStat, new_temporary
 from codegenhelp import REGISTER_SIZE
 from logger import h3, red, green, blue, magenta
 
@@ -19,7 +19,7 @@ def perform_post_lowering_optimizations(program):
 
 # FUNCTION INLINING
 
-MAX_INSTRUCTION_TO_INLINE = 15
+MAX_INSTRUCTION_TO_INLINE = 16
 
 
 def get_function_definition(self, target_function_name):
@@ -49,10 +49,18 @@ def replace_temporaries(instructions):
         instruction.replace_temporaries(mapping)
 
 
-# Remove all the return instructions and the store instructions
-# that stored the return values
-def remove_returns(instructions, number_of_returns):
-    destinations = []  # keep track of which return went to what symbol
+# Remove all the return instructions and change the destination of
+# the store instructions to a register instead of a return symbol
+def remove_returns(instructions, returns):
+    destinations = []  # temporaries to put the return values in
+    for i in range(len(returns)):
+        destinations.append(new_temporary(instructions[0].symtab, returns[i].stype))
+
+    exit_label = TYPENAMES['label']()
+    exit_stat = EmptyStat(instructions[0].parent, symtab=instructions[0].symtab)
+    exit_stat.set_label(exit_label)
+    exit_stat.marked_for_removal = False
+    no_exit_label = True  # decides whether or not to put the label at the end
 
     for i in range(len(instructions)):
         instruction = instructions[i]
@@ -66,13 +74,20 @@ def remove_returns(instructions, number_of_returns):
         if isinstance(instruction, BranchStat) and instruction.is_return():
             instruction.marked_for_removal = True
 
-            if number_of_returns > 0:
+            if len(returns) > 0:
                 # go backwards and remove the stores
-                for j in range(1, number_of_returns + 1):
+                for j in range(1, len(returns) + 1):
                     store_instruction = instructions[i - j]
                     if isinstance(store_instruction, StoreStat) and store_instruction.dest.alloct == 'return':
-                        store_instruction.marked_for_removal = True
-                        destinations.append(store_instruction.symbol)
+                        store_instruction.dest = list(reversed(destinations))[j - 1]
+
+            if i < len(instructions) - 1:  # if this isn't the last istruction, add a jump to an exit label
+                no_exit_label = False
+                instructions[i] = BranchStat(target=exit_label, symtab=instruction.symtab)
+                instructions[i].marked_for_removal = False
+
+    if not no_exit_label:
+        instructions.append(exit_stat)
 
     instructions = list(filter(lambda x: not x.marked_for_removal, instructions))
     return instructions, destinations
@@ -112,7 +127,7 @@ def inline(self):
         function_instructions = target_definition_copy.body.body.children
 
         replace_temporaries(function_instructions)
-        function_instructions, destinations = remove_returns(function_instructions, len(target_definition_copy.returns))
+        function_instructions, destinations = remove_returns(function_instructions, target_definition_copy.returns)
 
         index = self.parent.children.index(self)
 
@@ -123,6 +138,9 @@ def inline(self):
         next_instructions = change_return_assignments(next_instructions, len(target_definition_copy.returns), destinations)
 
         self.parent.children = previous_instructions + function_instructions + next_instructions
+
+        for child in self.parent.children:
+            child.parent = self.parent
 
         if self.get_function() == 'global':
             print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
