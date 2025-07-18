@@ -318,7 +318,8 @@ class IRNode:  # abstract
         return str(type(self)).split("'")[1]
 
     def navigate(self, action, *args, quiet=False):
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset'} & set(dir(self))
+        attrs = ['defs', 'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'global_symtab', 'local_symtab', 'offset']
+        attrs = [x for x in attrs if x in set(dir(self))]
 
         if 'children' in dir(self) and len(self.children):
             if not quiet:
