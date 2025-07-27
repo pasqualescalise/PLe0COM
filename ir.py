@@ -125,11 +125,11 @@ TYPENAMES = {
     'function': FunctionType(),
 }
 
-ALLOC_CLASSES = ['global', 'auto', 'data', 'reg', 'imm', 'param', 'return']
+ALLOC_CLASSES = ['global', 'auto', 'data', 'reg', 'imm', 'param', 'return', 'heap']
 
 
 class Symbol:
-    """There are 7 classes of allocation for symbols:\n
+    """There are 8 classes of allocation for symbols:\n
     - allocation to a register ('reg')
     - allocation to an arbitrary memory location, in the current stack frame
       ('auto') or in the .comm section ('global')
@@ -138,7 +138,9 @@ class Symbol:
     - allocation of function parameters('param')
     - allocation of function retuns('return') -> these are not 'real' symbols
       because they can't be referenced, but are needed to know where on the stack
-      to put return values"""
+      to put return values
+    - allocation of symbols in the heap ('heap')
+    """
 
     def __init__(self, name, stype, value=None, alloct='auto', fname='', used_in_nested_procedure=False):
         self.name = name
@@ -1080,8 +1082,6 @@ class ReturnStat(Stat):
     def __init__(self, parent=None, children=[], symtab=None):
         log_indentation(bold(f"New ReturnStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
-        for child in self.children:
-            child.parent = self
 
     def lower(self):
         stats = self.children
@@ -1102,6 +1102,15 @@ class ReturnStat(Stat):
 
         stat_list = StatList(self.parent, stats, self.symtab)
         return self.parent.replace(self, stat_list)
+
+
+class NewStat(Stat):
+    def __init__(self, parent=None, children=[], symtab=None):
+        log_indentation(bold(f"New NewStat Node (id: {id(self)})"))
+        super().__init__(parent, children, symtab)
+
+    def lower(self):
+        raise NotImplementedError
 
 
 class BranchStat(Stat):  # low-level node

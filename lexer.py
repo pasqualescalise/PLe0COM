@@ -47,6 +47,7 @@ TOKEN_DEFS = {
     'oddsym': ['odd'],
     'print': ['!', 'print'],
     'read': ['?', 'read'],
+    'new': ['new'],
     'quote': ['"']
 }
 

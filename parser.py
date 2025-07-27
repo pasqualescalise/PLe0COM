@@ -301,6 +301,49 @@ class Parser:
 
             return ir.ReturnStat(children=returns, symtab=symtab)
 
+        elif self.accept('new'):
+            self.accept('lparen')
+
+            self.accept('ident')
+            variable = self.value
+
+            self.accept('comma')
+
+            self.accept('ident')
+            type = self.value
+
+            if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
+                self.error(f"The type {type} is not valid for a variable")
+
+            size = 0
+            if self.accept('comma'):
+                self.accept('number')
+                size = self.value
+                if size <= 0:
+                    self.error(f"Can't define a size {size} for array variable {variable}")
+
+            try:
+                target = symtab.find(self, variable)
+            except RuntimeError:  # the variable does not already exist
+                if size == 0:
+                    target = ir.Symbol(variable, ir.TYPENAMES[type], alloct='heap', fname=self.current_function)
+                else:
+                    target = ir.Symbol(variable, ir.ArrayType(None, [size], ir.TYPENAMES[type]), alloct='heap', fname=self.current_function)
+                symtab.append(target)
+
+            if (not isinstance(target.stype, ir.ArrayType) and target.stype.name != type) or (isinstance(target.stype, ir.ArrayType) and target.stype.basetype.name != type):
+                self.error(f"Trying to cast variable {variable} to type {type} is not possible")
+
+            if target.alloct != 'heap':
+                self.error(f"Trying to change allocation of a the stack variable {variable} to the heap")
+
+            if isinstance(target.stype, ir.ArrayType) and size == 0:
+                self.error(f"Please define a valid size for the array {variable}")
+
+            self.expect('rparen')
+
+            return ir.NewStat(children=[target], symtab=symtab)
+
     @logger
     def block(self, parent_symtab, alloct='auto'):
         # variables definition

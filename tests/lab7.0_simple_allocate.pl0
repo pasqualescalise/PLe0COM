@@ -1,0 +1,5 @@
+BEGIN
+	new(x, int);
+	x := 20;
+	print x
+END.
