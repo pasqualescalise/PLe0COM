@@ -69,10 +69,12 @@ class Type:
 
 
 class ArrayType(Type):
-    def __init__(self, name, dims, basetype):
+    def __init__(self, name, dims, basetype, expr=None):
         """dims is a list of dimensions: dims = [5]: array of 5 elements;
-        dims = [5, 5]: 5x5 matrix; and so on"""
+        dims = [5, 5]: 5x5 matrix; and so on; it's [] if the array size
+        gets computed at compile time using expr"""
         self.dims = dims
+        self.expr = expr
         if basetype is not None:
             super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
             self.name = name if name else self.default_name()

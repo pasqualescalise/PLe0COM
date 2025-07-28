@@ -60,7 +60,7 @@ class Parser:
             idxes = []
             for i in range(0, len(target.stype.dims)):
                 self.expect('lspar')
-                idxes.append(self.expression(symtab))
+                idxes.append(self.numeric_expression(symtab))
                 self.expect('rspar')
             offset = self.linearize_multid_vector(idxes, target, symtab)
         return offset
@@ -94,14 +94,9 @@ class Parser:
         elif self.accept('number'):
             return ir.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
-            expr = self.expression(symtab=symtab)
+            expr = self.numeric_expression(symtab=symtab)
             self.expect('rparen')
             return expr
-        elif self.accept('quote'):
-            self.accept('string')
-            new_string = self.value
-            self.accept('quote')
-            return ir.String(value=new_string, symtab=symtab)
 
         self.error("Factor: syntax error")
 
@@ -138,7 +133,7 @@ class Parser:
         return expr
 
     @logger
-    def expression(self, symtab):
+    def numeric_expression(self, symtab):
         op = None
         if self.new_sym in ['plus', 'minus']:
             self.getsym()
@@ -154,15 +149,25 @@ class Parser:
         return expr
 
     @logger
+    def expression(self, symtab):
+        if self.accept('quote'):
+            self.accept('string')
+            new_string = self.value
+            self.accept('quote')
+            return ir.String(value=new_string, symtab=symtab)
+
+        return self.numeric_expression(symtab)
+
+    @logger
     def condition(self, symtab):
         if self.accept('oddsym'):
-            return ir.UnExpr(children=['odd', self.expression(symtab)], symtab=symtab)
+            return ir.UnExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
         else:
-            expr = self.expression(symtab)
+            expr = self.numeric_expression(symtab)
             if self.new_sym in ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']:
                 self.getsym()
                 op = self.sym
-                expr2 = self.expression(symtab)
+                expr2 = self.numeric_expression(symtab)
                 return ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
             else:
                 self.error("Condition: invalid operator")
@@ -322,31 +327,23 @@ class Parser:
             if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
                 self.error(f"The type {type} is not valid for a variable")
 
-            size = 0
+            size_expr = None
             if self.accept('comma'):
-                # TODO: this has to become an expression, better yet a "numeric expression"
-                self.accept('number')
-                size = self.value
-                if size <= 0:
-                    self.error(f"Can't define a size {size} for array variable {variable}")
+                size_expr = self.numeric_expression(symtab)
+
+            target = None
 
             try:
                 target = symtab.find(self, variable)
+                raise RuntimeError(f"A variable named {variable.name} already exists")
             except RuntimeError:  # the variable does not already exist
-                if size == 0:
-                    target = ir.Symbol(variable, ir.TYPENAMES[type], alloct='heap', fname=self.current_function)
-                else:
-                    target = ir.Symbol(variable, ir.ArrayType(None, [size], ir.TYPENAMES[type]), alloct='heap', fname=self.current_function)
-                symtab.append(target)
+                pass
 
-            if (not isinstance(target.stype, ir.ArrayType) and target.stype.name != type) or (isinstance(target.stype, ir.ArrayType) and target.stype.basetype.name != type):
-                self.error(f"Trying to cast variable {variable} to type {type} is not possible")
-
-            if target.alloct != 'heap':
-                self.error(f"Trying to change allocation of a the stack variable {variable} to the heap")
-
-            if isinstance(target.stype, ir.ArrayType) and size == 0:
-                self.error(f"Please define a valid size for the array {variable}")
+            if size_expr is None:
+                target = ir.Symbol(variable, ir.TYPENAMES[type], alloct='heap', fname=self.current_function)
+            else:
+                target = ir.Symbol(variable, ir.ArrayType(None, [0], ir.TYPENAMES[type], expr=size_expr), alloct='heap', fname=self.current_function)
+            symtab.append(target)
 
             self.expect('rparen')
 
