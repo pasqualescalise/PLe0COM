@@ -342,12 +342,12 @@ class Parser:
             if size_expr is None:
                 target = ir.Symbol(variable, ir.TYPENAMES[type], alloct='heap', fname=self.current_function)
             else:
-                target = ir.Symbol(variable, ir.ArrayType(None, [0], ir.TYPENAMES[type], expr=size_expr), alloct='heap', fname=self.current_function)
+                target = ir.Symbol(variable, ir.ArrayType(None, [0], ir.TYPENAMES[type]), alloct='heap', fname=self.current_function)
             symtab.append(target)
 
             self.expect('rparen')
 
-            return ir.NewStat(children=[target], symtab=symtab)
+            return ir.NewStat(children=[target], expr=size_expr, symtab=symtab)
 
     @logger
     def block(self, parent_symtab, alloct='auto'):

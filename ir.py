@@ -69,12 +69,11 @@ class Type:
 
 
 class ArrayType(Type):
-    def __init__(self, name, dims, basetype, expr=None):
+    def __init__(self, name, dims, basetype):
         """dims is a list of dimensions: dims = [5]: array of 5 elements;
         dims = [5, 5]: 5x5 matrix; and so on; it's [] if the array size
-        gets computed at compile time using expr"""
+        gets computed at run time"""
         self.dims = dims
-        self.expr = expr
         if basetype is not None:
             super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
             self.name = name if name else self.default_name()
@@ -1115,9 +1114,12 @@ class ReturnStat(Stat):
 
 
 class NewStat(Stat):
-    def __init__(self, parent=None, children=[], symtab=None):
+    def __init__(self, parent=None, children=[], expr=None, symtab=None):
         log_indentation(bold(f"New NewStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
+        self.expr = expr
+        if self.expr is not None:
+            self.expr.parent = self
 
     def lower(self):
         target = self.children[0]
@@ -1140,7 +1142,12 @@ class NewStat(Stat):
 
         # add to the BRK, reserrving the space for the target
         size_temp = new_temporary(self.symtab, TYPENAMES['int'])
-        load_size = LoadImmStat(dest=size_temp, val=size, symtab=self.symtab)
+        if self.expr is None:
+            load_size = LoadImmStat(dest=size_temp, val=size, symtab=self.symtab)
+        else:
+            # since this is an array, the size is computed using an expression
+            load_size = LoadStat(dest=size_temp, symbol=self.expr.destination(), symtab=self.symtab)
+            load_size = StatList(self, [self.expr, load_size], symtab=self.symtab)
 
         reduce_brk = BinStat(dest=brk_temp, op='plus', srca=memory_addr, srcb=size_temp, symtab=self.symtab)
 
@@ -1229,6 +1236,8 @@ class LoadPtrToSym(Stat):  # low-level node
             raise RuntimeError('The destination is not to a register')
 
     def used_variables(self):
+        if self.symbol.alloct == 'heap':
+            return [self.symbol, self.symbol.address]
         return [self.symbol]
 
     def killed_variables(self):
