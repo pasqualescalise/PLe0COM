@@ -328,8 +328,16 @@ class Parser:
                 self.error(f"The type {type} is not valid for a variable")
 
             size_expr = None
-            if self.accept('comma'):
-                size_expr = self.numeric_expression(symtab)
+            if self.accept('comma'):  # get the size of the array to allocate, in the form [size][size]...
+                size_exprs = []
+                while self.accept('lspar'):
+                    new_expr = self.numeric_expression(symtab)
+                    type_size = ir.Const(value=ir.TYPENAMES[type].size // 8, symtab=symtab)
+                    size_exprs.append(ir.BinExpr(children=["times", new_expr, type_size], symtab=symtab))
+                    self.expect('rspar')
+                if len(size_exprs) == 0:
+                    self.error("Can't create size 0 array")
+                size_expr = ir.StatList(children=size_exprs, symtab=symtab)
 
             target = None
 
@@ -342,7 +350,7 @@ class Parser:
             if size_expr is None:
                 target = ir.Symbol(variable, ir.TYPENAMES[type], alloct='heap', fname=self.current_function)
             else:
-                target = ir.Symbol(variable, ir.ArrayType(None, [0], ir.TYPENAMES[type]), alloct='heap', fname=self.current_function)
+                target = ir.Symbol(variable, ir.ArrayType(None, [0] * len(size_expr.children), ir.TYPENAMES[type]), alloct='heap', fname=self.current_function)
             symtab.append(target)
 
             self.expect('rparen')

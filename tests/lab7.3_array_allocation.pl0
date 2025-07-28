@@ -2,7 +2,7 @@ VAR size, i : int;
 
 BEGIN
 	size := 20;
-	new(x, int, size);
+	new(x, int, [size]);
     for i := 0; i < size; i := i + 1 do begin
 		x[i] := i
 	end;

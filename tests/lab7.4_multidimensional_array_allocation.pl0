@@ -1,0 +1,11 @@
+VAR size, i : int;
+
+BEGIN
+	size := 4;
+	new(x, int, [size][size]);
+    for i := 0; i < size; i := i + 1 do begin
+		x[i][0] := i
+	end;
+	print x[0][0];
+	print x[size - 1][0]
+END.

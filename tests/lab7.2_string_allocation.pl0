@@ -1,5 +1,5 @@
 BEGIN
-	new(x, char, 20);
+	new(x, char, [20]);
 	x := "Hello World!";
 	print x;
 	x := "Hello";
