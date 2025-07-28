@@ -106,6 +106,12 @@ class Lexer:
         while self.pos < len(self.text):
             if self.parsed_string is None:
                 self.skip_whitespace()
+            else:  # return the parsed string
+                self.pos += len(self.parsed_string)
+                yield 'string', self.parsed_string
+                self.skip_quote = True
+                self.parsed_string = None
+                continue
             t, s = self.check_symbol()
             if s:
                 if t == 'quote' and not self.skip_quote:
@@ -124,10 +130,6 @@ class Lexer:
             t = self.check_regex(r'[0-9]+')
             if t:
                 yield 'number', int(t)
-                continue
-            if self.parsed_string is not None:
-                self.pos += len(self.parsed_string)
-                yield 'string', self.parsed_string
                 continue
             t = self.check_regex(r'\w+')
             if t:
