@@ -47,6 +47,13 @@ class Parser:
         self.error("Expect: unexpected symbol")
         return 0
 
+    def initialize_heap_memory(self):
+        heap_symbol = ir.Symbol(name="heap", stype=ir.ArrayType(None, [ir.HEAP_SIZE], ir.TYPENAMES['byte']), alloct='data')
+        brk_symbol = ir.Symbol(name="brk", stype=ir.PointerType(ir.TYPENAMES['int']), alloct='data', value="heap")
+
+        ir.DataSymbolTable.add_data_symbol(heap_symbol)
+        ir.DataSymbolTable.add_data_symbol(brk_symbol)
+
     def array_offset(self, target, symtab):
         offset = None
         if isinstance(target.stype, ir.ArrayType) and target.stype.basetype.basetype != 'Char':
@@ -317,6 +324,7 @@ class Parser:
 
             size = 0
             if self.accept('comma'):
+                # TODO: this has to become an expression, better yet a "numeric expression"
                 self.accept('number')
                 size = self.value
                 if size <= 0:
@@ -503,6 +511,7 @@ class Parser:
     @logger
     def program(self):
         """Axiom"""
+        self.initialize_heap_memory()
         global_symtab = ir.SymbolTable()
         self.getsym()
         the_program = self.block(global_symtab, 'global')

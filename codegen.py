@@ -42,7 +42,7 @@ def new_local_const(val):
 
 
 def symbol_codegen(self, regalloc):
-    if self.allocinfo is None:
+    if self.allocinfo is None or self.alloct == 'heap':
         return ""
     if not isinstance(self.allocinfo, LocalSymbolLayout):
         return ii(f".comm {green(f'{self.allocinfo.symname}')}, {self.allocinfo.bsize}\n")
@@ -325,6 +325,9 @@ def storestat_codegen(self, regalloc):
         res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(self.symbol)}}}\n")
         return [res, trail]
 
+    elif self.dest.alloct == 'heap':
+        dest = f"[{regalloc.get_register_for_variable(self.dest.address)}]"
+
     elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.dest.stype, PointerType):
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         return [res, trail]
@@ -373,6 +376,9 @@ def loadstat_codegen(self, regalloc):
     if self.symbol.alloct == 'return':
         res += ii(f"{cyan('pop')} {{{regalloc.get_register_for_variable(self.dest)}}}\n")
         return [res, trail]
+
+    elif self.symbol.alloct == 'heap':
+        src = f"[{regalloc.get_register_for_variable(self.symbol.address)}]"
 
     elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.symbol.stype, PointerType):
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
@@ -488,8 +494,12 @@ def generate_data_section():
     for symbol in DataSymbolTable.get_data_symtab():
         if symbol.stype.name == "char":
             res += ii(f"{symbol.name}: .asciz \"{symbol.value}\"\n")
+        elif isinstance(symbol.stype, ArrayType):
+            res += ii(f"{symbol.name}: .fill {symbol.stype.size // 8}\n")
+        elif isinstance(symbol.stype, PointerType):
+            res += ii(f"{symbol.name}: .word {symbol.value}\n")
         else:
-            raise NotImplementedError("Don't have implemented storing non-string values is .data section")
+            raise NotImplementedError(f"Don't have implemented storing {symbol.stype} values is .data section")
 
     return res
 

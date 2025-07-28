@@ -1,0 +1,19 @@
+BEGIN
+	new(x, int);
+	new(y, int);
+	new(z, short);
+	x := 20;
+	print x;
+	y := 40;
+	print y;
+	z := 50;
+	print z;
+	x := 10;
+	print x;
+	new(w, byte);
+	w := 5;
+	print w;
+	new(t, byte);
+	t := 5;
+	print t
+END.

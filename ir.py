@@ -13,6 +13,9 @@ from codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
 
+
+HEAP_SIZE = 1024  # in bytes
+
 # UTILITIES
 
 temporary_count = 0
@@ -155,6 +158,11 @@ class Symbol:
 
     def set_alloc_info(self, allocinfo):
         self.allocinfo = allocinfo  # in byte
+
+    # if alloct == 'heap', self.address is the variable
+    # that contains the address of this symbol
+    def set_address(self, address):
+        self.address = address
 
     def is_string(self):
         """A Symbol references a string if it's of type char[] or &char"""
@@ -1110,7 +1118,34 @@ class NewStat(Stat):
         super().__init__(parent, children, symtab)
 
     def lower(self):
-        raise NotImplementedError
+        target = self.children[0]
+
+        # how much space in the heap to save
+        size = target.stype.size // 8
+
+        # this temporary will be used each time the target symbol is used
+        memory_addr = new_temporary(self.symtab, TYPENAMES['int'])
+        target.set_address(memory_addr)
+
+        # get the current value of the BRK and put it in the memory_addr temporary
+        data_symtab = DataSymbolTable.get_data_symtab()
+        brk_symbol = data_symtab.find(self, "brk")
+        brk_temp = new_temporary(self.symtab, TYPENAMES['int'])
+
+        get_brk = LoadStat(dest=memory_addr, symbol=brk_symbol, symtab=self.symtab)
+
+        # TODO: check that BRK is not BRK_MAX
+
+        # add to the BRK, reserrving the space for the target
+        size_temp = new_temporary(self.symtab, TYPENAMES['int'])
+        load_size = LoadImmStat(dest=size_temp, val=size, symtab=self.symtab)
+
+        reduce_brk = BinStat(dest=brk_temp, op='plus', srca=memory_addr, srcb=size_temp, symtab=self.symtab)
+
+        store_brk = StoreStat(dest=brk_symbol, symbol=brk_temp, symtab=self.symtab)
+
+        stat_list = StatList(self.parent, [get_brk, load_size, reduce_brk, store_brk], self.symtab)
+        return self.parent.replace(self, stat_list)
 
 
 class BranchStat(Stat):  # low-level node
@@ -1224,6 +1259,8 @@ class StoreStat(Stat):  # low-level node
     def used_variables(self):
         if self.dest.alloct == 'reg':
             return [self.symbol, self.dest]
+        elif self.dest.alloct == 'heap':  # do not overwrite the temporary that has the heap address
+            return [self.symbol, self.dest.address]
         return [self.symbol]
 
     def killed_variables(self):
