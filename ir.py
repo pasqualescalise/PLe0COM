@@ -1296,6 +1296,8 @@ class LoadStat(Stat):  # low-level node
             raise RuntimeError('Trying to load a value not to a register')
 
     def used_variables(self):
+        if self.symbol.alloct == 'heap':
+            return [self.symbol, self.symbol.address]
         if self.usehint:
             return [self.symbol, self.usehint]
         return [self.symbol]

@@ -1,0 +1,11 @@
+BEGIN
+	new(x, char, 20);
+	x := "Hello World!";
+	print x;
+	x := "Hello";
+	print x;
+	x := "World";
+	print x;
+	x := "AAAAAAAAAAAAAAAAAAA";
+	print x
+END.

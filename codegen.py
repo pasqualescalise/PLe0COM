@@ -309,8 +309,11 @@ def ldptrto_codegen(self, regalloc):
         else:
             res = ii(f"{yellow('sub')} {rd}, {get_register_string(REG_FP)}, #{italic(f'{-off}')}\n")
     else:
-        label, trail = new_local_const(alloc_info.symname)
-        res = ii(f"{blue('ldr')} {rd}, {label}\n")
+        if self.symbol.alloct == 'heap':
+            res = ii(f"{blue('mov')} {rd}, {regalloc.get_register_for_variable(self.symbol.address)}\n")
+        else:
+            label, trail = new_local_const(alloc_info.symname)
+            res = ii(f"{blue('ldr')} {rd}, {label}\n")
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
@@ -406,9 +409,13 @@ def loadstat_codegen(self, regalloc):
 
     # XXX: not entirely sure about this
     if type(self.symbol.stype) is ArrayType:
-        desttype = self.symbol.stype.basetype
-        rdst = regalloc.get_register_for_variable(self.dest)
-        res += ii(f"{blue(f'mov')} {rdst}, {get_register_string(REG_SCRATCH)}\n")
+        if self.symbol.alloct == 'heap':
+            reg_symbol = regalloc.get_register_for_variable(self.symbol.address)
+            reg_dest = regalloc.get_register_for_variable(self.dest)
+            res += ii(f"{blue(f'mov')} {reg_dest}, {reg_symbol}\n")
+        else:
+            rdst = regalloc.get_register_for_variable(self.dest)
+            res += ii(f"{blue(f'mov')} {rdst}, {get_register_string(REG_SCRATCH)}\n")
         return [res, trail]
     elif type(self.symbol.stype) is PointerType:
         desttype = self.symbol.stype.pointstotype
