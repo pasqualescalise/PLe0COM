@@ -121,10 +121,14 @@ def inline(self):
     if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
         target_definition_copy = deepcopy(target_definition)
 
+        this_function_name = ""
+
         if self.get_function() != 'main':
             target_definition_copy.symbol = self.get_function().symbol
+            this_function_name = target_definition_copy.symbol.name
         else:
             target_definition_copy.symbol = ""  # TODO: check if this creates problems
+            this_function_name = "main"
 
         # split the current function in before:body-of-the-function-to-inline:after
         index = self.parent.children.index(self)
@@ -148,6 +152,13 @@ def inline(self):
 
         # recompact everything
         self.parent.children = previous_instructions + function_instructions + next_instructions
+
+        for global_symbol in target_definition.body.global_symtab:
+            global_symbol.fname = this_function_name  # TODO: I think this is wrong, I am changing the symbol directly not a copy of it
+            self.parent.parent.global_symtab.append(global_symbol)
+        for local_symbol in target_definition.body.local_symtab:
+            local_symbol.fname = this_function_name  # TODO: I think this is wrong, I am changing the symbol directly not a copy of it
+            self.parent.parent.local_symtab.append(local_symbol)
 
         for child in self.parent.children:
             child.parent = self.parent
