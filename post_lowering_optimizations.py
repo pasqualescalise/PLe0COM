@@ -127,7 +127,7 @@ def inline(self):
             target_definition_copy.symbol = self.get_function().symbol
             this_function_name = target_definition_copy.symbol.name
         else:
-            target_definition_copy.symbol = ""  # TODO: check if this creates problems
+            target_definition_copy.symbol = "main"  # TODO: check if this creates problems, main should probably just have a symbol
             this_function_name = "main"
 
         # split the current function in before:body-of-the-function-to-inline:after
@@ -146,16 +146,13 @@ def inline(self):
 
         # change returns stores and loads into movs between registers
         function_instructions, returns_destinations = change_stores(function_instructions, target_definition_copy.returns)
-        next_instructions = change_loads(next_instructions, returns_destinations)
+        next_instructions[:len(target_definition_copy.returns) * 2] = change_loads(next_instructions[:len(target_definition_copy.returns) * 2], returns_destinations)  # this only affects the instructions that load the returned variables
 
         next_instructions = remove_dont_cares(next_instructions, target_definition_copy.returns, returns_destinations)
 
         # recompact everything
         self.parent.children = previous_instructions + function_instructions + next_instructions
 
-        for global_symbol in target_definition.body.global_symtab:
-            global_symbol.fname = this_function_name  # TODO: I think this is wrong, I am changing the symbol directly not a copy of it
-            self.parent.parent.global_symtab.append(global_symbol)
         for local_symbol in target_definition.body.local_symtab:
             local_symbol.fname = this_function_name  # TODO: I think this is wrong, I am changing the symbol directly not a copy of it
             self.parent.parent.local_symtab.append(local_symbol)

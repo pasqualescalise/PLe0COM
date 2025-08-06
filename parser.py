@@ -187,7 +187,7 @@ class Parser:
             function_symbol = symtab.find(self, self.value)
             self.expect('lparen')
 
-            # arguments
+            # parameters
             parameters = []
             while self.new_sym != "rparen":
                 expr = self.expression(symtab)
