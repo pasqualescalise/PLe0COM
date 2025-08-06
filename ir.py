@@ -674,9 +674,9 @@ class Stat(IRNode):  # abstract
 
 
 class SaveSpaceStat(Stat):  # low-level node
-    """ Save space for eventual return statements by pushing null values
-        Just needed a statement that would survive until codegen and would
-        not matter for datalayout"""
+    """Save space for eventual return statements by pushing null values
+       Just needed a statement that would survive until codegen and would
+       not matter for datalayout"""
 
     def __init__(self, parent=None, space_needed=0, symtab=None):
         log_indentation(bold(f"New SaveSpaceStat Node (id: {id(self)})"))

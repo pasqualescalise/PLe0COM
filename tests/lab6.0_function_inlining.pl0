@@ -43,10 +43,10 @@ PROCEDURE function_to_inline_param_return(int result) -> (int);
 		return (result - 1)
 	END;
 
-{
-	TODO: test returns don't cares
-
-}
+PROCEDURE function_to_inline_param_return_dont_care(int result) -> (int, int, int);
+	BEGIN
+		return (result - 1, result, result + 1)
+	END;
 
 PROCEDURE function_not_to_inline();
 	VAR result1, result2 : int;
@@ -66,6 +66,8 @@ PROCEDURE function_not_to_inline();
 		result2 := 300;
 		CALL function_to_inline_param(result1, result2);
 		CALL function_to_inline_param_return(result1) -> (result2);
+		print result2;
+		CALL function_to_inline_param_return_dont_care(result2) -> (_, result2, _);
 		print result2
 	END;
 

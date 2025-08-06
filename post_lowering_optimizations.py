@@ -61,9 +61,25 @@ def remove_returns(instructions, returns):
 
 def remove_save_space_statements(instructions, number_of_parameters, number_of_returns):
     if number_of_parameters > 0 and isinstance(instructions[-(number_of_parameters + 1)], SaveSpaceStat):
-        return instructions[:-(number_of_parameters + 1)] + instructions[-(number_of_parameters):]
+        instructions = instructions[:-(number_of_parameters + 1)] + instructions[-(number_of_parameters):]
     if number_of_returns > 0 and isinstance(instructions[-1], SaveSpaceStat):
-        return instructions[:-1]
+        instructions = instructions[:-1]
+    return instructions
+
+
+# Remove dontcares by substituting the SaveStat nodes with useless StoreStats; this passes
+# the register allocation and can be removed before codegen
+# TODO: remove this useless movs before codegen
+def remove_dont_cares(instructions, returns, returns_destinations):
+    i = 0
+    for ret in returns:
+        instruction = instructions[i]
+        if isinstance(instruction, SaveSpaceStat) and instruction.space_needed > 0:  # saving space for a return
+            dest = returns_destinations[ret]
+            instructions[i] = StoreStat(parent=instruction.parent, dest=dest, symbol=dest, symtab=instruction.symtab)
+            i += 1
+        else:
+            i += 2  # not a dontcare, skip the assignment
     return instructions
 
 
@@ -127,6 +143,8 @@ def inline(self):
         # change returns stores and loads into movs between registers
         function_instructions, returns_destinations = change_stores(function_instructions, target_definition_copy.returns)
         next_instructions = change_loads(next_instructions, returns_destinations)
+
+        next_instructions = remove_dont_cares(next_instructions, target_definition_copy.returns, returns_destinations)
 
         # recompact everything
         self.parent.children = previous_instructions + function_instructions + next_instructions
