@@ -2,6 +2,8 @@
 
 """The main function of the compiler, AKA the compiler driver"""
 
+from argparse import ArgumentParser
+
 import lexer
 import parser
 from support import get_node_list, flattening, lowering
@@ -9,12 +11,12 @@ from datalayout import perform_data_layout
 from cfg import ControlFlowGraph
 from regalloc import LinearScanRegisterAllocator
 from codegen import generate_code
-from logger import initialize_logger, h1, h2, remove_formatting, red, green, yellow, cyan, bold, italic, underline
+from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, cyan, bold, italic, underline
 # from optimizations import loop_unrolling
 from post_lowering_optimizations import perform_post_lowering_optimizations
 
 
-def compile_program(text):
+def compile_program(text, optimization_level):
     print(h1("FRONT-END"))
 
     print(h2("PARSING"))
@@ -59,7 +61,7 @@ def compile_program(text):
 
     # XXX: OTHER OPTIMIZATIONS GO HERE
     print(h2("POST-LOWERING OPTIMIZATIONS"))
-    perform_post_lowering_optimizations(program)
+    perform_post_lowering_optimizations(program, optimization_level)
 
     print(f"\n{green('Optimized program:')}\n{program}")
 
@@ -102,25 +104,25 @@ def compile_program(text):
 
 
 def driver_main():
-    from sys import argv
+    parser = ArgumentParser(prog="Pl0COM", description="Optimizing compiler for the (modified) PL/0 language", epilog="")
 
-    if len(argv) <= 2:
-        print(red(bold("\nPlease supply a test file in the pl0 language as first argument")))
-        exit(1)
+    parser.add_argument('-i', '--input_file', required="True")
+    parser.add_argument('-o', '--output_file', default="out.s")
+    parser.add_argument('-O', '--optimization_level', default="2", choices=["0", "1", "2"])
+
+    args = parser.parse_args()
 
     # get a test program from the arguments
-    if len(argv) > 2:
-        with open(argv[1], 'r') as inf:
-            test_program = inf.read()
+    with open(args.input_file, 'r') as inf:
+        test_program = inf.read()
 
-    code = compile_program(test_program)
+    code = compile_program(test_program, int(args.optimization_level))
 
     # write the code in the file specifed in the arguments
-    if len(argv) >= 2:
-        with open(argv[-1], 'w') as outf:
-            outf.write(code)
+    with open(args.output_file, 'w') as outf:
+        outf.write(code)
 
-        print(green(bold(f"\nThe code can be found in the '{argv[-1]}' file")))
+    print(green(bold(f"\nThe code can be found in the '{args.output_file}' file")))
 
 
 if __name__ == '__main__':

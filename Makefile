@@ -5,6 +5,7 @@ CFLAGS := -g -static -march=armv6 -z noexecstack
 
 ASSEMBLY := out.s
 EXECUTABLE := out
+OPTIMIZATION_LEVEL := 2
 RUN_COMMAND := qemu-arm -cpu arm1136 
 DEBUGGER := pwndbg
 
@@ -20,7 +21,7 @@ all: compile execute
 
 compile:
 	if [ $(test) ]; then\
-		python3 main.py $(test) $(ASSEMBLY);\
+		python3 main.py -i $(test) -o $(ASSEMBLY) -O$(OPTIMIZATION_LEVEL);\
 	fi;
 	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE)
 	if [ ! $$? -eq 0 ]; then\
