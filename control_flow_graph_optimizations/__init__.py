@@ -5,6 +5,7 @@ after all the CFG analysis"""
 
 from control_flow_graph_optimizations.remove_inlined_functions import remove_inlined_functions
 from control_flow_graph_optimizations.dead_variable_elimination import perform_dead_variable_elimination
+from control_flow_graph_analyses.liveness_analysis import liveness_analysis_representation
 from logger import h3
 
 
@@ -18,4 +19,4 @@ def perform_control_flow_graph_optimizations(program, cfg, optimization_level):
 
         if recomputed_liveness:
             print(h3("Recomputed liveness analysis"))
-            print(cfg.liveness_analysis_representation())
+            print(liveness_analysis_representation(cfg))

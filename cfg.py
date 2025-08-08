@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-"""Control Flow Graph implementation
-Includes cfg construction and liveness analysis."""
-
-from functools import reduce
+"""First transform the code into BasicBlocks, then create a
+ControlFlowGraph of all the BasicBlocks that allows further
+analyses and optimizations"""
 
 from ir import BranchStat, StatList, FunctionDef
-from logger import ii, di, remove_formatting, green, yellow, blue, cyan
+from logger import ii, di, remove_formatting, yellow, blue
 from support import get_node_list
 
 
@@ -100,39 +99,6 @@ class BasicBlock(object):
 
     def succ(self):
         return [s for s in [self.target_bb, self.next] if s]
-
-    def liveness_iteration(self):
-        """Compute live_in and live_out approximation
-        Returns: True if a fixed point is reached, False otherwise"""
-        lin = len(self.live_in)
-        lout = len(self.live_out)
-
-        if self.next or self.target_bb:
-            self.live_out = reduce(lambda x, y: x.union(y), [s.live_in for s in self.succ()], set([]))
-        else:  # Consider live out all the global vars
-            func = self.get_function()
-            if func != 'main':
-                self.live_out = set(func.get_global_symbols())
-
-        self.live_in = self.gen.union(self.live_out - self.kill)
-        return not (lin == len(self.live_in) and lout == len(self.live_out))
-
-    def compute_instr_level_liveness(self):
-        """Compute live_in and live_out for each instruction"""
-        currently_alive = self.live_out
-
-        for i in reversed(self.instrs):
-            i.live_out = set(currently_alive)
-            try:
-                currently_alive -= set(i.killed_variables())
-            except AttributeError:
-                pass
-
-            currently_alive |= set(i.used_variables())
-            i.live_in = set(currently_alive)
-
-        if not currently_alive == self.live_in:
-            raise RuntimeError('Instruction level liveness or block level liveness incorrect')
 
     def remove_useless_next(self):
         """Check if unconditional branch, in that case remove next"""
@@ -231,7 +197,7 @@ class ControlFlowGraph(list):
         for bb in defs:
             first = bb.instrs[0]
             parent = first.parent
-            while parent and type(parent) != FunctionDef:
+            while parent and not isinstance(parent, FunctionDef):
                 parent = parent.parent
 
             if not parent:
@@ -275,29 +241,6 @@ class ControlFlowGraph(list):
         f.write(remove_formatting(dot))
         f.close()
 
-    def liveness_analysis_representation(self):
-        res = ""
-
-        for bb in self:
-            res += f"{bb}\n"
-
-            res += yellow("Liveness Sets") + " {\n"
-            res += ii(f"{blue('Gen set:')} {bb.gen},\n")
-            res += ii(f"{blue('Kill set:')} {bb.kill},\n\n")
-            res += ii(f"{blue('Live in set:')} {bb.live_in},\n")
-            res += ii(f"{blue('Live out set:')} {bb.live_out}\n")
-            res += "}\n\n"
-
-            res += yellow("Instruction liveness") + " {\n"
-            for i in bb.instrs:
-                res += ii(f"{blue('Instruction:')} '{i}' " + "{\n")
-                res += di(f"{cyan('Live in set:')} {i.live_in},\n")
-                res += di(f"{cyan('Live out set:')} {i.live_out}\n")
-                res += ii("}\n")
-            res += "}\n\n---\n\n"
-
-        return res
-
     def find_target_bb(self, label):
         """Return the BB that contains a given label;
         Support function for creating/exploring the CFG"""
@@ -305,34 +248,3 @@ class ControlFlowGraph(list):
             if label in bb.labels:
                 return bb
         raise RuntimeError(f"Label {label} not found in any Basic Block")
-
-    def liveness(self):
-        """Standard live variable analysis"""
-        out = []
-        for bb in self:
-            out.append(bb.liveness_iteration())
-
-        while sum(out):
-            out = []
-            for bb in self:
-                out.append(bb.liveness_iteration())
-
-        for bb in self:
-            bb.compute_instr_level_liveness()
-
-    def return_analysis(self):
-        """Check that if a function returns, each path of the CFG ends with a return"""
-        for bb in self.tails():
-            function_definition = bb.get_function()
-            if function_definition == 'main':
-                continue  # the main does not return anything
-
-            number_of_returns = len(function_definition.returns)
-            if number_of_returns > 0:
-                last_instruction = bb.instrs[-1]
-                if type(last_instruction) is BranchStat and last_instruction.target is None:
-                    pass
-                else:
-                    raise RuntimeError(f"At least one path of the function '{function_definition.symbol.name}' doesn't end with a return, even if one is needed")
-
-        print(green("All procedures that need to return parameters correctly return them\n"))

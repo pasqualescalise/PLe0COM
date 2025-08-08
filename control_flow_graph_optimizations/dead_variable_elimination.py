@@ -3,6 +3,7 @@
 """Using liveness analysis, remove useless variables; then recompute the
 liveness analysis until no useless variables are found"""
 
+from control_flow_graph_analyses.liveness_analysis import perform_liveness_analysis
 from logger import green
 
 
@@ -26,7 +27,7 @@ def perform_dead_variable_elimination(cfg):
                     keep_going = True
 
         if keep_going:
-            cfg.liveness()
+            perform_liveness_analysis(cfg)
             recomputed_liveness = True
 
     return recomputed_liveness
