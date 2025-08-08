@@ -146,15 +146,7 @@ def inline(self):
             child.parent = self.parent
 
         # reference counting: if no one is calling the inlined function, it can be removed
-        # TODO: this creates problems: if a function that does not pass the CFG optimizations is inlined, if
-        #       we remove it it's never checked; so maybe remove only before codegen?
         target_definition.called_by_counter -= 1
-        if target_definition.called_by_counter == 0:
-            for definition in target_definition.body.defs.children:  # move the not inlined definitions to the parent
-                if definition.called_by_counter > 0:
-                    self.parent.parent.defs.children.append(definition)
-                    definition.parent = self.parent.parent.defs
-            target_definition.parent.remove(target_definition)
 
         if self.get_function() == 'main':
             print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))

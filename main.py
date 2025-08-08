@@ -14,6 +14,7 @@ from codegen import generate_code
 from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, cyan, bold, italic, underline
 # from optimizations import loop_unrolling
 from post_lowering_optimizations import perform_post_lowering_optimizations
+from control_flow_graph_optimizations import perform_control_flow_graph_optimizations
 
 
 def compile_program(text, optimization_level):
@@ -74,12 +75,17 @@ def compile_program(text, optimization_level):
     cfg.liveness()
     print(cfg.liveness_analysis_representation())
 
-    # XXX: AND OTHER OPTIMIZATIONS GO HERE
     print(h2("RETURN ANALYSIS"))
     cfg.return_analysis()
 
     cfg.print_cfg_to_dot("cfg.dot")
     print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg.dot file')}\n")
+
+    # XXX: AND OTHER OPTIMIZATIONS GO HERE
+    print(h2("CONTROL FLOW GRAPH OPTIMIZATIONS"))
+    perform_control_flow_graph_optimizations(program, cfg, optimization_level)
+
+    print(f"\n{green('Optimized program:')}\n{program}")
 
     ##############################################
 

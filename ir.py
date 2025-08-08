@@ -1504,19 +1504,15 @@ class Block(Stat):  # low-level node
 
     def __deepcopy__(self, memo):
         new_body = deepcopy(self.body)
-        # TODO: is `new_defs = deepcopy(self.defs)` necessary?
+        new_defs = deepcopy(self.defs)
 
-        new_block = Block(parent=self.parent, gl_sym=self.global_symtab, lc_sym=self.local_symtab, defs=self.defs, body=new_body)
-
-        new_body.parent = new_block
-        return new_block
+        return Block(parent=self.parent, gl_sym=self.global_symtab, lc_sym=self.local_symtab, defs=new_defs, body=new_body)
 
 
 # DEFINITIONS
 
 class Definition(IRNode):
     def __init__(self, parent=None, symbol=None):
-        log_indentation(bold(f"New Definition Node (id: {id(self)})"))
         super().__init__(parent, [], None)
         self.parent = parent
         self.symbol = symbol
@@ -1538,10 +1534,7 @@ class FunctionDef(Definition):
     def __deepcopy__(self, memo):
         new_body = deepcopy(self.body)
 
-        new_definition = FunctionDef(parent=self.parent, symbol=self.symbol, parameters=self.parameters, body=new_body, returns=self.returns, called_by_counter=self.called_by_counter)
-
-        new_body.parent = new_definition
-        return new_definition
+        return FunctionDef(parent=self.parent, symbol=self.symbol, parameters=self.parameters, body=new_body, returns=self.returns, called_by_counter=self.called_by_counter)
 
 
 class DefinitionList(IRNode):
@@ -1555,3 +1548,6 @@ class DefinitionList(IRNode):
 
     def remove(self, elem):
         self.children.remove(elem)
+
+    def __deepcopy__(self, memo):
+        return DefinitionList(parent=self.parent, children=self.children)
