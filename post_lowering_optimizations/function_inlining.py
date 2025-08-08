@@ -102,14 +102,11 @@ def change_loads(instructions, destinations):
 # get all the instructions before and after the call, apply transformations to them
 # (change store of parameters to store in registers, ...), then put everything together
 def inline(self):
-    if not self.is_call:
+    if not self.is_call():
         return
 
-    target_function_name = self.target.name
-    target_definition = self.get_function_definition(self.target)
-
-    if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
-        target_definition_copy = deepcopy(target_definition)
+    if len(self.target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
+        target_definition_copy = deepcopy(self.target_definition)
 
         if self.get_function() != 'main':
             target_definition_copy.symbol = self.get_function().symbol
@@ -139,19 +136,19 @@ def inline(self):
         # recompact everything
         self.parent.children = previous_instructions + function_instructions + next_instructions
 
-        for local_symbol in target_definition.body.local_symtab:
+        for local_symbol in self.target_definition.body.local_symtab:
             self.parent.parent.local_symtab.append(local_symbol)
 
         for child in self.parent.children:
             child.parent = self.parent
 
         # reference counting: if no one is calling the inlined function, it can be removed
-        target_definition.called_by_counter -= 1
+        self.target_definition.called_by_counter -= 1
 
         if self.get_function() == 'main':
-            print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
+            print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
         else:
-            print(green(f"Inlining function {magenta(f'{target_function_name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
+            print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
 
 
 BranchStat.inline = inline

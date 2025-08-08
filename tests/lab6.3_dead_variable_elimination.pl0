@@ -1,0 +1,10 @@
+{VAR x, y : int; TODO: this broke the inlining}
+
+PROCEDURE inlined(int x, int y);
+	BEGIN
+		print x
+	END;
+
+BEGIN
+	CALL inlined(1, 2)
+END.

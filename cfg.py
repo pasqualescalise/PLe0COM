@@ -24,7 +24,7 @@ class BasicBlock(object):
             self.instrs = []
 
         try:
-            if self.instrs[-1].is_call:
+            if self.instrs[-1].is_call():
                 self.target = None
             else:
                 self.target = self.instrs[-1].target
@@ -145,6 +145,12 @@ class BasicBlock(object):
     def get_function(self):
         return self.instrs[0].get_function()
 
+    def remove(self, instruction):
+        try:
+            self.instrs.remove(instruction)
+        except ValueError:
+            raise RuntimeError(f"Can't find instruction '{instruction}' to remove in BasicBlock {id(self)}")
+
 
 def stat_list_to_bb(stat_list):
     bbs = []
@@ -175,7 +181,7 @@ def stat_list_to_bb(stat_list):
         instructions.append(statement)
 
         # if this is BranchStat is a function call, it marks the end of a BasicBlock
-        if isinstance(statement, BranchStat) and not statement.is_call:
+        if isinstance(statement, BranchStat) and not statement.is_call():
             bb = BasicBlock(instrs=instructions, labels=labels)
             instructions = []
 

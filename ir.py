@@ -723,7 +723,8 @@ class CallStat(Stat):
         for param in self.function_definition.parameters:
             space_needed_for_parameters += param.stype.size // 8
 
-        branch = BranchStat(target=self.function_symbol, symtab=self.symtab, is_call=True, space_needed_for_parameters=space_needed_for_parameters)
+        target_function_definition = self.get_function_definition(self.function_symbol)
+        branch = BranchStat(target=self.function_symbol, target_definition=target_function_definition, space_needed_for_parameters=space_needed_for_parameters, symtab=self.symtab)
 
         stats = [self.call, branch]
 
@@ -1127,11 +1128,12 @@ class ReturnStat(Stat):
 
 
 class BranchStat(Stat):  # low-level node
-    def __init__(self, parent=None, cond=None, target=None, is_call=False, negcond=False, space_needed_for_parameters=0, symtab=None):
+    def __init__(self, parent=None, cond=None, target=None, target_definition=None, negcond=False, space_needed_for_parameters=0, symtab=None):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
-        If is_call is True, this is a branch-and-link instruction.
+        If target_definition is not None, this is a branch-and-link instruction and it is the
+        definition of the target function.
         If target is None, the branch is a return and the 'target' is computed at runtime"""
         log_indentation(bold(f"New BranchStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
@@ -1140,13 +1142,21 @@ class BranchStat(Stat):  # low-level node
         if not (self.cond is None) and self.cond.alloct != 'reg':
             raise RuntimeError('Trying to branch on a condition not stored in a register')
         self.target = target
-        self.is_call = is_call
+        self.target_definition = target_definition
         # needed for returns -> parameters need to be popped after returning from a call
         self.space_needed_for_parameters = space_needed_for_parameters
 
     def used_variables(self):
+        if self.is_call():
+            return self.target_definition.parameters
         if self.cond is not None:
             return [self.cond]
+        return []
+
+    def killed_variables(self):
+        if self.is_call():
+            returns = self.target_definition.returns
+            return [r for r in returns if r != "_"]  # TODO: test the dontcares
         return []
 
     def is_unconditional(self):
@@ -1159,10 +1169,15 @@ class BranchStat(Stat):  # low-level node
             return True
         return False
 
+    def is_call(self):
+        if self.target_definition is not None:
+            return True
+        return False
+
     def human_repr(self):
         if self.is_return():
             return 'return to previous function'
-        elif self.is_call:
+        elif self.is_call():
             h = 'call'
         else:
             h = 'branch'
@@ -1181,13 +1196,13 @@ class BranchStat(Stat):  # low-level node
                 mapping[self.cond] = new_temp
                 self.cond = new_temp
 
-        if self.target and not self.is_call:
+        if self.target and not self.is_call():
             new_target = TYPENAMES['label']()
             mapping[self.target] = new_target
             self.target = new_target
 
     def __deepcopy__(self, memo):
-        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, is_call=self.is_call, negcond=self.negcond, space_needed_for_parameters=self.space_needed_for_parameters, symtab=self.symtab)
+        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, target_definition=self.target_definition, negcond=self.negcond, space_needed_for_parameters=self.space_needed_for_parameters, symtab=self.symtab)
 
 
 class EmptyStat(Stat):  # low-level node
@@ -1294,6 +1309,8 @@ class StoreStat(Stat):  # low-level node
 
     def replace_temporaries(self, mapping):
         replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
+        if self.killhint is not None and self.killhint.is_temporary:
+            self.killhint = mapping[self.killhint]
 
     def __deepcopy__(self, memo):
         return StoreStat(parent=self.parent, dest=self.dest, symbol=self.symbol, killhint=self.killhint, symtab=self.symtab)
@@ -1332,6 +1349,8 @@ class LoadStat(Stat):  # low-level node
 
     def replace_temporaries(self, mapping):
         replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
+        if self.usehint is not None and self.usehint.is_temporary:
+            self.usehint = mapping[self.usehint]
 
     def __deepcopy__(self, memo):
         return LoadStat(parent=self.parent, dest=self.dest, symbol=self.symbol, usehint=self.usehint, symtab=self.symtab)
@@ -1473,6 +1492,12 @@ class StatList(Stat):  # low-level node
             except AttributeError:
                 pass
         return None
+
+    def remove(self, instruction):
+        try:
+            self.children.remove(instruction)
+        except ValueError:
+            raise RuntimeError(f"Can't find instruction '{instruction}' to remove in StatList {id(self)}")
 
     def replace_temporaries(self, mapping):
         for child in self.children:

@@ -238,7 +238,7 @@ def branch_codegen(self, regalloc):
         return res
 
     target_label = magenta(self.target.name)
-    if not self.is_call:
+    if not self.is_call():
         # just a branch
         if self.cond is None:
             return ii(f"{red('b')} {target_label}\n")
