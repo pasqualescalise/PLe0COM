@@ -3,6 +3,7 @@
 """Using reference counting, removed useless inlined functions;
 this is done after the CFG so that the original code is still checked"""
 
+from logger import green, magenta
 from ir import DefinitionList
 
 
@@ -14,8 +15,11 @@ def remove_inlined_functions(self):
             for sub_definition in definition.body.defs.children:  # move the not inlined definitions upwards
                 if sub_definition.called_by_counter > 0:
                     definition_list.append(sub_definition)
+
+            print(f"{green('Removed inlined function')} {magenta(f'{definition.symbol.name}')}")
         else:
             definition_list.append(definition)
+    self.parent.replace(self, definition_list)
 
 
 DefinitionList.remove_inlined_functions = remove_inlined_functions
