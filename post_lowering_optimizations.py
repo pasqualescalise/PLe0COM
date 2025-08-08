@@ -121,14 +121,10 @@ def inline(self):
     if len(target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
         target_definition_copy = deepcopy(target_definition)
 
-        this_function_name = ""
-
         if self.get_function() != 'main':
             target_definition_copy.symbol = self.get_function().symbol
-            this_function_name = target_definition_copy.symbol.name
         else:
-            target_definition_copy.symbol = "main"  # TODO: check if this creates problems, main should probably just have a symbol
-            this_function_name = "main"
+            target_definition_copy.symbol = "main"  # TODO: check if this creates problems, it shouldn't since target_definition_copy isn't used after this function
 
         # split the current function in before:body-of-the-function-to-inline:after
         index = self.parent.children.index(self)
@@ -154,7 +150,6 @@ def inline(self):
         self.parent.children = previous_instructions + function_instructions + next_instructions
 
         for local_symbol in target_definition.body.local_symtab:
-            local_symbol.fname = this_function_name  # TODO: I think this is wrong, I am changing the symbol directly not a copy of it
             self.parent.parent.local_symtab.append(local_symbol)
 
         for child in self.parent.children:
@@ -165,6 +160,10 @@ def inline(self):
         #       we remove it it's never checked; so maybe remove only before codegen?
         target_definition.called_by_counter -= 1
         if target_definition.called_by_counter == 0:
+            for definition in target_definition.body.defs.children:  # move the not inlined definitions to the parent
+                if definition.called_by_counter > 0:
+                    self.parent.parent.defs.children.append(definition)
+                    definition.parent = self.parent.parent.defs
             target_definition.parent.remove(target_definition)
 
         if self.get_function() == 'main':

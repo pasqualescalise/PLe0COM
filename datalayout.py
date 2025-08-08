@@ -59,6 +59,9 @@ def perform_data_layout_of_function(funcroot):
         if var.stype.size == 0:
             continue
 
+        if var.allocinfo is not None:  # TODO: this is needed because SymbolTables are broken, fix them
+            continue
+
         bsize = var.stype.size // 8
 
         if var.alloct == 'param':
