@@ -60,7 +60,7 @@ def comment(cont):
 
 
 def codegen_append(vec, code):
-    if type(code) is list:
+    if isinstance(code, list):
         return [vec[0] + code[0], vec[1] + code[1]]
     return [vec[0] + code, vec[1]]
 

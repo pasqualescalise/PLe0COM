@@ -16,7 +16,7 @@ def promote_symbol(symbol, root):
     symbol.alloct = 'reg'
 
     for i in range(0, len(instructions)):
-        if type(instructions[i]) is StoreStat and instructions[i].dest == symbol:
+        if isinstance(instructions[i], StoreStat) and instructions[i].dest == symbol:
             instructions[i].killhint = symbol
 
 

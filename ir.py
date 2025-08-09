@@ -189,7 +189,7 @@ class Symbol:
     def __repr__(self):
         base = f"{self.alloct} {self.stype.name}"
 
-        if type(self.stype) == FunctionType or type(self.stype) == LabelType:
+        if isinstance(self.stype, (FunctionType, LabelType)):
             base = f"{base} {magenta(f'{self.name}')}"
         elif self.alloct != "reg":
             base = f"{base} {green(f'{self.name}')}"
@@ -314,6 +314,7 @@ class IRNode:  # abstract
         res += "}"
         return res
 
+    # XXX: must only be used for printing
     def type(self):
         return str(type(self)).split("'")[1]
 
@@ -370,7 +371,7 @@ class IRNode:  # abstract
     def get_function(self):
         if not self.parent:
             return 'main'
-        elif type(self.parent) == FunctionDef:
+        elif isinstance(self.parent, FunctionDef):
             return self.parent
         else:
             return self.parent.get_function()
@@ -538,6 +539,7 @@ class BinExpr(Expr):
         srcb = self.children[2].destination()
 
         # Type promotion.
+        # TODO: fix this for types other than int
         if ('unsigned' in srca.stype.qual_list) and ('unsigned' in srcb.stype.qual_list):
             desttype = Type(None, max(srca.stype.size, srcb.stype.size), 'Int', ['unsigned'])
         else:
@@ -952,7 +954,7 @@ class AssignStat(Stat):
             if self.offset:
                 off = self.offset.destination()
                 desttype = dst.stype
-                if type(desttype) is ArrayType:  # this is always true at the moment
+                if isinstance(desttype, ArrayType):  # this is always true at the moment
                     desttype = desttype.basetype
                 ptrreg = new_temporary(self.symtab, PointerType(desttype))
                 loadptr = LoadPtrToSym(dest=ptrreg, symbol=dst, symtab=self.symtab)
@@ -1472,7 +1474,7 @@ class StatList(Stat):  # low-level node
 
     def flatten(self):
         """Remove nested StatLists"""
-        if type(self.parent) == StatList:
+        if isinstance(self.parent, StatList):
             log_indentation(green(f"Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}"))
             if self.get_label():
                 emptystat = EmptyStat(self, symtab=self.symtab)

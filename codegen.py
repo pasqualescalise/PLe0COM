@@ -95,7 +95,7 @@ def block_codegen(self, regalloc):
         raise RuntimeError(e)
 
     last_statement_of_block = self.body.children[-1]
-    if type(last_statement_of_block) == BranchStat and last_statement_of_block.target is None:
+    if isinstance(last_statement_of_block, BranchStat) and last_statement_of_block.target is None:
         # optmization: if the last statement is a return this instructions are useless
         pass
     else:
@@ -302,7 +302,7 @@ def ldptrto_codegen(self, regalloc):
     trail = ''
 
     alloc_info = self.symbol.allocinfo
-    if type(alloc_info) is LocalSymbolLayout:
+    if isinstance(alloc_info, LocalSymbolLayout):
         off = alloc_info.fpreloff
         if off > 0:
             res = ii(f"{yellow('add')} {rd}, {get_register_string(REG_FP)}, #{italic(f'{off}')}\n")
@@ -335,7 +335,7 @@ def storestat_codegen(self, regalloc):
 
     else:
         alloc_info = self.dest.allocinfo
-        if type(alloc_info) is LocalSymbolLayout:
+        if isinstance(alloc_info, LocalSymbolLayout):
             static_link = check_if_variable_needs_static_link(self, self.dest)
             if static_link:
                 res += static_link
@@ -349,7 +349,7 @@ def storestat_codegen(self, regalloc):
             res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, {label}\n")
             dest = f"[{get_register_string(REG_SCRATCH)}]"
 
-    if type(self.dest.stype) is PointerType:
+    if isinstance(self.dest.stype, PointerType):
         desttype = self.dest.stype.pointstotype
     else:
         desttype = self.dest.stype
@@ -384,7 +384,7 @@ def loadstat_codegen(self, regalloc):
 
     else:
         alloc_info = self.symbol.allocinfo
-        if type(alloc_info) is LocalSymbolLayout:
+        if isinstance(alloc_info, LocalSymbolLayout):
             static_link = check_if_variable_needs_static_link(self, self.symbol)
             if static_link:
                 res += static_link
@@ -399,12 +399,12 @@ def loadstat_codegen(self, regalloc):
             src = f"[{get_register_string(REG_SCRATCH)}]"
 
     # XXX: not entirely sure about this
-    if type(self.symbol.stype) is ArrayType:
+    if isinstance(self.symbol.stype, ArrayType):
         desttype = self.symbol.stype.basetype
         rdst = regalloc.get_register_for_variable(self.dest)
         res += ii(f"{blue(f'mov')} {rdst}, {get_register_string(REG_SCRATCH)}\n")
         return [res, trail]
-    elif type(self.symbol.stype) is PointerType:
+    elif isinstance(self.symbol.stype, PointerType):
         desttype = self.symbol.stype.pointstotype
     else:
         desttype = self.symbol.stype
