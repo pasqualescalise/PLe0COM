@@ -44,7 +44,7 @@ def new_variable_name():
     return name
 
 
-def replace_temporary_attributes(node, attributes, mapping):
+def replace_temporary_attributes(node, attributes, mapping, create_new=True):
     for attribute in attributes:
         try:
             temp = getattr(node, attribute)
@@ -55,9 +55,10 @@ def replace_temporary_attributes(node, attributes, mapping):
             if temp in mapping:
                 setattr(node, attribute, mapping[temp])
             else:
-                new_temp = new_temporary(node.symtab, temp.stype)
-                mapping[temp] = new_temp
-                setattr(node, attribute, new_temp)
+                if create_new:
+                    new_temp = new_temporary(node.symtab, temp.stype)
+                    mapping[temp] = new_temp
+                    setattr(node, attribute, new_temp)
 
 # TYPES
 
@@ -694,7 +695,7 @@ class SaveSpaceStat(Stat):  # low-level node
         else:
             return 'remove useless return values'
 
-    def replace_temporaries(self, mapping):
+    def replace_temporaries(self, mapping, create_new=True):
         pass
 
     def __deepcopy__(self, memo):
@@ -1055,8 +1056,8 @@ class PrintCommand(Stat):  # low-level node
     def human_repr(self):
         return f"{blue('print')} {self.src}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['src'], mapping)
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['src'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return PrintCommand(parent=self.parent, src=self.src, print_string=self.print_string, symtab=self.symtab)
@@ -1094,8 +1095,8 @@ class ReadCommand(Stat):  # low-level node
     def human_repr(self):
         return f"{blue('read')} {self.dest}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest'], mapping)
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return ReadCommand(parent=self.parent, dest=self.dest, symtab=self.symtab)
@@ -1189,19 +1190,21 @@ class BranchStat(Stat):  # low-level node
             c = ''
         return f"{h}{c} to {self.target}"
 
-    def replace_temporaries(self, mapping):
+    def replace_temporaries(self, mapping, create_new=True):
         if self.cond is not None and self.cond.is_temporary:
             if self.cond in mapping:
                 self.cond = mapping[self.cond]
             else:
-                new_temp = new_temporary(self.symtab, self.cond.stype)
-                mapping[self.cond] = new_temp
-                self.cond = new_temp
+                if create_new:
+                    new_temp = new_temporary(self.symtab, self.cond.stype)
+                    mapping[self.cond] = new_temp
+                    self.cond = new_temp
 
         if self.target and not self.is_call():
-            new_target = TYPENAMES['label']()
-            mapping[self.target] = new_target
-            self.target = new_target
+            if create_new:
+                new_target = TYPENAMES['label']()
+                mapping[self.target] = new_target
+                self.target = new_target
 
     def __deepcopy__(self, memo):
         return BranchStat(parent=self.parent, cond=self.cond, target=self.target, target_definition=self.target_definition, negcond=self.negcond, space_needed_for_parameters=self.space_needed_for_parameters, symtab=self.symtab)
@@ -1223,14 +1226,15 @@ class EmptyStat(Stat):  # low-level node
             return self.get_label()
         return 'empty statement'
 
-    def replace_temporaries(self, mapping):
+    def replace_temporaries(self, mapping, create_new=True):
         if self.get_label() != '':
             if self.get_label() in mapping:
                 self.set_label(mapping[self.get_label()])
             else:
-                new_label = TYPENAMES['label']()
-                mapping[self.get_label()] = new_label
-                self.set_label(new_label)
+                if create_new:
+                    new_label = TYPENAMES['label']()
+                    mapping[self.get_label()] = new_label
+                    self.set_label(new_label)
 
     def __deepcopy__(self, memo):
         new = EmptyStat(parent=self.parent, symtab=self.symtab)
@@ -1264,8 +1268,8 @@ class LoadPtrToSym(Stat):  # low-level node
     def human_repr(self):
         return f"{self.dest} {bold('<-')} &({self.symbol})"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return LoadPtrToSym(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
@@ -1309,9 +1313,9 @@ class StoreStat(Stat):  # low-level node
             return f"[{self.dest}] {bold('<-')} {self.symbol}"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
-        if self.killhint is not None and self.killhint.is_temporary:
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
+        if self.killhint is not None and self.killhint.is_temporary and self.killhint in mapping:
             self.killhint = mapping[self.killhint]
 
     def __deepcopy__(self, memo):
@@ -1349,9 +1353,9 @@ class LoadStat(Stat):  # low-level node
             return f"{self.dest} {bold('<-')} [{self.symbol}]"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest', 'symbol'], mapping)
-        if self.usehint is not None and self.usehint.is_temporary:
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
+        if self.usehint is not None and self.usehint.is_temporary and self.usehint in mapping:
             self.usehint = mapping[self.usehint]
 
     def __deepcopy__(self, memo):
@@ -1379,8 +1383,8 @@ class LoadImmStat(Stat):  # low-level node
     def human_repr(self):
         return f"{self.dest} {bold('<-')} {self.val}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest'], mapping)
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return LoadImmStat(parent=self.parent, dest=self.dest, val=self.val, symtab=self.symtab)
@@ -1411,8 +1415,8 @@ class BinStat(Stat):  # low-level node
     def human_repr(self):
         return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.op}')} {self.srcb}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest', 'srca', 'srcb'], mapping)
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest', 'srca', 'srcb'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return BinStat(parent=self.parent, dest=self.dest, op=self.op, srca=self.srca, srcb=self.srcb, symtab=self.symtab)
@@ -1442,8 +1446,8 @@ class UnaryStat(Stat):  # low-level node
     def human_repr(self):
         return f"{self.dest} {bold('<-')} {bold(f'{self.op}')} {self.src}"
 
-    def replace_temporaries(self, mapping):
-        replace_temporary_attributes(self, ['dest', 'src'], mapping)
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['dest', 'src'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return UnaryStat(parent=self.parent, dest=self.dest, op=self.op, src=self.src, symtab=self.symtab)
@@ -1501,9 +1505,9 @@ class StatList(Stat):  # low-level node
         except ValueError:
             raise RuntimeError(f"Can't find instruction '{instruction}' to remove in StatList {id(self)}")
 
-    def replace_temporaries(self, mapping):
+    def replace_temporaries(self, mapping, create_new=True):
         for child in self.children:
-            child.replace_temporaries(mapping)
+            child.replace_temporaries(mapping, create_new)
 
     def __deepcopy__(self, memo):
         new_children = []
@@ -1526,7 +1530,7 @@ class Block(Stat):  # low-level node
         # XXX: used just for printing
         self.local_symtab = lc_sym
 
-    def replace_temporaries(self, mapping):
+    def replace_temporaries(self, mapping, create_new=True):
         pass
 
     def __deepcopy__(self, memo):

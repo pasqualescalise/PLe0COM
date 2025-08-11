@@ -74,14 +74,14 @@ def compile_program(text, optimization_level):
 
     perform_control_flow_graph_analyses(cfg)
 
-    cfg.print_cfg_to_dot("cfg.dot")
-    print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg.dot file')}\n")
-
     # XXX: AND OTHER OPTIMIZATIONS GO HERE
     print(h2("CONTROL FLOW GRAPH OPTIMIZATIONS"))
-    perform_control_flow_graph_optimizations(program, cfg, optimization_level)
+    cfg = perform_control_flow_graph_optimizations(program, cfg, optimization_level)
 
     print(f"\n{green('Optimized program:')}\n{program}")
+
+    cfg.print_cfg_to_dot("cfg.dot")
+    print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg.dot file')}\n")
 
     ##############################################
 
