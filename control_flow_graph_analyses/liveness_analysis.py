@@ -69,7 +69,7 @@ BasicBlock.liveness_iteration = liveness_iteration
 
 def compute_instr_level_liveness(self):
     """Compute live_in and live_out for each instruction"""
-    currently_alive = self.live_out
+    currently_alive = set([]).union(self.live_out)
 
     for i in reversed(self.instrs):
         i.live_out = set(currently_alive)
