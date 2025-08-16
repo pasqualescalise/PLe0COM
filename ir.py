@@ -563,7 +563,7 @@ class BinExpr(Expr):
               so that `res = op1 % op2`
               becomes something like
 
-              while (op1 > op2) {
+              while (op1 >= op2) {
                   op1 = op1 - op2;
               }
               res = op1;
@@ -574,12 +574,12 @@ class BinExpr(Expr):
                 return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
             condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
-            cond = BinStat(dest=condition_variable, op='geq', srca=srca, srcb=srcb, symtab=self.symtab)
+            loop_condition = BinStat(dest=condition_variable, op='geq', srca=srca, srcb=srcb, symtab=self.symtab)
 
             diff = BinStat(dest=srca, op='minus', srca=srca, srcb=srcb, symtab=self.symtab)
-            body = StatList(children=[diff], symtab=self.symtab)
+            loop_body = StatList(children=[diff], symtab=self.symtab)
 
-            while_loop = WhileStat(cond=cond, body=body, symtab=self.symtab)
+            while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
 
             result_store = StoreStat(dest=dest, symbol=srca, killhint=dest, symtab=self.symtab)
 
@@ -598,7 +598,7 @@ class BinExpr(Expr):
             becomes something like
 
             res = 0;
-            while (op2 >= 0) {
+            while (op2 >= op1) {
                 op2 = op2 - op1;
                 res++;
             }
@@ -608,27 +608,22 @@ class BinExpr(Expr):
             one = new_temporary(self.symtab, TYPENAMES['int'])
             load_one = LoadImmStat(dest=one, val=1, symtab=self.symtab)
 
-            entry_label = TYPENAMES['label']()
-            entry_stat = EmptyStat(self.parent, symtab=self.symtab)
-            entry_stat.set_label(entry_label)
-
-            exit_label = TYPENAMES['label']()
-            exit_stat = EmptyStat(self.parent, symtab=self.symtab)
-            exit_stat.set_label(exit_label)
-
             condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
             loop_condition = BinStat(dest=condition_variable, op="geq", srca=srca, srcb=srcb, symtab=self.symtab)
 
-            test_condition = BranchStat(cond=condition_variable, target=exit_label, negcond=True, symtab=self.symtab)
-
-            loop_update = BinStat(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
-
+            op2_update = BinStat(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
             calc_result = BinStat(dest=dest, op="plus", srca=dest, srcb=one, symtab=self.symtab)
+            loop_body = StatList(children=[op2_update, calc_result], symtab=self.symtab)
 
-            loop_resume = BranchStat(target=entry_label, symtab=self.symtab)
+            while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
 
-            statl = [self.children[1], self.children[2], zero_destination, load_one, entry_stat, loop_condition, test_condition, loop_update, calc_result, loop_resume, exit_stat]
-            return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
+            stats = [self.children[1], self.children[2], zero_destination, load_one, while_loop]
+            statl = StatList(children=stats, symtab=self.symtab)
+
+            # XXX: we need to lower it manually since it didn't exist before
+            while_loop.lower()
+
+            return self.parent.replace(self, statl)
 
 
 class UnExpr(Expr):
