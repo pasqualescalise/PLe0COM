@@ -1,0 +1,8 @@
+PROCEDURE inlined(int x, int y);
+	BEGIN
+		print x + y
+	END;
+
+BEGIN
+	CALL inlined(3, 4)
+END.
