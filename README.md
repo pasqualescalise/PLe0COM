@@ -18,6 +18,8 @@ I'm using it to experiment and have fun with compiler stuff
 	+ Function inlining
 	+ Dead code elimination
 	+ Memory-to-register promotion
+	+ Chain Load-Store elimination
+	+ Loop Unrolling
 + Fully working test suite
 + PEP8 compliant (except E501)
 
