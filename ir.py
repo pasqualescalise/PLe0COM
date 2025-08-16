@@ -19,6 +19,7 @@ successively flattened. Low-level nodes need to implement a few methods:
 
 from functools import reduce
 from copy import deepcopy
+from math import log
 
 from codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
@@ -547,48 +548,87 @@ class BinExpr(Expr):
 
         dest = new_temporary(self.symtab, desttype)
 
-        if self.children[0] != "slash":
+        if self.children[0] not in ["slash", "mod"]:
             stmt = BinStat(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
             statl = [self.children[1], self.children[2], stmt]
             return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
-        """
-        implement the division as a while loop
-        so that `res = op1 / op2`
-        becomes something like
+        elif self.children[0] == "mod":
+            """
+            try to see at compile time if the dividend of
+            the modulus is a power of two:
 
-        res = 0;
-        while (op2 >= 0) {
-            op2 = op2 - op1;
-            res++;
-        }
-        """
-        zero_destination = LoadImmStat(dest=dest, val=0, symtab=self.symtab)
+            + if it is, there is a codegen implementation
+            + if we don't know, implement the modulus as a while loop
+              so that `res = op1 % op2`
+              becomes something like
 
-        one = new_temporary(self.symtab, TYPENAMES['int'])
-        load_one = LoadImmStat(dest=one, val=1, symtab=self.symtab)
+              while (op1 > op2) {
+                  op1 = op1 - op2;
+              }
+              res = op1;
+            """
+            if isinstance(self.children[2].children[0], LoadImmStat) and log(self.children[2].children[0].val, 2).is_integer():
+                stmt = BinStat(dest=dest, op="mod", srca=srca, srcb=srcb, symtab=self.symtab)
+                statl = [self.children[1], self.children[2], stmt]
+                return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
-        entry_label = TYPENAMES['label']()
-        entry_stat = EmptyStat(self.parent, symtab=self.symtab)
-        entry_stat.set_label(entry_label)
+            condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
+            cond = BinStat(dest=condition_variable, op='geq', srca=srca, srcb=srcb, symtab=self.symtab)
 
-        exit_label = TYPENAMES['label']()
-        exit_stat = EmptyStat(self.parent, symtab=self.symtab)
-        exit_stat.set_label(exit_label)
+            diff = BinStat(dest=srca, op='minus', srca=srca, srcb=srcb, symtab=self.symtab)
+            body = StatList(children=[diff], symtab=self.symtab)
 
-        condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
-        loop_condition = BinStat(dest=condition_variable, op="geq", srca=srca, srcb=srcb, symtab=self.symtab)
+            while_loop = WhileStat(cond=cond, body=body, symtab=self.symtab)
 
-        test_condition = BranchStat(cond=condition_variable, target=exit_label, negcond=True, symtab=self.symtab)
+            result_store = StoreStat(dest=dest, symbol=srca, killhint=dest, symtab=self.symtab)
 
-        loop_update = BinStat(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
+            stats = [self.children[1], self.children[2], while_loop, result_store]
+            statl = StatList(children=stats, symtab=self.symtab)
 
-        calc_result = BinStat(dest=dest, op="plus", srca=dest, srcb=one, symtab=self.symtab)
+            # XXX: we need to lower it manually since it didn't exist before
+            while_loop.lower()
 
-        loop_resume = BranchStat(target=entry_label, symtab=self.symtab)
+            return self.parent.replace(self, statl)
 
-        statl = [self.children[1], self.children[2], zero_destination, load_one, entry_stat, loop_condition, test_condition, loop_update, calc_result, loop_resume, exit_stat]
-        return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
+        elif self.children[0] == "slash":
+            """
+            implement the division as a while loop
+            so that `res = op1 / op2`
+            becomes something like
+
+            res = 0;
+            while (op2 >= 0) {
+                op2 = op2 - op1;
+                res++;
+            }
+            """
+            zero_destination = LoadImmStat(dest=dest, val=0, symtab=self.symtab)
+
+            one = new_temporary(self.symtab, TYPENAMES['int'])
+            load_one = LoadImmStat(dest=one, val=1, symtab=self.symtab)
+
+            entry_label = TYPENAMES['label']()
+            entry_stat = EmptyStat(self.parent, symtab=self.symtab)
+            entry_stat.set_label(entry_label)
+
+            exit_label = TYPENAMES['label']()
+            exit_stat = EmptyStat(self.parent, symtab=self.symtab)
+            exit_stat.set_label(exit_label)
+
+            condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
+            loop_condition = BinStat(dest=condition_variable, op="geq", srca=srca, srcb=srcb, symtab=self.symtab)
+
+            test_condition = BranchStat(cond=condition_variable, target=exit_label, negcond=True, symtab=self.symtab)
+
+            loop_update = BinStat(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
+
+            calc_result = BinStat(dest=dest, op="plus", srca=dest, srcb=one, symtab=self.symtab)
+
+            loop_resume = BranchStat(target=entry_label, symtab=self.symtab)
+
+            statl = [self.children[1], self.children[2], zero_destination, load_one, entry_stat, loop_condition, test_condition, loop_update, calc_result, loop_resume, exit_stat]
+            return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
 
 class UnExpr(Expr):
@@ -1013,8 +1053,7 @@ class AssignStat(Stat):
         stats += [access_var, counter_initialize, zero_initialize, one_initialize, load_data_char, while_loop, end_zero_string]
         statl = StatList(children=stats, symtab=self.symtab)
 
-        # XXX: little trick to lower while statement here
-        while_loop.parent = statl
+        # XXX: we need to lower it manually since it didn't exist before
         while_loop.lower()
 
         return self.parent.replace(self, statl)
@@ -1295,7 +1334,7 @@ class StoreStat(Stat):  # low-level node
 
     def killed_variables(self):
         if self.dest.alloct == 'reg':
-            if self.killhint:
+            if self.killhint:  # TODO: remove this and just make it automatic
                 return [self.killhint]
             else:
                 return []
