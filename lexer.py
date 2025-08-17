@@ -75,6 +75,10 @@ class Lexer:
     def check_symbol(self):
         for s, t in self.str_to_token:
             if self.text[self.pos:self.pos + len(s)].lower() == s:
+                # allow stuff like "varname" as an ident: "var" is alphanumeric, "n" is alphanumeric, so
+                # don't parse "var" as a token; same applies for stuff like var_name
+                if s.isalnum() and (self.text[self.pos + len(s)].isalnum() or self.text[self.pos + len(s)] == "_"):
+                    continue
                 self.pos += len(s)
                 return t, s
         return None, None
