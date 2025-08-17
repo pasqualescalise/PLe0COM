@@ -294,13 +294,18 @@ class IRNode:  # abstract
 
         if "children" in dir(self) and len(self.children):
             res += ii("children: {\n")
+            child_index = 0
             for child in self.children:
                 if isinstance(child, EmptyStat):
                     res += li(f"{child}\n")  # label
                 else:
                     rep = repr(child).split("\n")
-                    res += "\n".join([f"{' ' * 8}" + s for s in rep])
+                    if isinstance(self, StatList) and self.flat:
+                        res += "\n".join([f"{' ' * 8}{child_index}: {s}" for s in rep])
+                    else:
+                        res += "\n".join([f"{' ' * 8}{s}" for s in rep])
                     res += "\n"
+                child_index += 1
             res += ii("}\n")
 
         for attr in attrs:
@@ -1540,9 +1545,11 @@ class UnaryStat(Stat):  # low-level node
 
 
 class StatList(Stat):  # low-level node
-    def __init__(self, parent=None, children=None, symtab=None):
+    def __init__(self, parent=None, children=None, flat=False, symtab=None):
         log_indentation(bold(f"New StatList Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
+        # when printing, print line numbers of flattened StatLists
+        self.flat = flat
 
     def append(self, elem):
         elem.parent = self
@@ -1576,6 +1583,7 @@ class StatList(Stat):  # low-level node
             self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
         else:
             log_indentation(f"{red('NOT')} flattening {cyan(f'{self.type()}')}, {id(self)} into parent {cyan(f'{self.parent.type()}')}, {id(self.parent)}")
+            self.flat = True
 
     def destination(self):
         for i in range(-1, -len(self.children) - 1, -1):
@@ -1600,7 +1608,7 @@ class StatList(Stat):  # low-level node
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return StatList(parent=self.parent, children=new_children, symtab=self.symtab)
+        return StatList(parent=self.parent, children=new_children, flat=self.flat, symtab=self.symtab)
 
 
 class Block(Stat):  # low-level node
