@@ -45,6 +45,8 @@ TOKEN_DEFS = {
     'procsym': ['procedure'],
     'period': ['.'],
     'oddsym': ['odd'],
+    'truesym': ['true'],
+    'falsesym': ['false'],
     'print': ['!', 'print'],
     'read': ['?', 'read'],
     'quote': ['"']

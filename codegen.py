@@ -11,7 +11,7 @@ is used for adding constant literals."""
 
 from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, check_if_variable_needs_static_link
 from datalayout import LocalSymbolLayout
-from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, ArrayType, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat, DataSymbolTable
+from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, ArrayType, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic
 
 localconsti = 0
@@ -142,6 +142,8 @@ def binstat_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
 
     param = f"{ra}, {rb}"
+
+    # algebric operations
     if self.op == "plus":
         res += ii(f"{yellow('add')} {rd}, {param}\n")
     elif self.op == "minus":
@@ -159,6 +161,8 @@ def binstat_codegen(self, regalloc):
         res += ii(f"{yellow('add')} {rd}, {param}\n")
         res += ii(f"{yellow('sub')} {get_register_string(REG_SCRATCH)}, {rb}, #{italic('1')}\n")
         res += ii(f"{yellow('and')} {rd}, {rd}, {get_register_string(REG_SCRATCH)}\n")
+
+    # conditional operations
     elif self.op == "eql":
         res += ii(f"{yellow('cmp')} {param}\n")
         res += ii(f"{blue('moveq')} {rd}, #{italic('1')}\n")
@@ -183,6 +187,7 @@ def binstat_codegen(self, regalloc):
         res += ii(f"{yellow('cmp')} {param}\n")
         res += ii(f"{blue('movge')} {rd}, #{italic('1')}\n")
         res += ii(f"{blue('movlt')} {rd}, #{italic('0')}\n")
+
     else:
         raise RuntimeError(f"Operation {self.op} unexpected")
 
@@ -198,8 +203,10 @@ def print_codegen(self, regalloc):
 
     res += save_regs(REGS_CALLERSAVE)
     res += ii(f"{blue('mov')} {get_register_string(0)}, {rp}\n")
-    if self.print_string:
+    if self.print_type == TYPENAMES['char']:
         res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
+    elif self.print_type == TYPENAMES['boolean']:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_boolean')}\n")
     else:
         res += ii(f"{red('bl')} {magenta('__pl0_print_digit')}\n")
     res += restore_regs(REGS_CALLERSAVE)
@@ -441,6 +448,11 @@ def loadimm_codegen(self, regalloc):
     res = ''
     trail = ''
 
+    if self.val == "True":
+        self.val = 1
+    elif self.val == "False":
+        self.val = 0
+
     if self.val >= -256 and self.val < 256:
         if self.val < 0:
             rv = -self.val - 1
@@ -465,14 +477,18 @@ def unarystat_codegen(self, regalloc):
     rs = regalloc.get_register_for_variable(self.src)
     rd = regalloc.get_register_for_variable(self.dest)
 
+    # algebric operations
     if self.op == 'plus':
         if rs != rd:
             res += ii(f"{blue('mov')} {rd}, {rs}\n")
     elif self.op == 'minus':
         res += ii(f"{blue('mvn')} {rd}, {rs}\n")
         res += ii(f"{yellow('add')} {rd}, {rd}, #{italic('1')}\n")
+
+    # conditional operations
     elif self.op == 'odd':
         res += ii(f"{yellow('and')} {rd}, {rs}, #{italic('1')}\n")
+
     else:
         raise RuntimeError(f"Unexpected operation {self.op}")
 

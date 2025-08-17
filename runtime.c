@@ -21,6 +21,16 @@ void __pl0_print_string(int param)
 }
 
 
+void __pl0_print_boolean(int param)
+{
+  if (param) {
+  	printf("%s\n", "True");
+  } else {
+  	printf("%s\n", "False");
+  }
+}
+
+
 int __pl0_read(void)
 {
   int tmp;

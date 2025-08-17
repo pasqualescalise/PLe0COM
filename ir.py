@@ -27,6 +27,9 @@ import logger
 
 # UTILITIES
 
+UNARY_CONDITIONALS = ['odd']
+BINARY_CONDITIONALS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
+
 temporary_count = 0
 data_variables_count = 0
 
@@ -72,8 +75,8 @@ def replace_temporary_attributes(node, attributes, mapping, create_new=True):
 # register is provided.
 
 
-BASE_TYPES = ['Int', 'Label', 'Struct', 'Function']
-TYPE_QUALIFIERS = ['unsigned']
+# BASE_TYPES = ['Int', 'Label', 'Struct', 'Function']
+# TYPE_QUALIFIERS = ['unsigned']
 
 
 class Type:
@@ -138,6 +141,11 @@ class PointerType(Type):  # can't define a variable as type PointerType, it's us
         self.pointstotype = ptrto
 
 
+class BooleanType(Type):
+    def __init__(self):
+        super().__init__('boolean', 8, 'Boolean', [])
+
+
 TYPENAMES = {
     'int': Type('int', 32, 'Int'),
     'short': Type('short', 16, 'Int'),
@@ -151,6 +159,8 @@ TYPENAMES = {
 
     'label': LabelType(),
     'function': FunctionType(),
+
+    'boolean': BooleanType(),
 }
 
 ALLOC_CLASSES = ['global', 'auto', 'data', 'reg', 'imm', 'param', 'return']
@@ -187,6 +197,9 @@ class Symbol:
     def is_string(self):
         """A Symbol references a string if it's of type char[] or &char"""
         return isinstance(self.stype, ArrayType) and self.stype.basetype.name == "char" or isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char"
+
+    def is_boolean(self):
+        return isinstance(self.stype, BooleanType)
 
     def __repr__(self):
         base = f"{self.alloct} {self.stype.name}"
@@ -432,8 +445,11 @@ class Const(IRNode):
         self.value = value
         self.symbol = symbol
 
-    def lower(self):
-        if self.symbol is None:
+    def lower(self):  # TODO: make it possible to define constant booleans
+        if self.value in ["True", "False"]:
+            new = new_temporary(self.symtab, TYPENAMES['boolean'])
+            loadst = LoadImmStat(dest=new, val=self.value, symtab=self.symtab)
+        elif self.symbol is None:
             new = new_temporary(self.symtab, TYPENAMES['int'])
             loadst = LoadImmStat(dest=new, val=self.value, symtab=self.symtab)
         else:
@@ -565,7 +581,10 @@ class BinExpr(Expr):
         else:
             desttype = Type(None, max(srca.stype.size, srcb.stype.size), 'Int')
 
-        dest = new_temporary(self.symtab, desttype)
+        if self.children[0] in BINARY_CONDITIONALS:
+            dest = new_temporary(self.symtab, TYPENAMES['boolean'])
+        else:
+            dest = new_temporary(self.symtab, desttype)
 
         if self.children[0] not in ["slash", "mod"]:
             stmt = BinStat(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
@@ -662,7 +681,10 @@ class UnExpr(Expr):
 
     def lower(self):
         src = self.children[1].destination()
-        dest = new_temporary(self.symtab, src.stype)
+        if self.children[0] in UNARY_CONDITIONALS:
+            dest = new_temporary(self.symtab, TYPENAMES['boolean'])
+        else:
+            dest = new_temporary(self.symtab, src.stype)
         stmt = UnaryStat(dest=dest, op=self.children[0], src=src, symtab=self.symtab)
         statl = [self.children[1], stmt]
         return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
@@ -1107,12 +1129,14 @@ class PrintStat(Stat):
         return self.children[0].used_variables()
 
     def lower(self):
-        print_string = False
+        print_type = TYPENAMES['int']  # TODO: do something for short and byte
 
         if self.children[0] and self.children[0].destination().is_string():
-            print_string = True
+            print_type = TYPENAMES['char']
+        elif self.children[0] and self.children[0].destination().is_boolean():
+            print_type = TYPENAMES['boolean']
 
-        pc = PrintCommand(src=self.children[0].destination(), print_string=print_string, symtab=self.symtab)
+        pc = PrintCommand(src=self.children[0].destination(), print_type=print_type, symtab=self.symtab)
         stlist = StatList(children=[self.children[0], pc], symtab=self.symtab)
         return self.parent.replace(self, stlist)
 
@@ -1122,14 +1146,14 @@ class PrintStat(Stat):
 
 
 class PrintCommand(Stat):  # low-level node
-    def __init__(self, parent=None, src=None, print_string=False, symtab=None):
+    def __init__(self, parent=None, src=None, print_type=None, symtab=None):
         log_indentation(bold(f"New PrintCommand Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.src = src
         if src.alloct != 'reg':
             raise RuntimeError('Trying to print a symbol not stored in a register')
 
-        self.print_string = print_string
+        self.print_type = print_type
 
     def used_variables(self):
         return [self.src]
@@ -1141,7 +1165,7 @@ class PrintCommand(Stat):  # low-level node
         replace_temporary_attributes(self, ['src'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return PrintCommand(parent=self.parent, src=self.src, print_string=self.print_string, symtab=self.symtab)
+        return PrintCommand(parent=self.parent, src=self.src, print_type=self.print_type, symtab=self.symtab)
 
 
 class ReadStat(Stat):

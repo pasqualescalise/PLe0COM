@@ -95,6 +95,10 @@ class Parser:
             new_string = self.value
             self.accept('quote')
             return ir.String(value=new_string, symtab=symtab)
+        elif self.accept('truesym'):
+            return ir.Const(value="True", symtab=symtab)
+        elif self.accept('falsesym'):
+            return ir.Const(value="False", symtab=symtab)
 
         self.error("Factor: syntax error")
 
@@ -148,11 +152,15 @@ class Parser:
 
     @logger
     def condition(self, symtab):
-        if self.accept('oddsym'):
+        if self.accept('truesym'):
+            return ir.Const(value="True", symtab=symtab)
+        elif self.accept('falsesym'):
+            return ir.Const(value="False", symtab=symtab)
+        elif self.accept('oddsym'):
             return ir.UnExpr(children=['odd', self.expression(symtab)], symtab=symtab)
         else:
             expr = self.expression(symtab)
-            if self.new_sym in ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']:
+            if self.new_sym in ir.BINARY_CONDITIONALS:
                 self.getsym()
                 op = self.sym
                 expr2 = self.expression(symtab)
@@ -450,6 +458,7 @@ class Parser:
 
         new_var = ''
 
+        # XXX: do not assign the types yet
         if len(size) > 0:
             new_var = ir.Symbol(name, ir.ArrayType(None, size, None), alloct=alloct, fname=self.current_function)
         else:
