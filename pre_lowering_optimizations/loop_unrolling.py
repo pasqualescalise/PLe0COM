@@ -46,14 +46,17 @@ from copy import deepcopy
 from math import log
 
 from ir import ForStat, Const, BinExpr, UnExpr, IfStat, StatList, AssignStat, Var
-from logger import red, green, magenta, cyan
+from logger import red, green, yellow, magenta, cyan
 
 
 LOOP_UNROLLING_FACTOR = 2
 
 
 def unroll(self):
-    # TODO: check if the loop is "normal" -> if (i = 0; i < x; i++)
+    if not check_if_for_loop_is_normalized(self):
+        print(yellow(f"For loop {id(self)} can't be unrolled since it's not normalized"))
+        return
+
     original_cond_copy = deepcopy(self.cond)
     original_body_copy = deepcopy(self.body)
 
@@ -127,3 +130,42 @@ def perform_loop_unrolling(program):
         return
 
     program.navigate(loop_unrolling, quiet=True)
+
+
+# Returns True only if the loop is "normalized" -> Es. for var := 0; var < [number]; var := var + 1
+def check_if_for_loop_is_normalized(for_loop):
+    if for_loop.epilogue is not None:
+        return False
+
+    elif not isinstance(for_loop.init.expr, Const):
+        return False
+    elif for_loop.init.expr.value != 0:
+        return False
+
+    elif not isinstance(for_loop.step.expr, BinExpr):
+        return False
+    elif for_loop.step.expr.children[0] != "plus":
+        return False
+    elif not isinstance(for_loop.step.expr.children[1], Var):
+        return False
+    elif for_loop.step.symbol != for_loop.step.expr.children[1].symbol:
+        return False
+    elif not isinstance(for_loop.step.expr.children[2], Const):
+        return False
+    elif for_loop.step.expr.children[2].value != 1:
+        return False
+
+    elif not isinstance(for_loop.cond, BinExpr):
+        return False
+    elif for_loop.cond.children[0] != "lss":
+        return False
+    elif not isinstance(for_loop.cond.children[1], Var):
+        return False
+    elif for_loop.step.symbol != for_loop.cond.children[1].symbol:
+        return False
+    elif not isinstance(for_loop.cond.children[2], Const):
+        return False
+    elif not isinstance(for_loop.cond.children[2].value, int):
+        return False
+
+    return True
