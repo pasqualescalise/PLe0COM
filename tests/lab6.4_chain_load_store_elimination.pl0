@@ -1,4 +1,4 @@
-PROCEDURE inlined(int x, int y);
+PROCEDURE inlined(x, y : int);
 	BEGIN
 		print x + y
 	END;

@@ -1,6 +1,6 @@
 VAR y, z : int;
 
-PROCEDURE useless(int x);
+PROCEDURE useless(x : int);
 	BEGIN
 		x := 4;
 		y := 3;

@@ -1,6 +1,6 @@
 VAR result : int;
 
-PROCEDURE function(int x, int y) -> (int);
+PROCEDURE function(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
 			return (y)

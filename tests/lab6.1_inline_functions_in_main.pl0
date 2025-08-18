@@ -34,18 +34,18 @@ PROCEDURE function_to_inline_empty_return();
 		return ()
 	END;
 
-PROCEDURE function_to_inline_param(int x, int y);
+PROCEDURE function_to_inline_param(x, y : int);
 	BEGIN
 		print x;
 		print y
 	END;
 
-PROCEDURE function_to_inline_param_return(int result) -> (int);
+PROCEDURE function_to_inline_param_return(result : int) -> (int);
 	BEGIN
 		return (result - 1)
 	END;
 
-PROCEDURE function_to_inline_param_return_dont_care(int result) -> (int, int, int);
+PROCEDURE function_to_inline_param_return_dont_care(result : int) -> (int, int, int);
 	BEGIN
 		return (result - 1, result, result + 1)
 	END;

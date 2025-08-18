@@ -1,6 +1,6 @@
 VAR result : int;
 
-PROCEDURE multiply(int x, int y) -> (int);
+PROCEDURE multiply(x, y : int) -> (int);
 	BEGIN
 		return (x * y)
 	END;

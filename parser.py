@@ -435,23 +435,35 @@ class Parser:
             fname = self.value
             self.expect('lparen')
 
-            # arguments
+            # parameters
             parameters = []
             while self.new_sym != "rparen":
-                self.expect('ident')
+                new_parameters = []
+                new_parameters.append(self.vardef('param'))
+                while self.accept('comma'):
+                    new_parameters.append(self.vardef('param'))
+
+                # get the type of the parameters
+                if not self.accept('colon'):
+                    self.error("Some parameters were defined without explicit types")
+
+                self.accept('ident')
+
                 if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
-                    self.error("Parameter types must be valid")
-                type = self.value
-                self.expect('ident')
+                    self.error(f"Type {self.value} is not valid")
 
-                parameter = ir.Symbol(self.value, ir.TYPENAMES[type], alloct='param', fname=fname)
-                parameters.append(parameter)
+                type = ir.TYPENAMES[self.value]
 
-                if self.new_sym == "comma":
-                    self.accept('comma')
-                    # handle dangling commas e.g. (int x, int y, )
-                    if self.new_sym == "rparen":
-                        self.error("Wrongly defined arguments for procedure")
+                # set the types for the new parameters and add them to the rest of the parameters
+                for new_parameter in new_parameters:
+                    if new_parameter.stype is None:
+                        new_parameter.stype = type
+                    elif isinstance(new_parameter.stype, ir.ArrayType):
+                        size = new_parameter.stype.dims
+                        new_parameter.stype = ir.ArrayType(None, size, type)
+                    new_parameter.fname = fname
+
+                parameters += new_parameters
 
             self.expect('rparen')
 
@@ -467,18 +479,29 @@ class Parser:
 
                 while self.new_sym != "rparen":
                     self.expect('ident')
-                    if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
-                        self.error("Return types must be valid")
                     type = self.value
+                    size = []
 
-                    ret = ir.Symbol("ret_" + str(len(returns)), ir.TYPENAMES[self.value], alloct='return', fname=fname)
+                    # array
+                    while self.accept('lspar'):
+                        self.expect('number')
+                        size.append(int(self.value))
+                        self.expect('rspar')
+
+                    if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
+                        self.error(f"Type {type} is not valid")
+
+                    if len(size) > 0:
+                        ret = ir.Symbol(f"ret_{str(len(returns))}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', fname=fname)
+                    else:
+                        ret = ir.Symbol(f"ret_{str(len(returns))}", ir.TYPENAMES[type], alloct='return', fname=fname)
                     returns.append(ret)
 
                     if self.new_sym == "comma":
                         self.accept('comma')
                         # handle dangling commas e.g. (int, int, )
                         if self.new_sym == "rparen":
-                            self.error("Wrongly defined returns for procedure")
+                            self.error("Dangling comma in returns definition")
 
                 self.expect('rparen')
 

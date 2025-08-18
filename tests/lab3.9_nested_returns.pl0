@@ -1,14 +1,14 @@
 VAR sum_res, multiplication : int;
 
-PROCEDURE sumAndMultiply(int x, int y) -> (int, int);
+PROCEDURE sumAndMultiply(x, y : int) -> (int, int);
 	VAR sum_res, multiplication : int;
 
-	PROCEDURE sum(int x, int y) -> (int);
+	PROCEDURE sum(x, y : int) -> (int);
 		BEGIN
 			return (x + y)
 		END;
 
-	PROCEDURE multiply(int x, int y) -> (int);
+	PROCEDURE multiply(x, y : int) -> (int);
 		BEGIN
 			return (x * y)
 		END;

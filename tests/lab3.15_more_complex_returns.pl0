@@ -10,7 +10,7 @@ PROCEDURE function_multiple_returns() -> (int, int);
 		return (10 + 20, 20)
 	END;
 
-PROCEDURE function_with_if_else(int x, int y) -> (int);
+PROCEDURE function_with_if_else(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
 			return (y)
@@ -19,7 +19,7 @@ PROCEDURE function_with_if_else(int x, int y) -> (int);
 		end
 	END;
 
-PROCEDURE function_with_if_elif_else(int x, int y) -> (int);
+PROCEDURE function_with_if_elif_else(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
 			return (y)
@@ -36,7 +36,7 @@ PROCEDURE function_with_if_elif_else(int x, int y) -> (int);
 		return (-1)
 	END;
 
-PROCEDURE function_with_if_and_dangling_return(int x, int y) -> (int);
+PROCEDURE function_with_if_and_dangling_return(x, y : int) -> (int);
 	BEGIN
 		if x > 1 then begin
 			return (y)

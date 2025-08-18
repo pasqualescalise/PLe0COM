@@ -1,17 +1,17 @@
 VAR result : int;
 
-PROCEDURE f1(int x, int y);
+PROCEDURE f1(x, y : int);
 	VAR result, ret : int;
 
-	PROCEDURE f2(int x, int y) -> (int);
+	PROCEDURE f2(x, y : int) -> (int);
 		VAR space : int;
 
-		PROCEDURE f3(int x, int y);
+		PROCEDURE f3(x, y : int);
 			BEGIN
 				result := x + x
 			END;
 
-		PROCEDURE f4(int x, int y);
+		PROCEDURE f4(x, y : int);
 			VAR space : int;
 			BEGIN
 				result := result + x
