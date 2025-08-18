@@ -92,14 +92,9 @@ class Parser:
         elif self.accept('number'):
             return ir.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
-            expr = self.expression(symtab=symtab)
+            expr = self.algebraic_expression(symtab=symtab)
             self.expect('rparen')
             return expr
-        elif self.accept('quote'):
-            self.accept('string')
-            new_string = self.value
-            self.accept('quote')
-            return ir.String(value=new_string, symtab=symtab)
 
         self.error("Factor: syntax error")
 
@@ -171,14 +166,14 @@ class Parser:
                 self.accept('ident')
                 return ir.Var(var=var, symtab=symtab)
 
-        expr = self.expression(symtab)
+        expr = self.algebraic_expression(symtab)
 
         # expr is already a condition
         if isinstance(expr, ir.BinExpr) and expr.children[0] in ir.BINARY_CONDITIONALS:
             return expr
 
         # if expr is not a condition, it must be a condition
-        # otherwise logic_expression == expression
+        # otherwise logic_expression == algebraic_expression
         expr = self.condition(expr, symtab)
         return expr
 
@@ -204,21 +199,50 @@ class Parser:
         if self.new_sym in ir.BINARY_CONDITIONALS:
             self.getsym()
             op = self.sym
-            expr2 = self.expression(symtab)
+            expr2 = self.algebraic_expression(symtab)
             expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
             return expr
         self.error("Condition: invalid operator")
 
     @logger
-    def expression(self, symtab):
+    def algebraic_expression(self, symtab):
         try:
             expr = self.numeric_expression(symtab)
         except RuntimeError:
             expr = self.logic_expression(symtab)
+
         try:
             expr = self.condition(expr, symtab)
         except RuntimeError:
             pass
+
+        return expr
+
+    @logger
+    def string_expression(self, symtab):
+        if self.accept('quote'):
+            self.accept('string')
+            new_string = self.value
+            self.accept('quote')
+            return ir.String(value=new_string, symtab=symtab)
+        elif self.new_sym == 'ident':
+            var = symtab.find(self, self.new_value)
+            if var.is_string():
+                self.accept('ident')
+                return ir.Var(var=var, symtab=symtab)
+
+        self.error("Can't parse string expression")
+
+    @logger
+    def expression(self, symtab):
+        try:
+            expr = self.string_expression(symtab)
+            return expr
+        except RuntimeError:
+            pass
+
+        expr = self.algebraic_expression(symtab)
+
         return expr
 
     @logger
