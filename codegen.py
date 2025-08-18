@@ -188,6 +188,12 @@ def binstat_codegen(self, regalloc):
         res += ii(f"{blue('movge')} {rd}, #{italic('1')}\n")
         res += ii(f"{blue('movlt')} {rd}, #{italic('0')}\n")
 
+    # logic operations
+    elif self.op == "and":
+        res += ii(f"{yellow('and')} {rd}, {param}\n")
+    elif self.op == "or":
+        res += ii(f"{yellow('orr')} {rd}, {param}\n")
+
     else:
         raise RuntimeError(f"Operation {self.op} unexpected")
 
@@ -488,6 +494,12 @@ def unarystat_codegen(self, regalloc):
     # conditional operations
     elif self.op == 'odd':
         res += ii(f"{yellow('and')} {rd}, {rs}, #{italic('1')}\n")
+
+    # logic operations
+    elif self.op == 'not':
+        res += ii(f"{blue('cmp')} {rs}, #{italic('0')}\n")
+        res += ii(f"{blue('moveq')} {rd}, #{italic('1')}\n")
+        res += ii(f"{blue('movne')} {rd}, #{italic('0')}\n")
 
     else:
         raise RuntimeError(f"Unexpected operation {self.op}")

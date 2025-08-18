@@ -95,6 +95,9 @@ class Type:
         n += 'int'  # no float types exist at the moment
         return n
 
+    def is_numeric(self):
+        return self.basetype == "Int"
+
 
 class ArrayType(Type):
     def __init__(self, name, dims, basetype):
@@ -194,9 +197,15 @@ class Symbol:
     def set_alloc_info(self, allocinfo):
         self.allocinfo = allocinfo  # in byte
 
+    def is_array(self):
+        return isinstance(self.stype, ArrayType)
+
+    def is_numeric(self):
+        return (self.stype.is_numeric()) or (self.is_array() and self.stype.basetype.is_numeric())
+
     def is_string(self):
         """A Symbol references a string if it's of type char[] or &char"""
-        return isinstance(self.stype, ArrayType) and self.stype.basetype.name == "char" or isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char"
+        return self.is_array() and self.stype.basetype.name == "char" or isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char"
 
     def is_boolean(self):
         return isinstance(self.stype, BooleanType)
@@ -574,12 +583,15 @@ class BinExpr(Expr):
         srca = self.children[1].destination()
         srcb = self.children[2].destination()
 
-        # Type promotion.
-        # TODO: fix this for types other than int
+        # Type promotion
         if ('unsigned' in srca.stype.qual_list) and ('unsigned' in srcb.stype.qual_list):
             desttype = Type(None, max(srca.stype.size, srcb.stype.size), 'Int', ['unsigned'])
-        else:
+        elif srca.stype.name == srcb.stype.name:
+            desttype = TYPENAMES[srca.stype.name]
+        elif srca.stype.is_numeric() and srcb.stype.is_numeric():
             desttype = Type(None, max(srca.stype.size, srcb.stype.size), 'Int')
+        else:
+            raise RuntimeError(f"Trying to operate on two factors of different types ({srca.stype.name} and {srcb.stype.name})")
 
         if self.children[0] in BINARY_CONDITIONALS:
             dest = new_temporary(self.symtab, TYPENAMES['boolean'])

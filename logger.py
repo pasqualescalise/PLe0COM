@@ -15,7 +15,11 @@ def logger(f):
         function_name = f"{f.__module__.capitalize()}.{f.__name__}()"
         print(f"{' ' * indentation * 4}{yellow('Calling:')} {function_name}")
         indentation += 1
-        res = f(*args, **kwargs)
+        try:
+            res = f(*args, **kwargs)
+        except Exception as e:
+            indentation -= 1
+            raise e
         indentation -= 1
         print(f"{' ' * indentation * 4}{blue('Returning from:')} {function_name}")
         return res

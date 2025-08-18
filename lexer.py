@@ -47,6 +47,9 @@ TOKEN_DEFS = {
     'oddsym': ['odd'],
     'truesym': ['true'],
     'falsesym': ['false'],
+    'not': ['not'],
+    'and': ['and'],
+    'or': ['or'],
     'print': ['!', 'print'],
     'read': ['?', 'read'],
     'quote': ['"']

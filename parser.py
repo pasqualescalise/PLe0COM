@@ -53,7 +53,7 @@ class Parser:
             idxes = []
             for i in range(0, len(target.stype.dims)):
                 self.expect('lspar')
-                idxes.append(self.expression(symtab))
+                idxes.append(self.numeric_expression(symtab))
                 self.expect('rspar')
             offset = self.linearize_multid_vector(idxes, target, symtab)
         return offset
@@ -77,8 +77,13 @@ class Parser:
 
     @logger
     def factor(self, symtab):
-        if self.accept('ident'):
-            var = symtab.find(self, self.value)
+        if self.new_sym == 'ident':
+            var = symtab.find(self, self.new_value)
+            if not var.is_numeric():
+                raise RuntimeError(f"Trying to parse var {var} as numeric when it isn't")
+
+            self.accept('ident')
+
             offset = self.array_offset(var, symtab)
             if offset is None:
                 return ir.Var(var=var, symtab=symtab)
@@ -95,10 +100,6 @@ class Parser:
             new_string = self.value
             self.accept('quote')
             return ir.String(value=new_string, symtab=symtab)
-        elif self.accept('truesym'):
-            return ir.Const(value="True", symtab=symtab)
-        elif self.accept('falsesym'):
-            return ir.Const(value="False", symtab=symtab)
 
         self.error("Factor: syntax error")
 
@@ -135,7 +136,7 @@ class Parser:
         return expr
 
     @logger
-    def expression(self, symtab):
+    def numeric_expression(self, symtab):
         op = None
         if self.new_sym in ['plus', 'minus']:
             self.getsym()
@@ -151,23 +152,74 @@ class Parser:
         return expr
 
     @logger
-    def condition(self, symtab):
+    def logic_value(self, symtab):
         if self.accept('truesym'):
             return ir.Const(value="True", symtab=symtab)
         elif self.accept('falsesym'):
             return ir.Const(value="False", symtab=symtab)
+        elif self.accept('not'):
+            return ir.UnExpr(children=['not', self.logic_value(symtab)], symtab=symtab)
         elif self.accept('oddsym'):
-            return ir.UnExpr(children=['odd', self.expression(symtab)], symtab=symtab)
-        else:
-            expr = self.expression(symtab)
-            if self.new_sym in ir.BINARY_CONDITIONALS:
-                self.getsym()
-                op = self.sym
-                expr2 = self.expression(symtab)
-                return ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
-            else:
-                self.error("Condition: invalid operator")
-                self.getsym()
+            return ir.UnExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
+        elif self.accept('lparen'):
+            expr = self.logic_expression(symtab=symtab)
+            self.expect('rparen')
+            return expr
+        elif self.new_sym == 'ident':
+            var = symtab.find(self, self.new_value)
+            if var.is_boolean():
+                self.accept('ident')
+                return ir.Var(var=var, symtab=symtab)
+
+        expr = self.expression(symtab)
+
+        # expr is already a condition
+        if isinstance(expr, ir.BinExpr) and expr.children[0] in ir.BINARY_CONDITIONALS:
+            return expr
+
+        # if expr is not a condition, it must be a condition
+        # otherwise logic_expression == expression
+        expr = self.condition(expr, symtab)
+        return expr
+
+        self.error("Logic value: invalid operator")
+
+    @logger
+    def logic_expression(self, symtab):
+        expr = self.logic_value(symtab)
+        while self.new_sym in ['and', 'or']:
+            self.getsym()
+            op = self.sym
+            expr2 = self.logic_value(symtab)
+            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+        try:
+            expr = self.condition(expr, symtab)
+        except RuntimeError:
+            pass
+
+        return expr
+
+    @logger
+    def condition(self, expr, symtab):
+        if self.new_sym in ir.BINARY_CONDITIONALS:
+            self.getsym()
+            op = self.sym
+            expr2 = self.expression(symtab)
+            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            return expr
+        self.error("Condition: invalid operator")
+
+    @logger
+    def expression(self, symtab):
+        try:
+            expr = self.numeric_expression(symtab)
+        except RuntimeError:
+            expr = self.logic_expression(symtab)
+        try:
+            expr = self.condition(expr, symtab)
+        except RuntimeError:
+            pass
+        return expr
 
     @logger
     def statement(self, symtab):
@@ -233,14 +285,14 @@ class Parser:
             return ir.CallStat(call_expr=ir.CallExpr(function_symbol=function_symbol, parameters=parameters, symtab=symtab), function_symbol=function_symbol, returns=returns, symtab=symtab)
 
         elif self.accept('ifsym'):
-            cond = self.condition(symtab)
+            cond = self.logic_expression(symtab)
             self.expect('thensym')
             then = self.statement(symtab)
 
             elifs = ir.StatList(symtab=symtab)
             while self.new_sym == "elifsym":
                 self.accept("elifsym")
-                elif_cond = self.condition(symtab)
+                elif_cond = self.logic_expression(symtab)
                 elifs.append(elif_cond)
 
                 self.expect('thensym')
@@ -253,7 +305,7 @@ class Parser:
             return ir.IfStat(cond=cond, thenpart=then, elifspart=elifs, elsepart=els, symtab=symtab)
 
         elif self.accept('whilesym'):
-            cond = self.condition(symtab)
+            cond = self.logic_expression(symtab)
             self.expect('dosym')
             body = self.statement(symtab)
             return ir.WhileStat(cond=cond, body=body, symtab=symtab)
@@ -268,7 +320,7 @@ class Parser:
             self.expect('semicolon')
 
             log_indentation(yellow("Second part of for statement"))
-            cond = self.condition(symtab)
+            cond = self.logic_expression(symtab)
 
             self.expect('semicolon')
 
