@@ -386,10 +386,8 @@ class Parser:
             return ir.ReturnStat(children=returns, symtab=symtab)
 
     @logger
-    def block(self, parent_symtab, alloct='auto'):
+    def block(self, parent_symtab, local_symtab, alloct='auto'):
         # variables definition
-        local_symtab = ir.SymbolTable()
-
         while self.accept('constsym') or self.accept('varsym'):
             if self.sym == 'constsym':
                 self.constdef(local_symtab, alloct)
@@ -420,7 +418,7 @@ class Parser:
                     elif isinstance(new_symbol.stype, ir.ArrayType):
                         size = new_symbol.stype.dims
                         new_symbol.stype = ir.ArrayType(None, size, type)
-                    local_symtab.append(new_symbol)
+                    local_symtab.push(new_symbol)
                     log_indentation(f"{green('Parsed variable:')} {str(new_symbol)}")
 
                 self.expect('semicolon')
@@ -433,6 +431,13 @@ class Parser:
         while self.accept('procsym'):
             self.expect('ident')
             fname = self.value
+            # save the current function and restore it after parsing this new one
+            parent_function = self.current_function
+            self.current_function = fname
+
+            local_symtab.push(ir.Symbol(fname, ir.TYPENAMES['function']))
+            procedure_symtab = ir.SymbolTable()
+
             self.expect('lparen')
 
             # parameters
@@ -461,7 +466,6 @@ class Parser:
                     elif isinstance(new_parameter.stype, ir.ArrayType):
                         size = new_parameter.stype.dims
                         new_parameter.stype = ir.ArrayType(None, size, type)
-                    new_parameter.fname = fname
 
                 parameters += new_parameters
 
@@ -469,7 +473,7 @@ class Parser:
 
             for i in range(len(parameters)):
                 # reversed in the symtab for easier datalayout
-                local_symtab.append(parameters[len(parameters) - i - 1])
+                procedure_symtab.append(parameters[len(parameters) - i - 1])
 
             # if the function returns something - it's not mandatory
             returns = []
@@ -492,9 +496,9 @@ class Parser:
                         self.error(f"Type {type} is not valid")
 
                     if len(size) > 0:
-                        ret = ir.Symbol(f"ret_{str(len(returns))}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', fname=fname)
+                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', fname=fname)
                     else:
-                        ret = ir.Symbol(f"ret_{str(len(returns))}", ir.TYPENAMES[type], alloct='return', fname=fname)
+                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.TYPENAMES[type], alloct='return', fname=fname)
                     returns.append(ret)
 
                     if self.new_sym == "comma":
@@ -505,28 +509,25 @@ class Parser:
 
                 self.expect('rparen')
 
-            # returns are always after the parameters in the SymbolTable bacause of the datalayout (an order had to be chosen)
+            # returns are in the symtab of the caller, parameters are in the one of the callee
             for i in range(len(returns)):
                 local_symtab.append(returns[i])
 
             self.expect('semicolon')
 
-            parent_symtab.append(ir.Symbol(fname, ir.TYPENAMES['function']))
+            procedure_symtab = ir.SymbolTable(procedure_symtab + local_symtab.exclude_alloct(['return']))
+            fbody = self.block(local_symtab, procedure_symtab)
 
-            # make sure to save and restore the current function while parsing the new one
-            parent = self.current_function
-            self.current_function = fname
-            fbody = self.block(ir.SymbolTable(local_symtab + parent_symtab[:]))  # local_vars is the symtab of the procedure block
-            self.current_function = parent
+            # restore parent_function
+            self.current_function = parent_function
 
             self.expect('semicolon')
-            function_defs.append(ir.FunctionDef(symbol=parent_symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
+            function_defs.append(ir.FunctionDef(symbol=local_symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
 
         log_indentation(green("Parsed functions definition"))
 
         # parse the block statements
-        # XXX: local variables need to be more prevalent than global ones to preserve scope
-        statements = self.statement(ir.SymbolTable(local_symtab + parent_symtab[:]))
+        statements = self.statement(local_symtab)
         return ir.Block(gl_sym=parent_symtab, lc_sym=local_symtab, defs=function_defs, body=statements)
 
     @logger
@@ -568,8 +569,9 @@ class Parser:
     @logger
     def program(self):
         """Axiom"""
+        # for the main, this acts also as the local_symtab
         global_symtab = ir.SymbolTable()
         self.getsym()
-        the_program = self.block(global_symtab, 'global')
+        the_program = self.block(global_symtab, global_symtab, alloct='global')
         self.expect('period')
         return the_program

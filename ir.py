@@ -246,6 +246,9 @@ class SymbolTable(list):
                 return s
         raise RuntimeError(f"Looking up for symbol {name} in function {node.current_function} failed!")
 
+    def push(self, symbol):
+        self.insert(0, symbol)
+
     def __repr__(self):
         res = f"{cyan('SymbolTable')} " + '{\n'
         for symbol in self:
@@ -255,6 +258,9 @@ class SymbolTable(list):
 
     def exclude(self, barred_types):
         return [symb for symb in self if symb.stype not in barred_types]
+
+    def exclude_alloct(self, allocts):
+        return [symb for symb in self if symb.alloct not in allocts]
 
 
 class DataSymbolTable():
@@ -299,7 +305,7 @@ class IRNode:  # abstract
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue'} & set(dir(self))
 
         res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
