@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 
-"""Data layout computation pass. Each symbol whose location (alloct)
-is not a register, is allocated in the local stack frame (LocalSymbol) or in
-the data section of the executable (GlobalSymbol)."""
+"""Data layout computation pass. For each symbol whose location (alloct)
+is not a register, calculate their position. Symbols can be allocated
+either in the data section (alloct data or alloct global) or in the
+local stack frame (alloct auto, alloct param)
 
-from codegenhelp import CALL_OFFSET
+Function parameters exist only in the called function and its nested
+children, and are also referenced using stack offset (even though some
+of them are passed in registers)"""
+
+from codegenhelp import CALLEE_OFFSET
 from logger import cyan
 from ir import DataSymbolTable
 
@@ -43,112 +48,60 @@ def perform_data_layout(root):
     perform_data_layout_of_data_variables()
 
 
+# Calculate the offset of all the variables in the stack, including parameters
 def perform_data_layout_of_function(funcroot):
-    offs = 0  # prev fp
-    # considering all the caller and callee saved registers
-    minimum_fixed_offset = CALL_OFFSET - 4
-    param_offs = minimum_fixed_offset
-    returns_offs = minimum_fixed_offset
+    offs = 0
+    fname = funcroot.symbol.name
 
-    # need to keep track of the function called to correctly allocate return values and parameters
-    current_function = None
-    if len(funcroot.body.symtab) > 0:
-        current_function = funcroot.body.symtab[0].fname
-
-    for var in funcroot.body.symtab:
+    # local variables
+    for var in funcroot.body.symtab.exclude_alloct(['reg', 'global', 'param', 'return', 'data']):
         if var.stype.size == 0:
             continue
 
-        if var.allocinfo is not None:  # TODO: this is needed because SymbolTables are broken, fix them
+        if var.allocinfo is not None:  # nested functions
             continue
 
         bsize = var.stype.size // 8
 
-        if var.alloct == 'param':
-            # parameters are before the returns in the symbol table
-            # each time a new function is introduced reset the offset
-            if var.fname == current_function:
-                returns_offs += bsize
-            else:
-                returns_offs = minimum_fixed_offset + bsize
-                param_offs = minimum_fixed_offset
-                current_function = var.fname
+        name = f"_l_{fname}_{var.name}"
+        offs -= bsize
+        var.set_alloc_info(LocalSymbolLayout(name, offs, bsize))
 
-            name = f"_p_{funcroot.symbol.name}_{var.fname}_{var.name}"
-            param_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(name, param_offs, bsize))
-
-        elif var.alloct == 'return':
-            # if there are no parameters, this restarts the offset counter
-            # each time a new function is considered
-            if var.fname != current_function:
-                returns_offs = minimum_fixed_offset
-                current_function = var.fname
-
-            name = f"_r_{var.fname}_{funcroot.symbol.name}_{var.name}"
-            returns_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(name, returns_offs, bsize))
-
-        else:
-            name = f"_l_{funcroot.symbol.name}_{var.name}"
-            offs -= bsize
-            var.set_alloc_info(LocalSymbolLayout(name, offs, bsize))
-
+    # how much space to reserve to local variables
     funcroot.body.stackroom = -offs
 
-    if current_function is not None:
-        print(f"{cyan(f'{current_function}')} {funcroot.body.symtab}")
+    negative_offs = offs
+    positive_offs = CALLEE_OFFSET - 4
+
+    # parameters: the first 4 get pushed after the FP (negative offset) while the other
+    # are before the FP (positive offset)
+    for i in range(len(funcroot.parameters) - 1, -1, -1):
+        parameter = funcroot.parameters[i]
+        name = f"_p_{fname}_{parameter.name}"
+        bsize = parameter.stype.size // 8  # in byte TODO: check: since these have to be put on the stack, is there an alignment problem?
+        if i < 4:
+            negative_offs -= bsize
+            parameter.set_alloc_info(LocalSymbolLayout(name, negative_offs, bsize))
+        else:
+            positive_offs += bsize
+            parameter.set_alloc_info(LocalSymbolLayout(name, positive_offs, bsize))
+
+    print(f"{cyan(f'{funcroot.symbol.name}')} {funcroot.body.symtab}")
 
     for defin in funcroot.body.defs.children:
         perform_data_layout_of_function(defin)
 
 
-# the parameters and the returns are of functions called by the main, so they behave exactly like other functions
+# Calculate the size of all the global variables
 def perform_data_layout_of_program(root):
-    # considering all the caller and callee saved registers
-    minimum_fixed_offset = CALL_OFFSET - 4
-    param_offs = minimum_fixed_offset
-    returns_offs = minimum_fixed_offset
-
-    # need to keep track of the function called to perfectly allocate return values and parameters
-    current_function = None
-    if len(root.symtab) > 0:
-        current_function = root.symtab[0].fname
-
-    for var in root.symtab:
+    for var in root.symtab.exclude_alloct(['reg', 'data']):
         if var.stype.size == 0:
             continue
 
         bsize = var.stype.size // 8  # in byte
 
-        if var.alloct == 'param':
-            # parameters are before the returns in the symbol table
-            # each time a new function is introduced reset the offset
-            if var.fname == current_function:
-                returns_offs += bsize
-            else:
-                returns_offs = minimum_fixed_offset + bsize
-                param_offs = minimum_fixed_offset
-                current_function = var.fname
-
-            name = f"_p_main_{var.fname}_{var.name}"
-            param_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(name, param_offs, bsize))
-
-        elif var.alloct == 'return':
-            # if there are no parameters, this restarts the offset counter
-            # each time a new function is considered
-            if var.fname != current_function:
-                returns_offs = minimum_fixed_offset
-                current_function = var.fname
-
-            name = f"_r_{var.fname}_main_{var.name}"
-            returns_offs += bsize
-            var.set_alloc_info(LocalSymbolLayout(name, returns_offs, bsize))
-
-        else:
-            name = f"_g_{var.name}"
-            var.set_alloc_info(GlobalSymbolLayout(name, bsize))
+        name = f"_g_main_{var.name}"
+        var.set_alloc_info(GlobalSymbolLayout(name, bsize))
 
     print(f"{cyan('main')} {root.symtab}")
 

@@ -28,7 +28,10 @@ def memory_to_register_promotion(root):
     to_promote = []
 
     for symbol in root.symtab:
-        if symbol.alloct not in ['auto', 'global'] and symbol.stype.size > 0:
+        if symbol.stype.size <= 0:
+            continue
+
+        if symbol.alloct not in ['auto', 'global']:
             continue
 
         print(f"{blue('SYMBOL:')} {symbol}")

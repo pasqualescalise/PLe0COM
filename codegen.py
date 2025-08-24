@@ -9,10 +9,10 @@ correspond to. Alternatively, they can return a list where:
 This feature can be used only by IR nodes that are contained in a Block, and
 is used for adding constant literals."""
 
-from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, check_if_variable_needs_static_link
+from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, check_if_variable_needs_static_link
 from datalayout import LocalSymbolLayout
-from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, ArrayType, PointerType, StoreStat, LoadStat, SaveSpaceStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
-from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic
+from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, ArrayType, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
+from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
 
 localconsti = 0
 
@@ -47,7 +47,10 @@ def symbol_codegen(self, regalloc):
     if not isinstance(self.allocinfo, LocalSymbolLayout):
         return ii(f".comm {green(f'{self.allocinfo.symname}')}, {self.allocinfo.bsize}\n")
     else:
-        return ii(f".equ {green(f'{self.allocinfo.symname}')}, {self.allocinfo.fpreloff}\n")
+        if self.allocinfo.fpreloff > 0:
+            return ii(f".equ {green(f'{self.allocinfo.symname}')}, {self.allocinfo.fpreloff}\n")
+        else:
+            return ii(f".equ {green(f'{self.allocinfo.symname}')}, {self.allocinfo.fpreloff - regalloc.spill_room()}\n")
 
 
 Symbol.codegen = symbol_codegen
@@ -74,8 +77,17 @@ IRNode.codegen = irnode_codegen
 
 def block_codegen(self, regalloc):
     res = [ii(f"{comment('block')}"), '']
-    for sym in self.symtab:
-        res = codegen_append(res, sym.codegen(regalloc))
+
+    parameters = []
+
+    if self.parent is None:
+        for sym in self.symtab:
+            res = codegen_append(res, sym.codegen(regalloc))
+    else:
+        # only this functions variables
+        for sym in [x for x in self.symtab if x.fname == self.parent.symbol.name]:
+            res = codegen_append(res, sym.codegen(regalloc))
+        parameters = self.parent.parameters
 
     if self.parent is None:
         res[0] += ii(f".global {magenta('__pl0_start')}\n\n")
@@ -86,6 +98,10 @@ def block_codegen(self, regalloc):
     res[0] += ii(f"{blue('mov')} {get_register_string(REG_FP)}, {get_register_string(REG_SP)}\n")
     stacksp = self.stackroom + regalloc.spill_room()
     res[0] += ii(f"{yellow('sub')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{stacksp}')}\n")
+
+    # save the first 4 parameters, in reverse order, on the stack
+    for i in range(len(parameters[:4]) - 1, -1, -1):
+        res[0] += ii(f"{cyan('push')} {{{get_register_string(i)}}}\n")
 
     regalloc.enter_function_body(self)
     try:
@@ -242,21 +258,76 @@ def read_codegen(self, regalloc):
 ReadCommand.codegen = read_codegen
 
 
-def branch_codegen(self, regalloc):
-    if self.target is None:
-        # this branch is a return
-        res = ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
-        res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-        res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
-        return res
+# TODO: documentation on th ABI
+def call_codegen(call, regalloc):
+    res = ""
 
-    target_label = magenta(self.target.name)
-    if not self.is_call():
+    # add space on the stack for the return values
+    if len(call.returns) > 0:
+        res += ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{len(call.returns) * -4}')}\n")
+
+    res += save_regs(REGS_CALLERSAVE)
+
+    num_stack_parameters = len(call.parameters[4:])
+
+    # push on the stack all parameters after the first four
+    for param_to_put_in_the_stack in call.parameters[4:]:
+        res += regalloc.gen_spill_load_if_necessary(param_to_put_in_the_stack)
+        res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(param_to_put_in_the_stack)}}}\n")
+
+    # put the first 4 parameters in r0-r3
+    for i in range(len(call.parameters[:4]) - 1, -1, -1):
+        res += regalloc.gen_spill_load_if_necessary(call.parameters[i])
+        reg = get_register_string(i)
+        var = regalloc.get_register_for_variable(call.parameters[i])
+
+        if remove_formatting(var) not in ['r0', 'r1', 'r2', 'r3']:
+            res += ii(f"{blue('mov')} {reg}, {var}\n")
+        else:
+            # XXX: weird hack to resolve data dependencies:
+            #      we have to get this value from one of r0-r3,
+            #      but we may have already modified it; to solve this,
+            #      use the caller saved register we just pushed on the stack
+            pos = ['r0', 'r1', 'r2', 'r3'].index(remove_formatting(var))
+            res += ii(f"{blue('ldr')} {reg}, [{get_register_string(REG_SP)}, #{4 * (pos + num_stack_parameters)}]\n")
+
+    res += ii(f"{red('bl')} {magenta(call.target.name)}\n")
+
+    # put the first 4 return values from r0-r3 on the stack
+    for i in range(len(call.returns[:4]) - 1, -1, -1):
+        pos = 4 * (i + 4 + num_stack_parameters)  # TODO documentation
+        res += ii(f"{blue('str')} {get_register_string(i)}, [{get_register_string(REG_SP)}, #{pos}]\n")
+
+    # pop the parameters pushed previously
+    for param_to_put_in_the_stack in list(reversed(call.parameters[4:])):
+        res += ii(f"{cyan('pop')} {{{regalloc.get_register_for_variable(param_to_put_in_the_stack)}}}\n")
+        res += regalloc.gen_spill_store_if_necessary(param_to_put_in_the_stack)
+
+    res += restore_regs(REGS_CALLERSAVE)
+
+    # finally, get the return values from the stack in the correct registers
+    for i in range(len(call.returns)):
+        if call.returns[i] != '_':
+            reg = regalloc.get_register_for_variable(call.returns[i])
+            res += ii(f"{cyan('pop')} {{{reg}}}\n")
+            res += regalloc.gen_spill_store_if_necessary(call.returns[i])
+        else:
+            res += ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{4}')}\n")
+
+    return res
+
+
+def branch_codegen(self, regalloc):
+    res = ""
+
+    if self.target is not None and not self.is_call():
         # just a branch
+
+        target_label = magenta(self.target.name)
         if self.cond is None:
             return ii(f"{red('b')} {target_label}\n")
         else:
-            res = regalloc.gen_spill_load_if_necessary(self.cond)
+            res += regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
 
             res += ii(f"{red('tst')} {rcond}, {rcond}\n")
@@ -264,39 +335,33 @@ def branch_codegen(self, regalloc):
             res += ii(f"{op} {target_label}\n")
             return res
 
-    else:
-        # this branch is a call
-        if self.cond is None:
-            res = save_regs(REGS_CALLERSAVE)
-            res += ii(f"{red('bl')} {target_label}\n")
-            res += restore_regs(REGS_CALLERSAVE)
+    elif self.target is None:
+        # this branch is a return
 
-            # restore space left by the parameters
-            if self.space_needed_for_parameters > 0:
-                res += ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{self.space_needed_for_parameters}')}\n")
+        # save on the caller stack all return values after the first four
+        for i in range(len(self.returns[4:]) - 1, -1, -1):
+            ret = self.returns[4:][i]
+            res += regalloc.gen_spill_load_if_necessary(ret)
+            pos = CALL_OFFSET + 4 * (4 + i + len(self.parameters[4:]))  # TODO: documentation
+            res += ii(f"{blue('str')} {regalloc.get_register_for_variable(ret)}, [{get_register_string(REG_FP)}, #{pos}]\n")
 
-            return res
-        else:
-            # TODO: when does this happen?
-            res = regalloc.gen_spill_load_if_necessary(self.cond)
-            rcond = regalloc.get_register_for_variable(self.cond)
+        # XXX: this is a hack: to avoid data dependencies, like `mov r0, r1; mov r1, r0`,
+        #      push the 4 registers with the return value, then pop them in r0-r3
+        for i in range(len(self.returns[:4])):
+            ret = self.returns[i]
+            res += regalloc.gen_spill_load_if_necessary(ret)
+            res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(ret)}}}\n")
 
-            res += ii(f"{red('tst')} {rcond}, {rcond}\n")
+        for i in range(len(self.returns[:4]) - 1, -1, -1):
+            res += ii(f"{cyan('pop')} {{{get_register_string(i)}}}\n")
 
-            op = red("beq" if self.negcond else "bne")
-            res += ii(f"{op} {rcond}, 1f\n")
+        res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
+        res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+        res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
+        return res
 
-            res += save_regs(REGS_CALLERSAVE)
-            res += ii(f"{red('bl')} {target_label}\n")
-            res += restore_regs(REGS_CALLERSAVE)
-
-            # restore space left by the parameters
-            if self.space_needed_for_parameters > 0:
-                res += ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{self.space_needed_for_parameters}')}\n")
-
-            # TODO: what does this mean?
-            res += '1:'
-            return res
+    # this branch is a call
+    return call_codegen(self, regalloc)
 
 
 BranchStat.codegen = branch_codegen
@@ -334,12 +399,10 @@ def storestat_codegen(self, regalloc):
     res = ''
     trail = ''
 
-    if self.dest.alloct == 'param':
-        res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(self.symbol)}}}\n")
-        return [res, trail]
-
-    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.dest.stype, PointerType):
+    if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.dest.stype, PointerType):
+        res += regalloc.gen_spill_load_if_necessary(self.symbol)
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
+        res += regalloc.gen_spill_store_if_necessary(self.dest)
         return [res, trail]
 
     elif self.dest.alloct == 'reg':
@@ -383,12 +446,10 @@ def loadstat_codegen(self, regalloc):
     res = ''
     trail = ''
 
-    if self.symbol.alloct == 'return':
-        res += ii(f"{cyan('pop')} {{{regalloc.get_register_for_variable(self.dest)}}}\n")
-        return [res, trail]
-
-    elif self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.symbol.stype, PointerType):
+    if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.symbol.stype, PointerType):
+        res += regalloc.gen_spill_load_if_necessary(self.symbol)
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
+        res += regalloc.gen_spill_store_if_necessary(self.dest)
         return [res, trail]
 
     elif self.symbol.alloct == 'reg':
@@ -433,20 +494,6 @@ def loadstat_codegen(self, regalloc):
 
 
 LoadStat.codegen = loadstat_codegen
-
-
-def savespacestat_codegen(self, regalloc):
-    res = ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{self.space_needed}')}")
-
-    if self.space_needed > 0:
-        res += f" {comment('ignoring a return value')}"
-    else:
-        res += f" {comment('saving space for return values')}"
-
-    return res
-
-
-SaveSpaceStat.codegen = savespacestat_codegen
 
 
 def loadimm_codegen(self, regalloc):

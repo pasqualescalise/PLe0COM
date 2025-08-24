@@ -278,7 +278,7 @@ class Parser:
                 parameters.append(expr)
                 if self.new_sym == "comma":
                     self.accept('comma')
-                    # handle dangling commas e.g. (int x, int y, )
+                    # handle dangling commas e.g. (x, y, )
                     if self.new_sym == "rparen":
                         self.error("Wrongly defined arguments for call to function")
 
@@ -306,7 +306,7 @@ class Parser:
 
                 self.expect("rparen")
 
-            return ir.CallStat(call_expr=ir.CallExpr(function_symbol=function_symbol, parameters=parameters, symtab=symtab), function_symbol=function_symbol, returns=returns, symtab=symtab)
+            return ir.CallStat(function_symbol=function_symbol, parameters=parameters, returns=returns, symtab=symtab)
 
         elif self.accept('ifsym'):
             cond = self.logic_expression(symtab)
@@ -495,6 +495,8 @@ class Parser:
                     if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
                         self.error(f"Type {type} is not valid")
 
+                    # XXX: this symbols are only used for their type and size, they are
+                    #      not in any SymbolTable and cannot be referenced in the program
                     if len(size) > 0:
                         ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', fname=fname)
                     else:
@@ -508,10 +510,6 @@ class Parser:
                             self.error("Dangling comma in returns definition")
 
                 self.expect('rparen')
-
-            # returns are in the symtab of the caller, parameters are in the one of the callee
-            for i in range(len(returns)):
-                local_symtab.append(returns[i])
 
             self.expect('semicolon')
 

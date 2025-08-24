@@ -715,60 +715,6 @@ class UnExpr(Expr):
         return UnExpr(parent=self.parent, children=new_children, symtab=self.symtab)
 
 
-class CallExpr(Expr):
-    def __init__(self, parent=None, function_symbol=None, parameters=[], symtab=None):
-        log_indentation(bold(f"New CallExpr Node (id: {id(self)})"))
-        super().__init__(parent, parameters, symtab)
-        self.function_symbol = function_symbol
-
-    # raises RuntimeError if the number of parameters or of returns is wrong
-    # TODO: add type checking
-    def check_parameters_and_returns(self):
-        # check that the number of parameters is correct
-        if len(self.children) != len(self.function_definition.parameters):
-            raise RuntimeError(f"Not specified the right amount of parameters in function {self.function_symbol.name}")
-
-        # check that the call asks for exactly as many values as the function returns (including dont'cares)
-        if len(self.function_definition.returns) != len(self.parent.returns):
-            raise RuntimeError(f"Too few or too many values are being returned in function {self.function_symbol.name}")
-
-    def lower(self):
-        self.function_definition = self.get_function_definition(self.function_symbol)
-        self.check_parameters_and_returns()
-
-        self.function_definition.called_by_counter += 1
-
-        stats = self.children[:]
-
-        # save space for eventual return variables
-        if len(self.parent.returns) > 0:
-            space_needed = 0
-            for i in range(len(self.parent.returns)):
-                if self.parent.returns[i] == "_":
-                    space_needed -= self.function_definition.returns[i].stype.size // 8
-                else:
-                    space_needed -= self.parent.returns[i].stype.size // 8
-            stats.append(SaveSpaceStat(space_needed=space_needed, symtab=self.symtab))
-
-        function_definition_symbols = []
-        for symbol in self.function_definition.parameters:
-            if symbol.alloct == 'param':
-                function_definition_symbols.append(symbol)
-
-        # put the parameters on the stack
-        for i in range(len(self.children)):
-            stats += [StoreStat(symbol=self.children[i].destination(), dest=function_definition_symbols[i], symtab=self.symtab)]
-
-        return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
-
-    def __deepcopy__(self, memo):
-        new_parameters = []
-        for parameter in self.parameters:
-            new_parameters.append(deepcopy(parameter, memo))
-
-        return CallExpr(parent=self.parent, function_symbol=self.function_symbol, parameters=new_parameters, symtab=self.symtab)
-
-
 # STATEMENTS
 
 class Stat(IRNode):  # abstract
@@ -790,40 +736,12 @@ class Stat(IRNode):  # abstract
         return []
 
 
-class SaveSpaceStat(Stat):  # low-level node
-    """Save space for eventual return statements by pushing null values
-       Just needed a statement that would survive until codegen and would
-       not matter for datalayout"""
-
-    def __init__(self, parent=None, space_needed=0, symtab=None):
-        log_indentation(bold(f"New SaveSpaceStat Node (id: {id(self)})"))
-        super().__init__(parent, [], symtab)
-        self.space_needed = space_needed
-
-    def used_variables(self):
-        return []
-
-    def human_repr(self):
-        if self.space_needed < 0:
-            return 'save space for the return values'
-        else:
-            return 'remove useless return values'
-
-    def replace_temporaries(self, mapping, create_new=True):
-        pass
-
-    def __deepcopy__(self, memo):
-        return SaveSpaceStat(parent=self.parent, space_needed=self.space_needed, symtab=self.symtab)
-
-
 class CallStat(Stat):
     """Procedure call"""
 
-    def __init__(self, parent=None, call_expr=None, function_symbol=None, returns=[], symtab=None):
+    def __init__(self, parent=None, function_symbol=None, parameters=[], returns=[], symtab=None):
         log_indentation(bold(f"New CallStat Node (id: {id(self)})"))
-        super().__init__(parent, [], symtab)
-        self.call = call_expr
-        self.call.parent = self
+        super().__init__(parent, parameters, symtab)
         self.function_symbol = function_symbol
         self.returns = returns
         for ret in self.returns:
@@ -833,36 +751,51 @@ class CallStat(Stat):
     def used_variables(self):
         return self.call.used_variables() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
 
+    # raises RuntimeError if the number of parameters or of returns is wrong
+    # TODO: add type checking
+    def check_parameters_and_returns(self, function_definition):
+        if len(function_definition.parameters) > len(self.children):
+            raise RuntimeError(f"Passing too few parameters calling function {self.function_symbol.name}")
+        if len(function_definition.parameters) < len(self.children):
+            raise RuntimeError(f"Passing too many parameters calling function {self.function_symbol.name}")
+
+        if len(function_definition.returns) > len(self.returns):
+            raise RuntimeError(f"Too few values are being returned from function {function_definition.symbol.name}")
+        elif len(function_definition.returns) < len(self.returns):
+            raise RuntimeError(f"Too many values are being returned from function {function_definition.symbol.name}")
+
     def lower(self):
-        self.function_definition = self.get_function_definition(self.function_symbol)
+        function_definition = self.get_function_definition(self.function_symbol)
+        function_definition.called_by_counter += 1
 
-        space_needed_for_parameters = 0
-        for param in self.function_definition.parameters:
-            space_needed_for_parameters += param.stype.size // 8
+        self.check_parameters_and_returns(function_definition)
 
-        target_function_definition = self.get_function_definition(self.function_symbol)
-        branch = BranchStat(target=self.function_symbol, target_definition=target_function_definition, space_needed_for_parameters=space_needed_for_parameters, symtab=self.symtab)
+        parameters = [x.destination() for x in self.children]
+        rets = []  # filled later
 
-        stats = [self.call, branch]
+        branch = BranchStat(target=self.function_symbol, parameters=parameters, returns=rets, symtab=self.symtab)
 
-        # load the returned values in the correct symbols
-        # first load the returned value in a temporary, then store its value in memory
+        stats = self.children + [branch]
+
+        # store the returned values in the destination symbols
         # this must be done here because it happens after the branch
         for i in range(len(self.returns)):
             if self.returns[i] != "_":
-                temp = new_temporary(self.symtab, self.function_definition.returns[i].stype)
-                stats += [LoadStat(symbol=self.function_definition.returns[i], dest=temp, symtab=self.symtab)]
+                temp = new_temporary(self.symtab, function_definition.returns[i].stype)
                 stats += [StoreStat(symbol=temp, dest=self.returns[i], symtab=self.symtab)]
+                rets.append(temp)
             else:
-                space_needed = self.function_definition.returns[i].stype.size // 8
-                stats += [SaveSpaceStat(space_needed=space_needed, symtab=self.symtab)]
+                rets.append("_")
 
         return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        new_call_expr = deepcopy(self.call, memo)
-        new_function_symbol = deepcopy(self.function_symbol, memo)
-        return CallStat(parent=self.parent, call_expr=new_call_expr, function_symbol=new_function_symbol, returns=self.returns, symtab=self.symtab)
+        new_parameters = []
+        for parameter in self.children:
+            new_parameters.append(deepcopy(parameter, memo))
+
+        new_function_symbol = deepcopy(self.function_symbol, memo)  # TODO: isn't this wrong?
+        return CallStat(parent=self.parent, function_symbol=new_function_symbol, parameters=new_parameters, returns=self.returns, symtab=self.symtab)
 
 
 class IfStat(Stat):
@@ -1106,7 +1039,7 @@ class AssignStat(Stat):
 
         # while the char loaded from the fixed string is different from 0x0,
         # copy the chars from the fixed string to the variable one
-        dest = new_temporary(self.symtab, TYPENAMES['int'])
+        dest = new_temporary(self.symtab, TYPENAMES['boolean'])
         cond = BinStat(dest=dest, op='neq', srca=character, srcb=zero, symtab=self.symtab)
 
         load_data_char = LoadStat(dest=character, symbol=ptrreg_data, symtab=self.symtab)
@@ -1240,17 +1173,17 @@ class ReturnStat(Stat):
 
         function_definition = self.get_function()
         if function_definition == 'main':
-            raise RuntimeError(f"The main function should not have return statements in function {function_definition.symbol.name}")
+            raise RuntimeError("The main function should not have return statements")
 
         # check that the function returns as many values as the defined ones
-        if len(function_definition.returns) != len(self.children):
-            raise RuntimeError(f"Too few or too many values are being returned in function {function_definition.symbol.name}")
+        if len(function_definition.returns) > len(self.children):
+            raise RuntimeError(f"Too few values are being returned in function {function_definition.symbol.name}")
+        elif len(function_definition.returns) < len(self.children):
+            raise RuntimeError(f"Too many values are being returned in function {function_definition.symbol.name}")
 
-        # put all values to return in the correct place in the stack
-        for i in range(len(self.children)):
-            stats.append(StoreStat(symbol=self.children[i].destination(), dest=function_definition.returns[i], symtab=self.symtab))
+        returns = [x.destination() for x in self.children]
 
-        stats.append(BranchStat(parent=self, target=None, symtab=self.symtab))
+        stats.append(BranchStat(parent=self, target=None, parameters=function_definition.parameters, returns=returns, symtab=self.symtab))
 
         stat_list = StatList(self.parent, stats, self.symtab)
         return self.parent.replace(self, stat_list)
@@ -1264,12 +1197,11 @@ class ReturnStat(Stat):
 
 
 class BranchStat(Stat):  # low-level node
-    def __init__(self, parent=None, cond=None, target=None, target_definition=None, negcond=False, space_needed_for_parameters=0, symtab=None):
+    def __init__(self, parent=None, cond=None, target=None, negcond=False, parameters=[], returns=[], symtab=None):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
-        If target_definition is not None, this is a branch-and-link instruction and it is the
-        definition of the target function.
+        If the target is a function symbol, this is a branch-and-link instruction.
         If target is None, the branch is a return and the 'target' is computed at runtime"""
         log_indentation(bold(f"New BranchStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
@@ -1278,21 +1210,21 @@ class BranchStat(Stat):  # low-level node
         if not (self.cond is None) and self.cond.alloct != 'reg':
             raise RuntimeError('Trying to branch on a condition not stored in a register')
         self.target = target
-        self.target_definition = target_definition
-        # needed for returns -> parameters need to be popped after returning from a call
-        self.space_needed_for_parameters = space_needed_for_parameters
+        self.parameters = parameters
+        self.returns = returns
 
     def used_variables(self):
         if self.is_call():
-            return self.target_definition.parameters
+            return self.parameters
+        elif self.is_return():
+            return self.returns
         if self.cond is not None:
             return [self.cond]
         return []
 
     def killed_variables(self):
         if self.is_call():
-            returns = self.target_definition.returns
-            return [r for r in returns if r != "_"]  # TODO: test the dontcares
+            return [r for r in self.returns if r != "_"]
         return []
 
     def is_unconditional(self):
@@ -1306,7 +1238,7 @@ class BranchStat(Stat):  # low-level node
         return False
 
     def is_call(self):
-        if self.target_definition is not None:
+        if isinstance(self.target, Symbol) and isinstance(self.target.stype, FunctionType):
             return True
         return False
 
@@ -1321,7 +1253,16 @@ class BranchStat(Stat):  # low-level node
             c = f" on {'not ' if self.negcond else ''}{self.cond}"
         else:
             c = ''
-        return f"{h}{c} to {self.target}"
+        if len(self.parameters) > 0:
+            p = cyan(f"({', '.join([x.name for x in self.parameters])})")
+        else:
+            p = ''
+        if len(self.returns) > 0:
+            r = " -> "
+            r += cyan(f"({', '.join([x.name if isinstance(x, Symbol) else x for x in self.returns])})")
+        else:
+            r = ''
+        return f"{h}{c} to {self.target}{p}{r}"
 
     def replace_temporaries(self, mapping, create_new=True):
         if self.cond is not None and self.cond.is_temporary:
@@ -1340,7 +1281,7 @@ class BranchStat(Stat):  # low-level node
                 self.target = new_target
 
     def __deepcopy__(self, memo):
-        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, target_definition=self.target_definition, negcond=self.negcond, space_needed_for_parameters=self.space_needed_for_parameters, symtab=self.symtab)
+        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, symtab=self.symtab)
 
 
 class EmptyStat(Stat):  # low-level node

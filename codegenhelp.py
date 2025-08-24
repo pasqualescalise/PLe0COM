@@ -19,6 +19,7 @@ REGISTER_SIZE = 32
 # each time a call gets made, the caller saved and the callee saved registers
 # gets pushed on the stack, + the current frame pointer and return pointer
 CALL_OFFSET = (len(REGS_CALLEESAVE) + len(REGS_CALLERSAVE) + 2) * 4
+CALLEE_OFFSET = (len(REGS_CALLEESAVE) + 2) * 4
 
 
 def get_register_string(regid):
@@ -100,10 +101,10 @@ def get_static_link_offset(node, function_name, offset):
 
     offset += CALL_OFFSET
 
-    for param in node.parameters:
+    for param in function_definition.parameters[:4]:
         offset += param.stype.size // 8
 
-    for ret in node.returns:
+    for ret in node.returns[:4]:
         offset += ret.stype.size // 8
 
     offset += function_definition.body.stackroom
