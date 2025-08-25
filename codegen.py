@@ -229,8 +229,16 @@ def print_codegen(self, regalloc):
         res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
     elif self.print_type == TYPENAMES['boolean']:
         res += ii(f"{red('bl')} {magenta('__pl0_print_boolean')}\n")
+    elif self.print_type == TYPENAMES['ubyte']:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_unsigned_byte')}\n")
+    elif self.print_type == TYPENAMES['ushort']:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_unsigned_short')}\n")
+    elif self.print_type == TYPENAMES['byte']:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_byte')}\n")
+    elif self.print_type == TYPENAMES['short']:
+        res += ii(f"{red('bl')} {magenta('__pl0_print_short')}\n")
     else:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_digit')}\n")
+        res += ii(f"{red('bl')} {magenta('__pl0_print_integer')}\n")
     res += restore_regs(REGS_CALLERSAVE)
     return res
 
@@ -381,11 +389,7 @@ def ldptrto_codegen(self, regalloc):
 
     alloc_info = self.symbol.allocinfo
     if isinstance(alloc_info, LocalSymbolLayout):
-        off = alloc_info.fpreloff
-        if off > 0:
-            res = ii(f"{yellow('add')} {rd}, {get_register_string(REG_FP)}, #{italic(f'{off}')}\n")
-        else:
-            res = ii(f"{yellow('sub')} {rd}, {get_register_string(REG_FP)}, #{italic(f'{-off}')}\n")
+        res = ii(f"{yellow('add')} {rd}, {get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}\n")
     else:
         label, trail = new_local_const(alloc_info.symname)
         res = ii(f"{blue('ldr')} {rd}, {label}\n")
@@ -474,17 +478,14 @@ def loadstat_codegen(self, regalloc):
 
     # XXX: not entirely sure about this
     if isinstance(self.symbol.stype, ArrayType):
-        desttype = self.symbol.stype.basetype
-        rdst = regalloc.get_register_for_variable(self.dest)
-        res += ii(f"{blue(f'mov')} {rdst}, {get_register_string(REG_SCRATCH)}\n")
-        return [res, trail]
+        desttype = PointerType(self.symbol.stype.basetype)
     elif isinstance(self.symbol.stype, PointerType):
         desttype = self.symbol.stype.pointstotype
     else:
         desttype = self.symbol.stype
 
     typeid = ['b', 'h', None, ''][desttype.size // 8 - 1]
-    if typeid != '' and 'unsigned' not in desttype.qual_list:
+    if typeid != '' and 'unsigned' not in desttype.qualifiers:
         typeid = f"s{typeid}"
 
     rdst = regalloc.get_register_for_variable(self.dest)

@@ -49,7 +49,7 @@ class Parser:
 
     def array_offset(self, target, symtab):
         offset = None
-        if isinstance(target.stype, ir.ArrayType) and target.stype.basetype.basetype != 'Char':
+        if isinstance(target.stype, ir.ArrayType) and target.stype.basetype.basetype != 'Char' and self.new_sym == 'lspar':
             idxes = []
             for i in range(0, len(target.stype.dims)):
                 self.expect('lspar')
@@ -468,6 +468,10 @@ class Parser:
                         new_parameter.stype = ir.ArrayType(None, size, type)
 
                 parameters += new_parameters
+
+                # next batch of parameters with the same type
+                if self.new_sym == 'comma':
+                    self.accept('comma')
 
             self.expect('rparen')
 

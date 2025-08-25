@@ -64,20 +64,8 @@ def replace_temporary_attributes(node, attributes, mapping, create_new=True):
                     mapping[temp] = new_temp
                     setattr(node, attribute, new_temp)
 
+
 # TYPES
-
-# NOTE: the type system is very simple, so that we don't need explicit cast
-# instructions or too much handling in the codegen phase.
-# Basically, the type system always behaves as every term of an expression was
-# casted to the biggest type available, and the result is then casted to the
-# biggest of the types of the terms.
-# Also, no handling for primitive types that do not fit in a single machine
-# register is provided.
-
-
-# BASE_TYPES = ['Int', 'Label', 'Struct', 'Function']
-# TYPE_QUALIFIERS = ['unsigned']
-
 
 class Type:
     def __init__(self, name, size, basetype, qualifiers=None):
@@ -85,12 +73,12 @@ class Type:
             qualifiers = []
         self.size = size
         self.basetype = basetype
-        self.qual_list = qualifiers
+        self.qualifiers = qualifiers
         self.name = name if name else self.default_name()
 
     def default_name(self):
         n = ''
-        if 'unsigned' in self.qual_list:
+        if 'unsigned' in self.qualifiers:
             n += 'u'
         n += 'int'  # no float types exist at the moment
         return n
@@ -165,6 +153,18 @@ TYPENAMES = {
 
     'boolean': BooleanType(),
 }
+
+
+# Returns statements that mask shorts and bytes, to eliminate sign extension
+def mask_numeric(operand, symtab):
+    mask = [int(0x000000ff), int(0x0000ffff)][operand.stype.size // 8 - 1]  # either byte or short
+    mask_temp = new_temporary(symtab, TYPENAMES['int'])
+    load_mask = LoadImmStat(dest=mask_temp, val=mask, symtab=symtab)
+    apply_mask = BinStat(dest=operand, op="and", srca=operand, srcb=load_mask.destination(), symtab=symtab)
+    return [load_mask, apply_mask]
+
+
+# SYMBOLS
 
 ALLOC_CLASSES = ['global', 'auto', 'data', 'reg', 'imm', 'param', 'return']
 
@@ -490,6 +490,11 @@ class Var(IRNode):
     def lower(self):
         """Var translates to a load statement to the same temporary that is used in
         a following stage for doing the computations (destination())"""
+        if isinstance(self.symbol.stype, ArrayType) and self.symbol.alloct != 'param':  # load arrays as pointers
+            ptrreg = new_temporary(self.symtab, PointerType(PointerType(self.symbol.stype.basetype)))
+            loadptr = LoadPtrToSym(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+            return self.parent.replace(self, StatList(children=[loadptr], symtab=self.symtab))
+
         new = new_temporary(self.symtab, self.symbol.stype)
         loadst = LoadStat(dest=new, symbol=self.symbol, symtab=self.symtab)
         return self.parent.replace(self, StatList(children=[loadst], symtab=self.symtab))
@@ -515,17 +520,28 @@ class ArrayElement(IRNode):
         return a
 
     def lower(self):
-        global TYPENAMES
         dest = new_temporary(self.symtab, self.symbol.stype.basetype)
         off = self.offset.destination()
 
         statl = [self.offset]
 
-        ptrreg = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
-        loadptr = LoadPtrToSym(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+        if self.symbol.alloct == 'param':
+            # pass by reference, we have to deallocate the pointer twice
+            parameter = new_temporary(self.symtab, PointerType(PointerType(self.symbol.stype.basetype)))
+            loadparameter = LoadPtrToSym(dest=parameter, symbol=self.symbol, symtab=self.symtab)
+
+            array_pointer = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
+            loadptr = LoadStat(dest=array_pointer, symbol=parameter, symtab=self.symtab)
+            statl += [loadparameter, loadptr]
+        else:
+            array_pointer = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
+            loadptr = LoadPtrToSym(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
+
+            statl += [loadptr]
+
         src = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
-        add = BinStat(dest=src, op='plus', srca=ptrreg, srcb=off, symtab=self.symtab)
-        statl += [loadptr, add]
+        add = BinStat(dest=src, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
+        statl += [add]
 
         statl += [LoadStat(dest=dest, symbol=src, symtab=self.symtab)]
         return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
@@ -586,18 +602,24 @@ class BinExpr(Expr):
         return self.children[1:]
 
     def lower(self):
+        stats = [self.children[1], self.children[2]]
+
         srca = self.children[1].destination()
         srcb = self.children[2].destination()
 
-        # Type promotion
-        if ('unsigned' in srca.stype.qual_list) and ('unsigned' in srcb.stype.qual_list):
-            desttype = Type(None, max(srca.stype.size, srcb.stype.size), 'Int', ['unsigned'])
-        elif srca.stype.name == srcb.stype.name:
+        # type checking
+        if srca.stype.name == srcb.stype.name:
             desttype = TYPENAMES[srca.stype.name]
-        elif srca.stype.is_numeric() and srcb.stype.is_numeric():
-            desttype = Type(None, max(srca.stype.size, srcb.stype.size), 'Int')
+        elif srca.stype.is_numeric() and srcb.stype.is_numeric():  # apply a mask to the smallest operand
+            smallest_operand = srca if srca.stype.size < srcb.stype.size else srcb
+            biggest_operand = srca if srca.stype.size > srcb.stype.size else srcb
+            stats += mask_numeric(smallest_operand, self.symtab)
+            desttype = Type(biggest_operand.stype.name, biggest_operand.stype.size, 'Int')
         else:
             raise RuntimeError(f"Trying to operate on two factors of different types ({srca.stype.name} and {srcb.stype.name})")
+
+        if ('unsigned' in srca.stype.qualifiers) and ('unsigned' in srcb.stype.qualifiers):
+            desttype.qualifiers += ['unsigned']
 
         if self.children[0] in BINARY_CONDITIONALS:
             dest = new_temporary(self.symtab, TYPENAMES['boolean'])
@@ -606,8 +628,8 @@ class BinExpr(Expr):
 
         if self.children[0] not in ["slash", "mod"]:
             stmt = BinStat(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
-            statl = [self.children[1], self.children[2], stmt]
-            return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
+            stats += [stmt]
+            return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
         elif self.children[0] == "mod":
             """
@@ -626,8 +648,8 @@ class BinExpr(Expr):
             """
             if isinstance(self.children[2].children[0], LoadImmStat) and log(self.children[2].children[0].val, 2).is_integer():
                 stmt = BinStat(dest=dest, op="mod", srca=srca, srcb=srcb, symtab=self.symtab)
-                statl = [self.children[1], self.children[2], stmt]
-                return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
+                stats += [stmt]
+                return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
             condition_variable = new_temporary(self.symtab, TYPENAMES['int'])
             loop_condition = BinStat(dest=condition_variable, op='geq', srca=srca, srcb=srcb, symtab=self.symtab)
@@ -639,7 +661,7 @@ class BinExpr(Expr):
 
             result_store = StoreStat(dest=dest, symbol=srca, killhint=dest, symtab=self.symtab)
 
-            stats = [self.children[1], self.children[2], while_loop, result_store]
+            stats += [while_loop, result_store]
             statl = StatList(children=stats, symtab=self.symtab)
 
             # XXX: we need to lower it manually since it didn't exist before
@@ -673,7 +695,7 @@ class BinExpr(Expr):
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
 
-            stats = [self.children[1], self.children[2], zero_destination, load_one, while_loop]
+            stats += [zero_destination, load_one, while_loop]
             statl = StatList(children=stats, symtab=self.symtab)
 
             # XXX: we need to lower it manually since it didn't exist before
@@ -991,24 +1013,37 @@ class AssignStat(Stat):
         return [self.symbol]
 
     def lower(self):
-        """Assign statements translate to a store stmt, with the symbol and a
-        temporary as parameters."""
         src = self.expr.destination()
         dst = self.symbol
 
         stats = [self.expr]
 
         if not dst.is_string():
-            if self.offset:
+            if self.offset:  # TODO: this is the same as ArrayElement, but with a store instead of a load, merge the two
+                stats += [self.offset]
+
                 off = self.offset.destination()
                 desttype = dst.stype
                 if isinstance(desttype, ArrayType):  # this is always true at the moment
                     desttype = desttype.basetype
-                ptrreg = new_temporary(self.symtab, PointerType(desttype))
-                loadptr = LoadPtrToSym(dest=ptrreg, symbol=dst, symtab=self.symtab)
+
+                if self.symbol.alloct == 'param':
+                    # pass by reference, we have to deallocate the pointer twice
+                    parameter = new_temporary(self.symtab, PointerType(PointerType(self.symbol.stype.basetype)))
+                    loadparameter = LoadPtrToSym(dest=parameter, symbol=self.symbol, symtab=self.symtab)
+
+                    array_pointer = new_temporary(self.symtab, PointerType(desttype))
+                    loadptr = LoadStat(dest=array_pointer, symbol=parameter, symtab=self.symtab)
+                    stats += [loadparameter, loadptr]
+                else:
+                    array_pointer = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
+                    loadptr = LoadPtrToSym(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
+
+                    stats += [loadptr]
+
                 dst = new_temporary(self.symtab, PointerType(desttype))
-                add = BinStat(dest=dst, op='plus', srca=ptrreg, srcb=off, symtab=self.symtab)
-                stats += [self.offset, loadptr, add]
+                add = BinStat(dest=dst, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
+                stats += [add]
 
             stats += [StoreStat(dest=dst, symbol=src, symtab=self.symtab)]
 
@@ -1086,6 +1121,14 @@ class PrintStat(Stat):
             print_type = TYPENAMES['char']
         elif self.children[0] and self.children[0].destination().is_boolean():
             print_type = TYPENAMES['boolean']
+        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 16 and 'unsigned' in self.children[0].destination().stype.qualifiers:
+            print_type = TYPENAMES['ushort']
+        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 8 and 'unsigned' in self.children[0].destination().stype.qualifiers:
+            print_type = TYPENAMES['ubyte']
+        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 16:
+            print_type = TYPENAMES['short']
+        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 8:
+            print_type = TYPENAMES['byte']
 
         pc = PrintCommand(src=self.children[0].destination(), print_type=print_type, symtab=self.symtab)
         stlist = StatList(children=[self.children[0], pc], symtab=self.symtab)
@@ -1168,6 +1211,24 @@ class ReturnStat(Stat):
         for child in self.children:
             child.parent = self
 
+    def type_checking(self, returns, function_returns):
+        masks = []
+
+        for i in range(len(returns)):
+            if returns[i].stype.name == function_returns[i].stype.name:
+                continue
+
+            if returns[i].stype.is_numeric() and function_returns[i].stype.is_numeric():
+                if returns[i].stype.size > function_returns[i].stype.size:
+                    continue  # we can return, for example, a byte as an int
+
+                masks += mask_numeric(returns[i], self.symtab)
+                continue
+
+            raise RuntimeError(f"Trying to return a value of type {returns[i].stype.name} instead of {function_returns[i].stype.name}")
+
+        return masks
+
     def lower(self):
         stats = self.children
 
@@ -1182,6 +1243,7 @@ class ReturnStat(Stat):
             raise RuntimeError(f"Too many values are being returned in function {function_definition.symbol.name}")
 
         returns = [x.destination() for x in self.children]
+        stats += self.type_checking(returns, function_definition.returns)
 
         stats.append(BranchStat(parent=self, target=None, parameters=function_definition.parameters, returns=returns, symtab=self.symtab))
 
@@ -1244,7 +1306,11 @@ class BranchStat(Stat):  # low-level node
 
     def human_repr(self):
         if self.is_return():
-            return 'return to previous function'
+            r = ""
+            if len(self.returns) > 0:
+                r = " -> "
+                r += cyan(f"({', '.join([x.name for x in self.returns])})")
+            return f"return to caller{r}"
         elif self.is_call():
             h = 'call'
         else:

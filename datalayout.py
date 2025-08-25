@@ -9,9 +9,9 @@ Function parameters exist only in the called function and its nested
 children, and are also referenced using stack offset (even though some
 of them are passed in registers)"""
 
-from codegenhelp import CALLEE_OFFSET
+from codegenhelp import CALLEE_OFFSET, REGISTER_SIZE
 from logger import cyan
-from ir import DataSymbolTable
+from ir import DataSymbolTable, ArrayType
 
 
 class SymbolLayout(object):
@@ -62,9 +62,10 @@ def perform_data_layout_of_function(funcroot):
             continue
 
         bsize = var.stype.size // 8
+        padding = 4 - bsize
 
         name = f"_l_{fname}_{var.name}"
-        offs -= bsize
+        offs -= bsize + padding
         var.set_alloc_info(LocalSymbolLayout(name, offs, bsize))
 
     # how much space to reserve to local variables
@@ -78,12 +79,17 @@ def perform_data_layout_of_function(funcroot):
     for i in range(len(funcroot.parameters) - 1, -1, -1):
         parameter = funcroot.parameters[i]
         name = f"_p_{fname}_{parameter.name}"
-        bsize = parameter.stype.size // 8  # in byte TODO: check: since these have to be put on the stack, is there an alignment problem?
+        bsize = parameter.stype.size // 8  # in byte
+
+        if isinstance(parameter.stype, ArrayType):  # pass by reference
+            bsize = REGISTER_SIZE // 8
+
+        padding = 4 - bsize
         if i < 4:
-            negative_offs -= bsize
+            negative_offs -= bsize + padding
             parameter.set_alloc_info(LocalSymbolLayout(name, negative_offs, bsize))
         else:
-            positive_offs += bsize
+            positive_offs += bsize + padding
             parameter.set_alloc_info(LocalSymbolLayout(name, positive_offs, bsize))
 
     print(f"{cyan(f'{funcroot.symbol.name}')} {funcroot.body.symtab}")

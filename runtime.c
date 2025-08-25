@@ -9,9 +9,33 @@
 extern void __pl0_start(void);
 
 
-void __pl0_print_digit(int param)
+void __pl0_print_integer(int param)
 {
   printf("%d\n", param);
+}
+
+
+void __pl0_print_short(short param)
+{
+  printf("%hd\n", param);
+}
+
+
+void __pl0_print_byte(char param)
+{
+  printf("%hhd\n", param);
+}
+
+
+void __pl0_print_unsigned_short(unsigned short param)
+{
+  printf("%hu\n", param);
+}
+
+
+void __pl0_print_unsigned_byte(unsigned char param)
+{
+  printf("%hhu\n", param);
 }
 
 
