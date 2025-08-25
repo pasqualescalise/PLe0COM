@@ -205,7 +205,7 @@ class Symbol:
 
     def is_string(self):
         """A Symbol references a string if it's of type char[] or &char"""
-        return self.is_array() and self.stype.basetype.name == "char" or isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char"
+        return (self.is_array() and self.stype.basetype.name == "char") or (isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char")
 
     def is_boolean(self):
         return isinstance(self.stype, BooleanType)
@@ -488,9 +488,12 @@ class Var(IRNode):
         return [self.symbol]
 
     def lower(self):
-        """Var translates to a load statement to the same temporary that is used in
-        a following stage for doing the computations (destination())"""
-        if isinstance(self.symbol.stype, ArrayType) and self.symbol.alloct != 'param':  # load arrays as pointers
+        if self.symbol.is_string():  # load strings as char pointers
+            ptrreg = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
+            loadptr = LoadPtrToSym(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+            return self.parent.replace(self, StatList(children=[loadptr], symtab=self.symtab))
+
+        elif isinstance(self.symbol.stype, ArrayType) and self.symbol.alloct != 'param':  # load arrays as pointers
             ptrreg = new_temporary(self.symtab, PointerType(PointerType(self.symbol.stype.basetype)))
             loadptr = LoadPtrToSym(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
             return self.parent.replace(self, StatList(children=[loadptr], symtab=self.symtab))
@@ -563,12 +566,12 @@ class String(IRNode):
         return []
 
     def lower(self):
-        # put the string in the data SymbolTable TODO: should it be char[] or just char?
-        data_variable = Symbol(name=new_variable_name(), stype=TYPENAMES['char'], value=self.value, alloct='data')
+        # put the string in the data SymbolTable
+        data_variable = Symbol(name=new_variable_name(), stype=ArrayType(None, [len(self.value) + 1], TYPENAMES['char']), value=self.value, alloct='data')
         DataSymbolTable.add_data_symbol(data_variable)
 
         # load the fixed data string address
-        ptrreg_data = new_temporary(self.symtab, PointerType(data_variable.stype))
+        ptrreg_data = new_temporary(self.symtab, PointerType(data_variable.stype.basetype))
         access_string = LoadPtrToSym(dest=ptrreg_data, symbol=data_variable, symtab=self.symtab)
 
         return self.parent.replace(self, StatList(children=[access_string], symtab=self.symtab))

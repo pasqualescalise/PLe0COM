@@ -562,7 +562,7 @@ UnaryStat.codegen = unarystat_codegen
 def generate_data_section():
     res = ii(".data\n")
     for symbol in DataSymbolTable.get_data_symtab():
-        if symbol.stype.name == "char":
+        if isinstance(symbol.stype, ArrayType) and symbol.stype.basetype.name == "char":
             res += ii(f"{symbol.name}: .asciz \"{symbol.value}\"\n")
         else:
             raise NotImplementedError("Don't have implemented storing non-string values is .data section")
