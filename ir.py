@@ -772,9 +772,6 @@ class CallStat(Stat):
         super().__init__(parent, parameters, symtab)
         self.function_symbol = function_symbol
         self.returns = returns
-        for ret in self.returns:
-            if ret != "_":
-                ret.parent = self
 
     def used_variables(self):
         return self.call.used_variables() + self.symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
@@ -802,9 +799,15 @@ class CallStat(Stat):
 
         rets = []
         if len(self.returns) > 0:
-            # XXX: self.returns_storage is created in the pre-lowering phase and contains
-            #      a dictionary with the temps that need to contain the return values
-            rets = [self.returns_storage[x] if x != "_" else x for x in self.returns]
+            # XXX: self.returns_storage is created in the pre-lowering phase and it's
+            #      a list with the temporaries that will contain the return values
+            j = 0
+            for i in range(len(self.returns)):
+                if self.returns[i][0] == "_":
+                    rets.append("_")
+                else:
+                    rets.append(self.returns_storage[j])
+                    j += 1
 
         branch = BranchStat(target=self.function_symbol, parameters=parameters, returns=rets, symtab=self.symtab)
 

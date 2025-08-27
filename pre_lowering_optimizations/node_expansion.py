@@ -21,7 +21,7 @@ def add_return_assignments(self):
     function_returns = self.get_function_definition(self.function_symbol).returns
     assign_stats = []
     for i in range(len(self.returns)):
-        if self.returns[i] == "_":
+        if self.returns[i][0] == "_":
             i += 1
             continue
 
@@ -32,7 +32,7 @@ def add_return_assignments(self):
 
         # TODO: offset?
         temp = new_temporary(self.symtab, type)
-        assign_stat = AssignStat(parent=self.parent, target=self.returns[i], offset=None, expr=temp, symtab=self.symtab)
+        assign_stat = AssignStat(parent=self.parent, target=self.returns[i][0], offset=self.returns[i][1], expr=temp, symtab=self.symtab)
         assign_stats.append(assign_stat)
 
     # add the assign statements after the call
@@ -42,7 +42,7 @@ def add_return_assignments(self):
         index += 1
 
     # these temporaries are the ones that will contain the return values
-    self.returns_storage = {x.symbol: x.expr for x in assign_stats}
+    self.returns_storage = [x.expr for x in assign_stats]
 
 
 CallStat.expand = add_return_assignments

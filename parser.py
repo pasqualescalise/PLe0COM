@@ -49,7 +49,7 @@ class Parser:
 
     def array_offset(self, target, symtab):
         offset = None
-        if isinstance(target.stype, ir.ArrayType) and target.stype.basetype.basetype != 'Char' and self.new_sym == 'lspar':
+        if target.is_array() and target.stype.basetype.basetype != 'Char' and self.new_sym == 'lspar':
             idxes = []
             for i in range(0, len(target.stype.dims)):
                 self.expect('lspar')
@@ -293,10 +293,12 @@ class Parser:
                 while self.new_sym != "rparen":
                     if self.new_sym == "dontcaresym":
                         self.accept('dontcaresym')
-                        returns.append("_")
+                        returns.append(("_", None))
                     else:
                         self.accept('ident')
-                        returns.append(symtab.find(self, self.value))
+                        var = symtab.find(self, self.value)
+                        offset = self.array_offset(var, symtab)
+                        returns.append((var, offset))
 
                     if self.new_sym == "comma":
                         self.accept('comma')
@@ -517,7 +519,7 @@ class Parser:
 
             self.expect('semicolon')
 
-            procedure_symtab = ir.SymbolTable(procedure_symtab + local_symtab.exclude_alloct(['return']))
+            procedure_symtab = ir.SymbolTable(procedure_symtab + local_symtab)
             fbody = self.block(local_symtab, procedure_symtab)
 
             # restore parent_function
