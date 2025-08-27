@@ -11,7 +11,7 @@ is used for adding constant literals."""
 
 from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, check_if_variable_needs_static_link
 from datalayout import LocalSymbolLayout
-from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, ArrayType, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
+from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
 
 localconsti = 0
@@ -565,7 +565,7 @@ UnaryStat.codegen = unarystat_codegen
 def generate_data_section():
     res = ii(".data\n")
     for symbol in DataSymbolTable.get_data_symtab():
-        if isinstance(symbol.stype, ArrayType) and symbol.stype.basetype.name == "char":
+        if symbol.is_string() and symbol.value is not None:
             res += ii(f"{symbol.name}: .asciz \"{symbol.value}\"\n")
         else:
             raise NotImplementedError("Don't have implemented storing non-string values is .data section")

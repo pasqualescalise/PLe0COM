@@ -203,6 +203,9 @@ class Symbol:
     def is_pointer(self):
         return isinstance(self.stype, PointerType)
 
+    def is_scalar(self):
+        return not self.is_pointer() and not self.is_array()
+
     def is_numeric(self):
         return (self.stype.is_numeric()) or (self.is_array() and self.stype.basetype.is_numeric())
 
@@ -211,7 +214,7 @@ class Symbol:
         return (self.is_array() and self.stype.basetype.name == "char") or (isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char")
 
     def is_boolean(self):
-        return isinstance(self.stype, BooleanType)
+        return isinstance(self.stype, BooleanType) or (self.is_array() and isinstance(self.stype.basetype, BooleanType))
 
     def __repr__(self):
         base = f"{self.alloct} {self.stype.name}"
@@ -308,7 +311,7 @@ class IRNode:  # abstract
         except Exception:
             pass
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values'} & set(dir(self))
 
         res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -581,6 +584,24 @@ class String(IRNode):
 
     def __deepcopy__(self, memo):
         return String(parent=self.parent, value=self.value, symtab=self.symtab)
+
+
+class StaticArray(IRNode):
+    # XXX: this doesn't get lowered, other nodes expand themselves and
+    #      access the array values one by one
+
+    def __init__(self, parent=None, values=[], type=None, size=[], symtab=None):
+        log_indentation(bold(f"New StaticArray Node (id: {id(self)})"))
+        super().__init__(parent, [], symtab)
+        self.values_type = type
+        self.values = values
+        for value in self.values:
+            value.parent = self
+
+        if size == []:
+            self.size = [len(self.values)]
+        else:
+            self.size = [len(self.values)] + size
 
 
 # EXPRESSIONS
@@ -1017,6 +1038,10 @@ class AssignStat(Stat):
         return [self.symbol]
 
     def lower(self):
+        if self.children != []:  # if it has children, it means it has been expanded
+            stats = self.children
+            return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
+
         dst = self.symbol
 
         # XXX: self.expr coud be a temporary
@@ -1057,7 +1082,10 @@ class AssignStat(Stat):
                 add = BinStat(dest=dst, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
                 stats += [add]
 
-            stats += [StoreStat(dest=dst, symbol=src, symtab=self.symtab)]
+            if dst.is_temporary and not dst.is_scalar():
+                stats += [StoreStat(dest=dst, symbol=src, killhint=dst, symtab=self.symtab)]
+            else:
+                stats += [StoreStat(dest=dst, symbol=src, symtab=self.symtab)]
 
             return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
@@ -1127,6 +1155,10 @@ class PrintStat(Stat):
         return self.children[0].used_variables()
 
     def lower(self):
+        if len(self.children) > 1:
+            stats = self.children
+            return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
+
         print_type = TYPENAMES['int']  # TODO: do something for short and byte
 
         if self.children[0] and self.children[0].destination().is_string():

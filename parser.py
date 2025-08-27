@@ -49,7 +49,7 @@ class Parser:
 
     def array_offset(self, target, symtab):
         offset = None
-        if target.is_array() and target.stype.basetype.basetype != 'Char' and self.new_sym == 'lspar':
+        if target.is_array() and self.new_sym == 'lspar':
             idxes = []
             for i in range(0, len(target.stype.dims)):
                 self.expect('lspar')
@@ -164,7 +164,11 @@ class Parser:
             var = symtab.find(self, self.new_value)
             if var.is_boolean():
                 self.accept('ident')
-                return ir.Var(var=var, symtab=symtab)
+                offset = self.array_offset(var, symtab)
+                if offset is None:
+                    return ir.Var(var=var, symtab=symtab)
+                else:
+                    return ir.ArrayElement(var=var, offset=offset, symtab=symtab)
 
         expr = self.algebraic_expression(symtab)
 
@@ -229,21 +233,54 @@ class Parser:
             var = symtab.find(self, self.new_value)
             if var.is_string():
                 self.accept('ident')
-                return ir.Var(var=var, symtab=symtab)
+                offset = self.array_offset(var, symtab)
+                if offset is None:
+                    return ir.Var(var=var, symtab=symtab)
+                else:
+                    return ir.ArrayElement(var=var, offset=offset, symtab=symtab)
 
         self.error("Can't parse string expression")
 
     @logger
+    def static_array(self, symtab):
+        values = []
+        while self.new_sym != 'rspar':
+            expr = self.expression(symtab)
+            values.append(expr)
+            if self.new_sym == "comma":
+                self.accept('comma')
+                # handle dangling commas e.g. (x, y, )
+                if self.new_sym == "rparen":
+                    self.error("Wrongly defined arguments for call to function")
+
+        self.accept('rspar')
+
+        self.accept('ident')
+        type = self.value
+        size = []
+
+        # array of arrays
+        while self.accept('lspar'):
+            self.expect('number')
+            size.append(int(self.value))
+            self.expect('rspar')
+
+        if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
+            self.error(f"The type {type} is not valid for an array")
+
+        return ir.StaticArray(values=values, type=ir.TYPENAMES[type], size=size, symtab=symtab)
+
+    @logger
     def expression(self, symtab):
+        if self.accept('lspar'):
+            return self.static_array(symtab)
+
         try:
-            expr = self.string_expression(symtab)
-            return expr
+            return self.string_expression(symtab)
         except RuntimeError:
             pass
 
-        expr = self.algebraic_expression(symtab)
-
-        return expr
+        return self.algebraic_expression(symtab)
 
     @logger
     def statement(self, symtab):

@@ -5,7 +5,7 @@ structure that we want, but at the same time, we can't always relay on low-
 level nodes; in this stage, we traverse the IR tree multiple times and we
 expand high-level nodes using other high-level nodes"""
 
-from ir import CallStat, AssignStat, PointerType, new_temporary
+from ir import CallStat, AssignStat, PointerType, StaticArray, Var, Const, PrintStat, ArrayElement, new_temporary
 
 
 # Add AssignStats for each (non-dontcare) return symbol of the CallStat;
@@ -30,7 +30,6 @@ def add_return_assignments(self):
         if function_returns[i].is_array():
             type = PointerType(type.basetype)
 
-        # TODO: offset?
         temp = new_temporary(self.symtab, type)
         assign_stat = AssignStat(parent=self.parent, target=self.returns[i][0], offset=self.returns[i][1], expr=temp, symtab=self.symtab)
         assign_stats.append(assign_stat)
@@ -46,6 +45,69 @@ def add_return_assignments(self):
 
 
 CallStat.expand = add_return_assignments
+
+
+# Expand the assignment of an arry into a sequence of assignments:
+# For example:
+#   array := [1, 2, 3]int;
+#
+# Becomes:
+#   array[0] := 1
+#   array[1] := 2
+#   array[3] := 3
+def array_assign(self):
+    if not isinstance(self.expr, StaticArray):
+        return
+
+    stats = []
+
+    stride = self.expr.values_type.size // 8
+    for i in range(len(self.expr.values)):
+        assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
+        stats += [assign_stat]
+
+    self.children = stats
+
+    for child in self.children:
+        child.parent = self
+
+
+AssignStat.expand = array_assign
+
+
+# Expand a print of an array into a sequence of prints of all the array elements
+def array_print(self):
+    if not self.children[0]:
+        return
+
+    stats = []
+
+    # printing an array directly
+    if isinstance(self.children[0], StaticArray):
+        for value in self.children[0].values:
+            print_stat = PrintStat(expr=value, symtab=self.symtab)
+            stats += [print_stat]
+
+    # printing a variable referencing an array
+    elif isinstance(self.children[0], Var) and self.children[0].symbol.is_array() and not self.children[0].symbol.is_string():
+        type = self.children[0].symbol.stype.basetype
+        size = self.children[0].symbol.stype.size // type.size
+
+        stride = type.size // 8
+        for i in range(size):
+            array_access = ArrayElement(var=self.children[0].symbol, offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
+            print_stat = PrintStat(expr=array_access, symtab=self.symtab)
+            stats += [print_stat]
+    else:
+        return
+
+    self.children = stats
+
+    for child in self.children:
+        child.parent = self
+
+
+PrintStat.expand = array_print
 
 
 def node_expansion(node):
