@@ -200,6 +200,9 @@ class Symbol:
     def is_array(self):
         return isinstance(self.stype, ArrayType)
 
+    def is_pointer(self):
+        return isinstance(self.stype, PointerType)
+
     def is_numeric(self):
         return (self.stype.is_numeric()) or (self.is_array() and self.stype.basetype.is_numeric())
 
@@ -488,12 +491,12 @@ class Var(IRNode):
         return [self.symbol]
 
     def lower(self):
-        if self.symbol.is_string():  # load strings as char pointers
+        if self.symbol.is_string() and self.symbol.alloct != 'param':  # load strings as char pointers
             ptrreg = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
             loadptr = LoadPtrToSym(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
             return self.parent.replace(self, StatList(children=[loadptr], symtab=self.symtab))
 
-        elif isinstance(self.symbol.stype, ArrayType) and self.symbol.alloct != 'param':  # load arrays as pointers
+        elif self.symbol.is_array() and self.symbol.alloct != 'param':  # load arrays as pointers
             ptrreg = new_temporary(self.symtab, PointerType(PointerType(self.symbol.stype.basetype)))
             loadptr = LoadPtrToSym(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
             return self.parent.replace(self, StatList(children=[loadptr], symtab=self.symtab))
@@ -796,21 +799,16 @@ class CallStat(Stat):
         self.check_parameters_and_returns(function_definition)
 
         parameters = [x.destination() for x in self.children]
-        rets = []  # filled later
+
+        rets = []
+        if len(self.returns) > 0:
+            # XXX: self.returns_storage is created in the pre-lowering phase and contains
+            #      a dictionary with the temps that need to contain the return values
+            rets = [self.returns_storage[x] if x != "_" else x for x in self.returns]
 
         branch = BranchStat(target=self.function_symbol, parameters=parameters, returns=rets, symtab=self.symtab)
 
         stats = self.children + [branch]
-
-        # store the returned values in the destination symbols
-        # this must be done here because it happens after the branch
-        for i in range(len(self.returns)):
-            if self.returns[i] != "_":
-                temp = new_temporary(self.symtab, function_definition.returns[i].stype)
-                stats += [StoreStat(symbol=temp, dest=self.returns[i], symtab=self.symtab)]
-                rets.append(temp)
-            else:
-                rets.append("_")
 
         return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
@@ -1016,10 +1014,18 @@ class AssignStat(Stat):
         return [self.symbol]
 
     def lower(self):
-        src = self.expr.destination()
         dst = self.symbol
 
-        stats = [self.expr]
+        # XXX: self.expr coud be a temporary
+        try:
+            src = self.expr.destination()
+            stats = [self.expr]
+        except AttributeError as e:
+            if self.expr.is_temporary:
+                src = self.expr
+                stats = []
+            else:
+                raise e
 
         if not dst.is_string():
             if self.offset:  # TODO: this is the same as ArrayElement, but with a store instead of a load, merge the two
@@ -1030,7 +1036,7 @@ class AssignStat(Stat):
                 if isinstance(desttype, ArrayType):  # this is always true at the moment
                     desttype = desttype.basetype
 
-                if self.symbol.alloct == 'param':
+                if self.symbol.alloct == 'param' or self.symbol.is_string():
                     # pass by reference, we have to deallocate the pointer twice
                     parameter = new_temporary(self.symtab, PointerType(PointerType(self.symbol.stype.basetype)))
                     loadparameter = LoadPtrToSym(dest=parameter, symbol=self.symbol, symtab=self.symtab)
@@ -1226,6 +1232,11 @@ class ReturnStat(Stat):
                     continue  # we can return, for example, a byte as an int
 
                 masks += mask_numeric(returns[i], self.symtab)
+                continue
+
+            # check if we're returning a pointer when we were expecting an array, it's good since we only return references
+            # TODO: check that we are not returning local references
+            if returns[i].is_pointer() and function_returns[i].is_array() and (returns[i].stype.pointstotype.name == function_returns[i].stype.basetype.name):
                 continue
 
             raise RuntimeError(f"Trying to return a value of type {returns[i].stype.name} instead of {function_returns[i].stype.name}")

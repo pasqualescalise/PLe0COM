@@ -266,7 +266,7 @@ def read_codegen(self, regalloc):
 ReadCommand.codegen = read_codegen
 
 
-# TODO: documentation on th ABI
+# TODO: documentation on the ABI
 def call_codegen(call, regalloc):
     res = ""
 
@@ -403,7 +403,7 @@ def storestat_codegen(self, regalloc):
     res = ''
     trail = ''
 
-    if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.dest.stype, PointerType):
+    if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.dest.is_pointer():
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         res += regalloc.gen_spill_store_if_necessary(self.dest)
@@ -429,7 +429,10 @@ def storestat_codegen(self, regalloc):
             res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, {label}\n")
             dest = f"[{get_register_string(REG_SCRATCH)}]"
 
-    if isinstance(self.dest.stype, PointerType):
+    # XXX: not entirely sure about this
+    if self.dest.is_array():
+        desttype = PointerType(self.dest.stype.basetype)
+    elif self.dest.is_pointer():
         desttype = self.dest.stype.pointstotype
     else:
         desttype = self.dest.stype
@@ -450,7 +453,7 @@ def loadstat_codegen(self, regalloc):
     res = ''
     trail = ''
 
-    if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not isinstance(self.symbol.stype, PointerType):
+    if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.symbol.is_pointer():
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         res += regalloc.gen_spill_store_if_necessary(self.dest)
@@ -477,9 +480,9 @@ def loadstat_codegen(self, regalloc):
             src = f"[{get_register_string(REG_SCRATCH)}]"
 
     # XXX: not entirely sure about this
-    if isinstance(self.symbol.stype, ArrayType):
+    if self.symbol.is_array():
         desttype = PointerType(self.symbol.stype.basetype)
-    elif isinstance(self.symbol.stype, PointerType):
+    elif self.symbol.is_pointer():
         desttype = self.symbol.stype.pointstotype
     else:
         desttype = self.symbol.stype

@@ -114,4 +114,4 @@ def perform_data_layout_of_program(root):
 
 def perform_data_layout_of_data_variables():
     for symbol in DataSymbolTable.get_data_symtab():
-        symbol.set_alloc_info(GlobalSymbolLayout(symbol.name, symbol.stype.size))
+        symbol.set_alloc_info(GlobalSymbolLayout(symbol.name, symbol.stype.size // 8))

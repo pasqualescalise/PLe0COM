@@ -1,0 +1,56 @@
+VAR result : boolean;
+VAR result_string[30] : char;
+
+{TODO: arrays of booleans and strings}
+
+PROCEDURE is_true(condition : boolean) -> (boolean);
+	BEGIN
+		if condition then begin
+			return (True)
+		end;
+		return (False)
+	END;
+
+PROCEDURE print_string(string[100] : char);
+	BEGIN
+		print string
+	END;
+
+PROCEDURE even_or_odd(number : short, invert : boolean) -> (char[5]);
+	BEGIN
+		if odd number and invert then begin
+			return ("Even")
+		end elif odd number and not invert then begin
+			return ("Odd")
+		end elif not odd number and invert then begin
+			return ("Odd")
+		end else begin
+			return ("Even")
+		end
+	END;
+
+BEGIN
+	CALL is_true(True) -> (result);
+	print result;
+	CALL is_true(False) -> (result);
+	print result;
+	CALL is_true(3 > 2) -> (result);
+	print result;
+	CALL is_true(3 > 4) -> (result);
+	print result;
+	CALL is_true(odd 3) -> (result);
+	print result;
+	CALL is_true(odd 3 and (True or False)) -> (result);
+	print result;
+	CALL print_string("Hello World!");
+	result_string := "Result?";
+	CALL print_string(result_string);
+	CALL even_or_odd(3, False) -> (result_string);
+	CALL print_string(result_string);
+	CALL even_or_odd(2, False) -> (result_string);
+	CALL print_string(result_string);
+	CALL even_or_odd(2, True) -> (result_string);
+	CALL print_string(result_string);
+	CALL even_or_odd(3, 3 > 2) -> (result_string);
+	CALL print_string(result_string)
+END.
