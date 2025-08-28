@@ -11,7 +11,7 @@ I'm using it to experiment and have fun with compiler stuff
 ## Extended features
 
 + Functions can accept parameters and can return values; callers can ignore return values
-+ Support for ints, shorts, bytes and strings (char arrays)
++ Support for ints, shorts, bytes, booleans and strings (char arrays)
 + Explicit logging: it's clear what the compiler does and why (with colors!)
 + More ControlFlowGraph analysis
 + Optimizations
@@ -22,6 +22,7 @@ I'm using it to experiment and have fun with compiler stuff
 	+ Loop Unrolling
 + Fully working test suite
 + PEP8 compliant (except E501)
++ ARM ABI compliant (circa, since we can return multiple values)
 
 ## Dependencies
 
@@ -101,4 +102,4 @@ make -s testall
 
 compiles and executes all tests, checking if their output is the expected one
 
-To add a new test, put it in the `tests` directory, then add its expected output in the `tests/expected/` directory in a file with the same name as the test and extension ".expected"; you can check if tests file with a specific message by putting that error message in the `.expected` file
+To add a new test, put it in the `tests` directory, then add its expected output in the `tests/expected/` directory in a file with the same name as the test and extension ".expected"; you can check if tests fail with a specific message by putting that error message in the `.expected` file
