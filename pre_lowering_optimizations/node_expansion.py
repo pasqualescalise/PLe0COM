@@ -6,6 +6,7 @@ level nodes; in this stage, we traverse the IR tree multiple times and we
 expand high-level nodes using other high-level nodes"""
 
 from ir import CallStat, AssignStat, PointerType, StaticArray, Var, Const, PrintStat, ArrayElement, new_temporary
+from support import get_node_list
 
 
 # Add AssignStats for each (non-dontcare) return symbol of the CallStat;
@@ -112,11 +113,23 @@ PrintStat.expand = array_print
 
 def node_expansion(node):
     try:
-        node.expand()
-    except AttributeError as e:
-        if not str(e).endswith("has no attribute 'expand'"):
-            raise RuntimeError(f"Raised AttributeError {e}")
+        if node.expanded:
+            return
+    except AttributeError:
+        try:
+            node.expanded = True
+            node.expand()
+        except AttributeError as e:
+            if not str(e).endswith("has no attribute 'expand'"):
+                raise RuntimeError(f"Raised AttributeError {e}")
 
 
+# Try to expand the program until everything has been expanded
 def perform_node_expansion(program):
-    program.navigate(node_expansion, quiet=True)
+    program_size = len(get_node_list(program, quiet=True))
+    old_program_size = 0
+    while old_program_size < program_size:
+        program.navigate(node_expansion, quiet=True)
+
+        old_program_size = program_size
+        program_size = len(get_node_list(program, quiet=True))
