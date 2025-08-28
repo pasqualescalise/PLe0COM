@@ -5,7 +5,7 @@ when possible, directly replace the function call with its code"""
 
 from copy import deepcopy
 
-from ir import BranchStat, StoreStat, SaveSpaceStat, LoadStat, TYPENAMES, EmptyStat, new_temporary
+from ir import BranchStat, StoreStat, LoadStat, TYPENAMES, EmptyStat
 from logger import green, magenta
 
 
@@ -49,49 +49,49 @@ def remove_returns(instructions, returns):
     return instructions
 
 
-def remove_save_space_statements(instructions, number_of_parameters, number_of_returns):
-    if number_of_parameters > 0 and isinstance(instructions[-(number_of_parameters + 1)], SaveSpaceStat):
-        instructions = instructions[:-(number_of_parameters + 1)] + instructions[-(number_of_parameters):]
-    if number_of_returns > 0 and isinstance(instructions[-1], SaveSpaceStat):
-        instructions = instructions[:-1]
+# Whenever there's a return, add before the StoreStats that put the value
+# returned by the inlined function into the symbol used by the inliner function
+def add_returns_stores(instructions, returns):
+    stores_indices = []
+
+    for i in range(len(instructions)):
+        instruction = instructions[i]
+        instruction.marked_for_removal = False
+
+        if isinstance(instruction, BranchStat) and instruction.is_return():
+            new_stores = []
+            for j in range(len(returns)):
+                if returns[j] != "_":  # skip dontcares
+                    new_store = StoreStat(parent=instruction.parent, dest=returns[j], symbol=instruction.returns[j], killhint=returns[j], symtab=instruction.symtab)
+                    new_stores.append(new_store)
+            stores_indices.append((i, new_stores))
+
+    for stores_index in reversed(stores_indices):  # reversed order otherwise the indices get mixed
+        i = stores_index[0]  # index in the instruction list
+        for storestat in stores_index[1]:
+            instructions.insert(i, storestat)
+            i += 1
+
     return instructions
 
 
-# Remove dontcares: note that this breaks RegisterAllocation, since the
-# symbol used for the dontcare is never live; but this gets later solved
-# using Dead Variable Elimination
-def remove_dont_cares(instructions, returns, returns_destinations):
-    i = 0
-    instrs = instructions[:]
-    for ret in returns:
-        instruction = instructions[i]
-        if isinstance(instruction, SaveSpaceStat) and instruction.space_needed > 0:  # saving space for a return
-            instrs.remove(instruction)
-            i += 1
-        else:
-            i += 2  # not a dontcare, skip the assignment
-    return instrs
-
-
-# Change all StoreStat destinations from variables to temporaries, returning
-# the mapping of the variables to the temporaries
-def change_stores(instructions, variables):
+# Map the symbols used in the functions with the ones used in the call
+# and return a dictionary mapping the two
+def map_symbols(function_symbols, call_symbols):
     destinations = {}
-    for var in variables:
-        destinations[var] = new_temporary(instructions[0].symtab, var.stype)
+    for i in range(len(function_symbols)):
+        destinations[function_symbols[i]] = call_symbols[i]
 
-    for instruction in instructions:
-        if isinstance(instruction, StoreStat) and instruction.dest in destinations:
-            instruction.dest = destinations[instruction.dest]
-            instruction.killhint = instruction.dest
-
-    return instructions, destinations
+    return destinations
 
 
 # Change all LoadStat symbols from variables to temporaries using the provided mapping
 def change_loads(instructions, destinations):
     for instruction in instructions:
         if isinstance(instruction, LoadStat) and instruction.symbol in destinations:
+            if instruction.symbol.is_array() and destinations[instruction.symbol].is_pointer():
+                # fix pass-by-reference, instead this becomes a move of the array address
+                destinations[instruction.symbol].stype = instruction.symbol.stype
             instruction.symbol = destinations[instruction.symbol]
 
     return instructions
@@ -105,50 +105,55 @@ def inline(self):
     if not self.is_call():
         return
 
-    if len(self.target_definition.body.body.children) < MAX_INSTRUCTION_TO_INLINE:
-        target_definition_copy = deepcopy(self.target_definition)
+    target_definition = self.get_function_definition(self.target)
+    if len(target_definition.body.body.children) >= MAX_INSTRUCTION_TO_INLINE:
+        return
 
-        if self.get_function() != 'main':
-            target_definition_copy.symbol = self.get_function().symbol
-        else:
-            target_definition_copy.symbol = "main"  # TODO: check if this creates problems, it shouldn't since target_definition_copy isn't used after this function
+    # avoid inlining recursive functions
+    if self.get_function() != 'main':
+        if self.target == self.get_function().symbol:
+            return
 
-        # split the current function in before:body-of-the-function-to-inline:after
-        index = self.parent.children.index(self)
-        previous_instructions = self.parent.children[:index]
-        function_instructions = target_definition_copy.body.body.children
-        next_instructions = self.parent.children[index + 1:]
+    target_definition_copy = deepcopy(target_definition)
 
-        function_instructions = replace_temporaries(function_instructions)
-        function_instructions = remove_returns(function_instructions, target_definition_copy.returns)
-        previous_instructions = remove_save_space_statements(previous_instructions, len(target_definition_copy.parameters), len(target_definition_copy.returns))
+    if self.get_function() != 'main':
+        target_definition_copy.symbol = self.get_function().symbol
+    else:
+        target_definition_copy.symbol = "main"  # TODO: check if this creates problems, it shouldn't since target_definition_copy isn't used after this function
 
-        # change parameters stores and loads into movs between registers
-        previous_instructions, parameters_destinations = change_stores(previous_instructions, target_definition_copy.parameters)
-        function_instructions = change_loads(function_instructions, parameters_destinations)
+    # split the current function in before:body-of-the-function-to-inline:after
+    index = self.parent.children.index(self)
+    previous_instructions = self.parent.children[:index]
+    function_instructions = target_definition_copy.body.body.children
+    next_instructions = self.parent.children[index + 1:]
 
-        # change returns stores and loads into movs between registers
-        function_instructions, returns_destinations = change_stores(function_instructions, target_definition_copy.returns)
-        next_instructions[:len(target_definition_copy.returns) * 2] = change_loads(next_instructions[:len(target_definition_copy.returns) * 2], returns_destinations)  # this only affects the instructions that load the returned variables
+    function_instructions = replace_temporaries(function_instructions)
 
-        next_instructions = remove_dont_cares(next_instructions, target_definition_copy.returns, returns_destinations)
+    # change parameters stores and loads into movs between registers
+    parameters_destinations = map_symbols(target_definition_copy.parameters, self.parameters)
+    function_instructions = change_loads(function_instructions, parameters_destinations)
 
-        # recompact everything
-        self.parent.children = previous_instructions + function_instructions + next_instructions
+    # add instructions to store return variables in the correct registers
+    function_instructions = add_returns_stores(function_instructions, self.returns)
+    function_instructions = remove_returns(function_instructions, target_definition_copy.returns)
 
-        for local_symbol in self.target_definition.body.local_symtab:
+    # recompact everything
+    self.parent.children = previous_instructions + function_instructions + next_instructions
+
+    for local_symbol in target_definition.body.local_symtab:
+        if local_symbol not in self.parent.parent.local_symtab:
             self.parent.parent.local_symtab.append(local_symbol)
 
-        for child in self.parent.children:
-            child.parent = self.parent
+    for child in self.parent.children:
+        child.parent = self.parent
 
-        # reference counting: if no one is calling the inlined function, it can be removed
-        self.target_definition.called_by_counter -= 1
+    # reference counting: if no one is calling the inlined function, it can be removed
+    target_definition.called_by_counter -= 1
 
-        if self.get_function() == 'main':
-            print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
-        else:
-            print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
+    if self.get_function() == 'main':
+        print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
+    else:
+        print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
 
 
 BranchStat.inline = inline

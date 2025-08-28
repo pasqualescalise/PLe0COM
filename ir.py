@@ -1082,7 +1082,7 @@ class AssignStat(Stat):
                 add = BinStat(dest=dst, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
                 stats += [add]
 
-            if dst.is_temporary and not dst.is_scalar():
+            if dst.is_temporary and dst.is_scalar():
                 stats += [StoreStat(dest=dst, symbol=src, killhint=dst, symtab=self.symtab)]
             else:
                 stats += [StoreStat(dest=dst, symbol=src, symtab=self.symtab)]
@@ -1143,7 +1143,8 @@ class AssignStat(Stat):
 
     def __deepcopy__(self, memo):
         new_expr = deepcopy(self.expr, memo)
-        return AssignStat(parent=self.parent, target=self.symbol, offset=self.offset, expr=new_expr, symtab=self.symtab)
+        new_offset = deepcopy(self.offset, memo)
+        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, symtab=self.symtab)
 
 
 class PrintStat(Stat):
@@ -1395,8 +1396,38 @@ class BranchStat(Stat):  # low-level node
                 mapping[self.target] = new_target
                 self.target = new_target
 
+        new_parameters = []
+        for parameter in self.parameters:
+            if parameter.is_temporary:
+                if parameter in mapping:
+                    new_parameters.append(mapping[parameter])
+                elif create_new:
+                    new_parameter = new_temporary(self.symtab, parameter.stype)
+                    mapping[parameter] = new_parameter
+                    new_parameters.append(new_parameter)
+                else:
+                    new_parameters.append(parameter)
+            else:
+                new_parameters.append(parameter)
+        self.parameters = new_parameters
+
+        new_returns = []
+        for ret in self.returns:
+            if ret != "_" and ret.is_temporary:
+                if ret in mapping:
+                    new_returns.append(mapping[ret])
+                elif create_new:
+                    new_return = new_temporary(self.symtab, ret.stype)
+                    mapping[ret] = new_return
+                    new_returns.append(new_return)
+                else:
+                    new_returns.append(ret)
+            else:
+                new_returns.append(ret)
+        self.returns = new_returns
+
     def __deepcopy__(self, memo):
-        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, symtab=self.symtab)
+        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, parameters=self.parameters, returns=self.returns, symtab=self.symtab)
 
 
 class EmptyStat(Stat):  # low-level node
