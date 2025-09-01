@@ -36,6 +36,21 @@ PROCEDURE function_with_if_elif_else(x, y : int) -> (int);
 		return (-1)
 	END;
 
+PROCEDURE function_with_if_elif_no_else(x, y : int) -> (int);
+	BEGIN
+		if x = 1 then begin
+			return (1)
+		end elif x = 2 then begin
+			return (2)
+		end elif x = 3 then begin
+			return (3)
+		end elif x = 4 then begin
+			return (4)
+		end;
+
+		return (y)
+	END;
+
 PROCEDURE function_with_if_and_dangling_return(x, y : int) -> (int);
 	BEGIN
 		if x > 1 then begin
@@ -59,6 +74,8 @@ BEGIN
 	CALL function_with_if_else(1, 2) -> (result1);
 	print result1;
 	CALL function_with_if_elif_else(1, 2) -> (result1);
+	print result1;
+	CALL function_with_if_elif_no_else(5, 100) -> (result1);
 	print result1;
 	CALL function_with_if_and_dangling_return(1, 2) -> (result1);
 	print result1

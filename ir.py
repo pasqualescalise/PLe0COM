@@ -886,7 +886,7 @@ class IfStat(Stat):
             elif_label = TYPENAMES['label']()
             self.elifspart.children[i + 1].set_label(elif_label)
             branch_to_elif = BranchStat(cond=self.elifspart.children[i].destination(), target=elif_label, symtab=self.symtab)
-            stats = stats[:] + [self.elifspart.children[i], branch_to_elif]
+            stats += [self.elifspart.children[i], branch_to_elif]
 
         # NOTE: in general, avoid putting an exit label and a branch to it if the
         #       last instruction is a return
@@ -895,15 +895,19 @@ class IfStat(Stat):
         if self.elsepart:
             last_else_instruction = self.elsepart.children[0].children[-1]
             if isinstance(last_else_instruction, BranchStat) and last_else_instruction.is_return():
-                stats = stats[:] + [self.elsepart]
+                stats += [self.elsepart]
                 no_exit_label = True
             else:
-                stats = stats[:] + [self.elsepart, branch_to_exit]
+                stats += [self.elsepart, branch_to_exit]
+        else:  # there is no else, but there are elifs, jump to the end if no elif condition are met
+            if len(self.elifspart.children) > 0:
+                no_exit_label = False
+                stats += [branch_to_exit]
 
-        stats.append(self.thenpart)
+        stats += [self.thenpart]
         last_then_instruction = self.thenpart.children[0].children[-1]
         if not (isinstance(last_then_instruction, BranchStat) and last_then_instruction.is_return()):
-            stats.append(branch_to_exit)
+            stats += [branch_to_exit]
 
         # elifs statements
         for i in range(0, len(self.elifspart.children), 2):
@@ -911,14 +915,14 @@ class IfStat(Stat):
             last_elif_instruction = elifspart.children[0].children[-1]
 
             if isinstance(last_elif_instruction, BranchStat) and last_elif_instruction.is_return():
-                stats = stats[:] + [elifspart]
+                stats += [elifspart]
                 no_exit_label &= True
             else:
-                stats = stats[:] + [elifspart, branch_to_exit]
+                stats += [elifspart, branch_to_exit]
                 no_exit_label &= False  # if a single elif needs the exit label, put it there
 
         if not no_exit_label:
-            stats.append(exit_stat)
+            stats += [exit_stat]
 
         stat_list = StatList(self.parent, stats, self.symtab)
         return self.parent.replace(self, stat_list)
