@@ -103,7 +103,7 @@ class BasicBlock(object):
     def remove_useless_next(self):
         """Check if unconditional branch, in that case remove next"""
         try:
-            if self.instrs[-1].is_unconditional():
+            if self.instrs[-1].is_unconditional() and not self.instrs[-1].is_call():
                 self.next = None
         except AttributeError:
             pass
