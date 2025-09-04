@@ -59,6 +59,15 @@ PROCEDURE function_with_if_and_dangling_return(x, y : int) -> (int);
 		return (100)
 	END;
 
+PROCEDURE function_that_just_returns(x, y : int);
+	BEGIN
+		if x > 10 then begin
+			print y
+		end else begin
+			return ()
+		end
+	END;
+
 BEGIN
 	CALL function_simple_return() -> (result1);
 	print result1;
@@ -78,5 +87,7 @@ BEGIN
 	CALL function_with_if_elif_no_else(5, 100) -> (result1);
 	print result1;
 	CALL function_with_if_and_dangling_return(1, 2) -> (result1);
+	print result1;
+	CALL function_that_just_returns(1, 2);
 	print result1
 END.

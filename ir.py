@@ -905,11 +905,6 @@ class IfStat(Stat):
                 no_exit_label = False
                 stats += [branch_to_exit]
 
-        stats += [self.thenpart]
-        last_then_instruction = self.thenpart.children[0].children[-1]
-        if not (isinstance(last_then_instruction, BranchStat) and last_then_instruction.is_return()):
-            stats += [branch_to_exit]
-
         # elifs statements
         for i in range(0, len(self.elifspart.children), 2):
             elifspart = self.elifspart.children[i + 1]
@@ -921,6 +916,11 @@ class IfStat(Stat):
             else:
                 stats += [elifspart, branch_to_exit]
                 no_exit_label &= False  # if a single elif needs the exit label, put it there
+
+        stats += [self.thenpart]
+        last_then_instruction = self.thenpart.children[0].children[-1]
+        if not (isinstance(last_then_instruction, BranchStat) and last_then_instruction.is_return()) and not no_exit_label:
+            stats += [branch_to_exit]
 
         if not no_exit_label:
             stats += [exit_stat]
