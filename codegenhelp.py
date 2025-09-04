@@ -105,13 +105,11 @@ def load_static_chain_pointer(call):
 # parent of the function we are calling (static chain pointer): this is
 # needed only if we are trying to access a symbol of a (grand)parent function
 def access_static_chain_pointer(node, symbol):
-    function_definition = node.get_function()
+    node_function = FunctionTree.get_function_node(node.parent.parent.parent.symbol)
+    symbol_function = FunctionTree.get_function_node(symbol.function_symbol)
 
     # trying to access a symbol not defined in the current function
-    if symbol.function_symbol != function_definition.symbol:
-        node_function = FunctionTree.get_function_node(node.parent.parent.parent.symbol)
-        symbol_function = FunctionTree.get_function_node(symbol.function_symbol)
-
+    if symbol_function.symbol != node_function.symbol:
         distance = get_distance_between_functions(node_function, symbol_function)
 
         match distance:

@@ -1,3 +1,14 @@
+#!/usr/bin/env python3
+
+"""Creates a Function Tree, a tree structure that shows the relations between
+all the functions in the program; this is easier to traverse in respect to
+the full IR tree
+
+This tree can only be accessed via the static class FunctionTree"""
+
+from logger import magenta, cyan
+
+
 class FunctionNode:
     def __init__(self, symbol, children, parent=None, siblings=[]):
         self.symbol = symbol
@@ -6,7 +17,7 @@ class FunctionNode:
         self.siblings = []
 
     def __repr__(self):
-        res = f"{self.symbol.name}\n"
+        res = f"{cyan('|')} {magenta(f'{self.symbol.name}')}\n"
         for function in self.children:
             rep = repr(function).split("\n")[:-1]
             res += "\n".join([f"{' ' * 4}{s}" for s in rep])
