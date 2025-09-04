@@ -16,6 +16,7 @@ from pre_lowering_optimizations import perform_pre_lowering_optimizations
 from post_lowering_optimizations import perform_post_lowering_optimizations
 from control_flow_graph_optimizations import perform_control_flow_graph_optimizations
 from control_flow_graph_analyses import perform_control_flow_graph_analyses
+from post_code_generation_optimizations import perform_post_code_generation_optimizations
 from function_tree import FunctionTree
 
 
@@ -108,6 +109,11 @@ def compile_program(text, optimization_level):
     print(h2("CODE GENERATION"))
     code = generate_code(program, register_allocation)
     print(f"\n{green('Final compiled code: ')}\n\n{code}")
+
+    # XXX: THE LAST OPTIMIZATIONS GO HERE
+    print(h2("POST-CODE-GENERATION OPTIMIZATIONS"))
+    code = perform_post_code_generation_optimizations(code, optimization_level)
+    print(f"\n{green('Final optimized code: ')}\n\n{code}")
 
     return remove_formatting(code)
 
