@@ -50,7 +50,7 @@ def perform_data_layout(root):
 
 # Calculate the offset of all the variables in the stack, including parameters
 def perform_data_layout_of_function(funcroot):
-    offs = 0
+    offs = -4
     fname = funcroot.symbol.name
 
     # local variables

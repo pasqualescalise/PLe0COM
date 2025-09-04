@@ -16,7 +16,7 @@ class Parser:
         self.the_lexer = the_lexer.tokens()
 
         # used to mantain scope
-        self.current_function = "main"
+        self.current_function = ir.Symbol("main", ir.TYPENAMES['function'])
 
     def getsym(self):
         """Get next symbol from the lexer"""
@@ -470,12 +470,13 @@ class Parser:
         while self.accept('procsym'):
             self.expect('ident')
             fname = self.value
+            function_symbol = ir.Symbol(fname, ir.TYPENAMES['function'])
+            local_symtab.push(function_symbol)
+            procedure_symtab = ir.SymbolTable()
+
             # save the current function and restore it after parsing this new one
             parent_function = self.current_function
-            self.current_function = fname
-
-            local_symtab.push(ir.Symbol(fname, ir.TYPENAMES['function']))
-            procedure_symtab = ir.SymbolTable()
+            self.current_function = function_symbol
 
             self.expect('lparen')
 
@@ -541,9 +542,9 @@ class Parser:
                     # XXX: this symbols are only used for their type and size, they are
                     #      not in any SymbolTable and cannot be referenced in the program
                     if len(size) > 0:
-                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', fname=fname)
+                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', function_symbol=function_symbol)
                     else:
-                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.TYPENAMES[type], alloct='return', fname=fname)
+                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.TYPENAMES[type], alloct='return', function_symbol=function_symbol)
                     returns.append(ret)
 
                     if self.new_sym == "comma":
@@ -563,7 +564,7 @@ class Parser:
             self.current_function = parent_function
 
             self.expect('semicolon')
-            function_defs.append(ir.FunctionDef(symbol=local_symtab.find(self, fname), parameters=parameters, body=fbody, returns=returns))
+            function_defs.append(ir.FunctionDef(symbol=function_symbol, parameters=parameters, body=fbody, returns=returns))
 
         log_indentation(green("Parsed functions definition"))
 
@@ -577,13 +578,13 @@ class Parser:
         name = self.value
         self.expect('eql')
         self.expect('number')
-        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, fname=self.current_function), int(self.value))
+        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
         while self.accept('comma'):
             self.expect('ident')
             name = self.value
             self.expect('eql')
             self.expect('number')
-            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, fname=self.current_function), int(self.value))
+            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
 
     @logger
     def vardef(self, alloct='auto'):
@@ -601,9 +602,9 @@ class Parser:
 
         # XXX: do not assign the types yet
         if len(size) > 0:
-            new_var = ir.Symbol(name, ir.ArrayType(None, size, None), alloct=alloct, fname=self.current_function)
+            new_var = ir.Symbol(name, ir.ArrayType(None, size, None), alloct=alloct, function_symbol=self.current_function)
         else:
-            new_var = ir.Symbol(name, None, alloct=alloct, fname=self.current_function)
+            new_var = ir.Symbol(name, None, alloct=alloct, function_symbol=self.current_function)
 
         return new_var
 

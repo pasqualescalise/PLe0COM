@@ -1,0 +1,46 @@
+VAR result : int;
+
+PROCEDURE grandparent() -> (int);
+	VAR grandparent_var : int;
+	VAR result : int;
+
+	PROCEDURE auncle();
+		BEGIN
+			grandparent_var := grandparent_var + 1
+		END;
+
+	PROCEDURE parent() -> (int);
+
+		PROCEDURE other_sibling();
+			BEGIN
+				grandparent_var := grandparent_var + 1
+			END;
+
+		PROCEDURE sibling();
+			BEGIN
+				grandparent_var := grandparent_var + 1;
+				CALL other_sibling();
+				CALL auncle()
+			END;
+
+		PROCEDURE child();
+			BEGIN
+				CALL sibling();
+				CALL other_sibling()
+			END;
+
+		BEGIN
+			grandparent_var := 0;
+			CALL child();
+			return (grandparent_var)
+		END;
+
+	BEGIN
+		CALL parent() -> (result);
+		return (result)
+	END;
+
+BEGIN
+	CALL grandparent() -> (result);
+	print result
+END.

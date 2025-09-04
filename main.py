@@ -16,6 +16,7 @@ from pre_lowering_optimizations import perform_pre_lowering_optimizations
 from post_lowering_optimizations import perform_post_lowering_optimizations
 from control_flow_graph_optimizations import perform_control_flow_graph_optimizations
 from control_flow_graph_analyses import perform_control_flow_graph_analyses
+from function_tree import FunctionTree
 
 
 def compile_program(text, optimization_level):
@@ -26,6 +27,8 @@ def compile_program(text, optimization_level):
     pars = parser.Parser(lex)
     program = pars.program()
     print(f"\n{green('Parsed program:')}\n{program}")
+
+    main_symbol = pars.current_function
 
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)
@@ -82,6 +85,10 @@ def compile_program(text, optimization_level):
 
     cfg.print_cfg_to_dot("cfg.dot")
     print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg.dot file')}\n")
+
+    print(h2("FUNCTION TREE"))
+    FunctionTree.populate_function_tree(program, main_symbol)
+    print(FunctionTree.root)
 
     ##############################################
 

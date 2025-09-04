@@ -181,14 +181,14 @@ class Symbol:
       because they can't be referenced, but are needed to know where on the stack
       to put return values"""
 
-    def __init__(self, name, stype, value=None, alloct='auto', fname='', used_in_nested_procedure=False, is_temporary=False):
+    def __init__(self, name, stype, value=None, alloct='auto', function_symbol=None, used_in_nested_procedure=False, is_temporary=False):
         self.name = name
         self.stype = stype
         self.value = value  # if not None, it is a constant
         self.alloct = alloct
         self.allocinfo = None
         # useful to understand the scope of the symbol
-        self.fname = fname
+        self.function_symbol = function_symbol
         # if a variable is used in a nested procedure in cannot be promoted to a register
         self.used_in_nested_procedure = used_in_nested_procedure
         # temporaries are special since they can be replaced easily
@@ -239,18 +239,18 @@ class SymbolTable(list):
                 # the called function must be the one being parsed to
                 # make sure to get the correct variable in the scope
                 try:
-                    if s.fname == node.current_function and s.name == name:
+                    if s.function_symbol == node.current_function and s.name == name:
                         return s
                 except AttributeError:
                     pass  # trying to use find outside of the parser
             elif s.name == name:
                 try:
-                    if s.fname != node.current_function:
+                    if s.function_symbol != node.current_function:
                         s.used_in_nested_procedure = True
                 except AttributeError:
                     pass  # trying to use find outside of the parser
                 return s
-        raise RuntimeError(f"Looking up for symbol {name} in function {node.current_function} failed!")
+        raise RuntimeError(f"Looking up for symbol {name} in function {magenta(f'{node.current_function.name}')} failed!")
 
     def push(self, symbol):
         self.insert(0, symbol)
@@ -811,6 +811,7 @@ class CallStat(Stat):
             raise RuntimeError(f"Too many values are being returned from function {function_definition.symbol.name}")
 
     def lower(self):
+        # TODO: these need to be moved before the node expansion
         function_definition = self.get_function_definition(self.function_symbol)
         function_definition.called_by_counter += 1
 

@@ -9,7 +9,7 @@ correspond to. Alternatively, they can return a list where:
 This feature can be used only by IR nodes that are contained in a Block, and
 is used for adding constant literals."""
 
-from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, check_if_variable_needs_static_link
+from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from datalayout import LocalSymbolLayout
 from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
@@ -85,7 +85,7 @@ def block_codegen(self, regalloc):
             res = codegen_append(res, sym.codegen(regalloc))
     else:
         # only this functions variables
-        for sym in [x for x in self.symtab if x.fname == self.parent.symbol.name]:
+        for sym in [x for x in self.symtab if x.function_symbol == self.parent.symbol]:
             res = codegen_append(res, sym.codegen(regalloc))
         parameters = self.parent.parameters
 
@@ -96,7 +96,8 @@ def block_codegen(self, regalloc):
     # prelude
     res[0] += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
     res[0] += ii(f"{blue('mov')} {get_register_string(REG_FP)}, {get_register_string(REG_SP)}\n")
-    stacksp = self.stackroom + regalloc.spill_room()
+    res[0] += ii(f"{cyan('push')} {{{get_register_string(REG_SCRATCH)}}}\n")  # push the static chain pointer
+    stacksp = self.stackroom + regalloc.spill_room() - 4
     res[0] += ii(f"{yellow('sub')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{stacksp}')}\n")
 
     # save the first 4 parameters, in reverse order, on the stack
@@ -299,6 +300,8 @@ def call_codegen(call, regalloc):
             pos = ['r0', 'r1', 'r2', 'r3'].index(remove_formatting(var))
             res += ii(f"{blue('ldr')} {reg}, [{get_register_string(REG_SP)}, #{4 * (pos + num_stack_parameters)}]\n")
 
+    res += load_static_chain_pointer(call)
+
     res += ii(f"{red('bl')} {magenta(call.target.name)}\n")
 
     # put the first 4 return values from r0-r3 on the stack
@@ -416,7 +419,7 @@ def storestat_codegen(self, regalloc):
     else:
         alloc_info = self.dest.allocinfo
         if isinstance(alloc_info, LocalSymbolLayout):
-            static_link = check_if_variable_needs_static_link(self, self.dest)
+            static_link = access_static_chain_pointer(self, self.dest)
             if static_link:
                 res += static_link
                 # if the static link is necessary use the offset contained in the scratch register
@@ -466,7 +469,7 @@ def loadstat_codegen(self, regalloc):
     else:
         alloc_info = self.symbol.allocinfo
         if isinstance(alloc_info, LocalSymbolLayout):
-            static_link = check_if_variable_needs_static_link(self, self.symbol)
+            static_link = access_static_chain_pointer(self, self.symbol)
             if static_link:
                 res += static_link
                 # if the static link is necessary use the offset contained in the scratch register

@@ -1,0 +1,32 @@
+VAR result : int;
+
+PROCEDURE parent() -> (int);
+VAR parent_var : int;
+
+	PROCEDURE other_sibling();
+		BEGIN
+			parent_var := parent_var + 1
+		END;
+
+	PROCEDURE sibling();
+		BEGIN
+			parent_var := parent_var + 1;
+			CALL other_sibling()
+		END;
+
+	PROCEDURE child();
+		BEGIN
+			CALL sibling();
+			CALL other_sibling()
+		END;
+
+	BEGIN
+		parent_var := 0;
+		CALL child();
+		return (parent_var)
+	END;
+
+BEGIN
+	CALL parent() -> (result);
+	print result
+END.

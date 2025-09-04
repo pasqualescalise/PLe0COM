@@ -1,0 +1,43 @@
+VAR global_var : int;
+
+PROCEDURE grandgrandgrandparent();
+	VAR local_var : int;
+
+	PROCEDURE grandgrandauncle(x : int);
+		BEGIN
+			print local_var;
+			local_var := x
+		END;
+
+	PROCEDURE grandgrandparent();
+		PROCEDURE grandparent();
+			PROCEDURE parent();
+				PROCEDURE child();
+					BEGIN
+						global_var := 10;
+						local_var := 100;
+						CALL grandgrandauncle(20)
+					END;
+
+				BEGIN
+					CALL child()
+				END;
+
+			BEGIN
+				CALL parent()
+			END;
+
+		BEGIN
+			CALL grandparent();
+			CALL grandgrandauncle(30)
+		END;
+
+	BEGIN
+		CALL grandgrandparent();
+		print local_var
+	END;
+
+BEGIN
+	CALL grandgrandgrandparent();
+	print global_var
+END.

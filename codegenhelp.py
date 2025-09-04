@@ -2,8 +2,9 @@
 
 """Helper functions used by the code generator"""
 
+from function_tree import FunctionTree, get_distance_between_functions
 from regalloc import RegisterAllocation
-from logger import ii, black, yellow, blue, cyan, bold, italic
+from logger import ii, black, blue, cyan, bold, italic
 
 REG_FP = 11
 REG_SCRATCH = 12
@@ -66,53 +67,72 @@ def codegen_append(vec, code):
     return [vec[0] + code, vec[1]]
 
 
-# if a variable needs a static link, add the correct offset to the frame pointer, put the result
-# in the scratch register and use that to reference the variable
-# XXX: this workaround of using the scratch register is needed because it's impossible to add directly
-#      to the frame pointer
-def check_if_variable_needs_static_link(node, symbol):
-    real_offset = static_link_analysis(node, symbol)
+# Returns code that loads into REG_SCRATCH the frame pointer of the static
+# parent of the function we are calling (static chain pointer)
+def load_static_chain_pointer(call):
+    if call.parent.parent.parent is not None:
+        calling_function = FunctionTree.get_function_node(call.parent.parent.parent.symbol)
+    else:
+        calling_function = FunctionTree.root
+    called_function = FunctionTree.get_function_node(call.target)
 
-    if real_offset > 0:
-        return ii(f"{yellow('add')} {get_register_string(REG_SCRATCH)}, {get_register_string(REG_FP)}, #{italic(f'{real_offset}')}\n")
+    distance = get_distance_between_functions(calling_function, called_function)
+
+    res = ""
+
+    match distance:
+        case (1, 0):  # child function, pass our own frame pointer
+            res += ii(f"{blue('mov')} {get_register_string(REG_SCRATCH)}, {get_register_string(REG_FP)}\n")
+
+        case (0, 0) | (0, 1):  # recursion or sibling function, pass the frame pointer of the parent
+            res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_FP)}, #{italic(-4)}]")
+            res += ii(f"{comment(f'passing frame pointer of parent function {called_function.parent.symbol.name}')}")
+
+        case (x, _) if x < 0:  # (grand)parent/uncle function, pass the frame pointer of the parent of that function
+            res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_FP)}, #{italic(-4)}]\n")
+            for i in range(-x):  # keep loading parent frame pointers until we find the correct one
+                res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_SCRATCH)}, #{italic(-4)}]\n")
+            res = res[:-1]
+            res += ii(f"{comment(f'passing frame pointer of parent function {called_function.parent.symbol.name}')}")
+
+        case _:
+            raise RuntimeError(f"Can't call function {call.target} from function {calling_function.symbol}")  # XXX: this should not be possible
+
+    return res
 
 
-# if a nested function uses a variable of its (grand)parent, its offset will be wrong because
-# it will be in reference to the frame pointer of the parent; this analysis finds the real offset
-# and adds instructions to correct it
-def static_link_analysis(node, symbol):
+# Returns code that loads into REG_SCRATCH the frame pointer of the static
+# parent of the function we are calling (static chain pointer): this is
+# needed only if we are trying to access a symbol of a (grand)parent function
+def access_static_chain_pointer(node, symbol):
     function_definition = node.get_function()
 
-    # TODO: there has to be a better way instead of using startswith
-    if symbol.allocinfo.symname.startswith("_l_") and symbol.fname != function_definition.symbol.name:
-        return get_static_link_offset(function_definition, symbol.fname, 0)
+    # trying to access a symbol not defined in the current function
+    if symbol.function_symbol != function_definition.symbol:
+        node_function = FunctionTree.get_function_node(node.parent.parent.parent.symbol)
+        symbol_function = FunctionTree.get_function_node(symbol.function_symbol)
 
-    return 0
+        distance = get_distance_between_functions(node_function, symbol_function)
 
+        match distance:
+            case (x, 0) if x < 0:  # we are trying to access a variable stored in a (grand)parent
+                res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_FP)}, #{italic(-4)}]\n")
+                for i in range(-x - 1):  # keep loading parent frame pointers until we find the correct one
+                    res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_SCRATCH)}, #{italic(-4)}]\n")
 
-# recursively keep adding the offset (saved registers + parameters + returns + local variables of the caller)
-# of each function until the specified function is found; this offset + the current frame pointer will point
-# to the frame pointer of the parent
-def get_static_link_offset(node, function_name, offset):
-    function_definition = node.get_function()
+            # XXX: these should not be possible
+            case (x, _) if x > 0:
+                raise RuntimeError("Trying to access a variable from a child function")
+            case (_, y) if y != 0:
+                raise RuntimeError("Trying to access a variable from an (grand)auncle function")
+            case _:
+                raise RuntimeError(f"Can't access variable {symbol.name} from function {node_function.symbol}")
 
-    if function_definition == 'main':
-        raise RuntimeError("Main function does not have local variables")
+        res = res[:-1]
+        res += ii(f"{comment(f'accessing frame pointer of parent function {symbol_function.symbol.name}')}")
+        return res
 
-    offset += CALL_OFFSET
-
-    for param in function_definition.parameters[:4]:
-        offset += param.stype.size // 8
-
-    for ret in node.returns[:4]:
-        offset += ret.stype.size // 8
-
-    offset += function_definition.body.stackroom
-
-    if function_definition.symbol.name == function_name:
-        return offset
-
-    return get_static_link_offset(function_definition, function_name, offset)
+    return ""
 
 
 def enter_function_body(self, block):
@@ -129,7 +149,7 @@ def gen_spill_load_if_necessary(self, var):
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
     res = ii(f"{blue('ldr')} {rd}, [{get_register_string(REG_FP)}, #{italic(f'{offs}')}]")
-    res += ii(f"{comment('<- fill')}")
+    res += ii(f"{comment('fill')}")
     return res
 
 
@@ -147,7 +167,7 @@ def gen_spill_store_if_necessary(self, var):
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
     res = ii(f"{blue('str')} {rd}, [{get_register_string(REG_FP)}, #{italic(f'{offs}')}]")
-    res += ii(f"{comment('<- spill')}")
+    res += ii(f"{comment('spill')}")
     self.dematerialize_spilled_var_if_necessary(var)
     return res
 
