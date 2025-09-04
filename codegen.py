@@ -2,43 +2,12 @@
 
 """Code generation methods for all low-level nodes in the IR.
 Codegen functions return a string, consisting of the assembly code they
-correspond to. Alternatively, they can return a list where:
- - the first element is the assembly code
- - the second element is extra assembly code to be appended at the end of
-   the code of the function they are contained in
-This feature can be used only by IR nodes that are contained in a Block, and
-is used for adding constant literals."""
+correspond to"""
 
-from codegenhelp import comment, codegen_append, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
+from codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from datalayout import LocalSymbolLayout
 from ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
-
-localconsti = 0
-
-
-def new_local_const_label():
-    global localconsti
-    const_label = green(f".const{localconsti}")
-    localconsti += 1
-    return const_label
-
-
-# keep track of already given consts labels
-local_consts = {}
-
-
-def new_local_const(val):
-    if val in local_consts:
-        return local_consts[val], ""
-
-    label = new_local_const_label()
-    trail = f"{magenta(f'{label}')}:\n"
-    trail += ii(f".word {val}\n")
-
-    local_consts[val] = label
-
-    return label, trail
 
 
 def symbol_codegen(self, regalloc):
@@ -57,16 +26,16 @@ Symbol.codegen = symbol_codegen
 
 
 def irnode_codegen(self, regalloc):
-    res = [ii(f"{comment(f'IRNode {self.type()}, {id(self)}')}"), '']
+    res = ii(f"{comment(f'IRNode {self.type()}, {id(self)}')}")  # TODO: remove this stuff
     if "children" in dir(self) and len(self.children):
         for node in self.children:
             try:
                 try:
                     label = node.get_label()
-                    res[0] += hi(magenta(f"{label.name}:\n"))
+                    res += hi(magenta(f"{label.name}:\n"))
                 except Exception:
                     pass
-                res = codegen_append(res, node.codegen(regalloc))
+                res += node.codegen(regalloc)
             except RuntimeError as e:
                 raise RuntimeError(f"Node {node.type()}, {id(node)} did not generate any code; error: {e}")
     return res
@@ -76,37 +45,37 @@ IRNode.codegen = irnode_codegen
 
 
 def block_codegen(self, regalloc):
-    res = [ii(f"{comment('block')}"), '']
+    res = ii(f"{comment('block')}")
 
     parameters = []
 
     if self.parent is None:
         for sym in self.symtab:
-            res = codegen_append(res, sym.codegen(regalloc))
+            res += sym.codegen(regalloc)
     else:
         # only this functions variables
         for sym in [x for x in self.symtab if x.function_symbol == self.parent.symbol]:
-            res = codegen_append(res, sym.codegen(regalloc))
+            res += sym.codegen(regalloc)
         parameters = self.parent.parameters
 
     if self.parent is None:
-        res[0] += ii(f".global {magenta('__pl0_start')}\n\n")
-        res[0] += magenta("__pl0_start:\n")
+        res += ii(f".global {magenta('__pl0_start')}\n\n")
+        res += magenta("__pl0_start:\n")
 
     # prelude
-    res[0] += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += ii(f"{blue('mov')} {get_register_string(REG_FP)}, {get_register_string(REG_SP)}\n")
-    res[0] += ii(f"{cyan('push')} {{{get_register_string(REG_SCRATCH)}}}\n")  # push the static chain pointer
+    res += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+    res += ii(f"{blue('mov')} {get_register_string(REG_FP)}, {get_register_string(REG_SP)}\n")
+    res += ii(f"{cyan('push')} {{{get_register_string(REG_SCRATCH)}}}\n")  # push the static chain pointer
     stacksp = self.stackroom + regalloc.spill_room() - 4
-    res[0] += ii(f"{yellow('sub')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{stacksp}')}\n")
+    res += ii(f"{yellow('sub')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{stacksp}')}\n")
 
     # save the first 4 parameters, in reverse order, on the stack
     for i in range(len(parameters[:4]) - 1, -1, -1):
-        res[0] += ii(f"{cyan('push')} {{{get_register_string(i)}}}\n")
+        res += ii(f"{cyan('push')} {{{get_register_string(i)}}}\n")
 
     regalloc.enter_function_body(self)
     try:
-        res = codegen_append(res, self.body.codegen(regalloc))
+        res += self.body.codegen(regalloc)
     except AttributeError as e:
         print(red("Can't execute codegen"))
         raise RuntimeError(e)
@@ -116,20 +85,22 @@ def block_codegen(self, regalloc):
         # optmization: if the last statement is a return this instructions are useless
         pass
     else:
-        res[0] += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
-        res[0] += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-        res[0] += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
+        res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
+        res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+        res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
 
-    res[0] = res[0] + res[1]
-    res[1] = ''
+    # the place that the loads use to resolve labels (using `ldr rx, =address`)
+    # TODO: this still breaks if a function has more than 510 instructions
+    res += ii(".ltorg")
+    res += ii(f"{comment('constant pool')}")
 
     try:
-        res = codegen_append(res, self.defs.codegen(regalloc))
+        res += self.defs.codegen(regalloc)
     except AttributeError as e:
         print(red("Can't execute codegen"))
         raise RuntimeError(e)
 
-    return res[0] + res[1]
+    return res
 
 
 Block.codegen = block_codegen
@@ -388,15 +359,13 @@ EmptyStat.codegen = emptystat_codegen
 def ldptrto_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
     res = ''
-    trail = ''
 
     alloc_info = self.symbol.allocinfo
     if isinstance(alloc_info, LocalSymbolLayout):
         res = ii(f"{yellow('add')} {rd}, {get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}\n")
     else:
-        label, trail = new_local_const(alloc_info.symname)
-        res = ii(f"{blue('ldr')} {rd}, {label}\n")
-    return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
+        res = ii(f"{blue('ldr')} {rd}, ={magenta(f'{alloc_info.symname}')}\n")
+    return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
 LoadPtrToSym.codegen = ldptrto_codegen
@@ -404,13 +373,12 @@ LoadPtrToSym.codegen = ldptrto_codegen
 
 def storestat_codegen(self, regalloc):
     res = ''
-    trail = ''
 
     if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.dest.is_pointer():
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         res += regalloc.gen_spill_store_if_necessary(self.dest)
-        return [res, trail]
+        return res
 
     elif self.dest.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.dest)
@@ -428,8 +396,7 @@ def storestat_codegen(self, regalloc):
                 dest = f"[{get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}]"
 
         else:
-            label, trail = new_local_const(alloc_info.symname)
-            res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, {label}\n")
+            res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, ={green(f'{alloc_info.symname}')}\n")
             dest = f"[{get_register_string(REG_SCRATCH)}]"
 
     # XXX: not entirely sure about this
@@ -446,7 +413,7 @@ def storestat_codegen(self, regalloc):
     rsrc = regalloc.get_register_for_variable(self.symbol)
 
     res += ii(f"{blue(f'str{typeid}')} {rsrc}, {dest}\n")
-    return [res, trail]
+    return res
 
 
 StoreStat.codegen = storestat_codegen
@@ -454,13 +421,12 @@ StoreStat.codegen = storestat_codegen
 
 def loadstat_codegen(self, regalloc):
     res = ''
-    trail = ''
 
     if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.symbol.is_pointer():
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
         res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
         res += regalloc.gen_spill_store_if_necessary(self.dest)
-        return [res, trail]
+        return res
 
     elif self.symbol.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
@@ -478,8 +444,7 @@ def loadstat_codegen(self, regalloc):
                 src = f"[{get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}]"
 
         else:
-            label, trail = new_local_const(alloc_info.symname)
-            res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, {label}\n")
+            res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, ={green(f'{alloc_info.symname}')}\n")
             src = f"[{get_register_string(REG_SCRATCH)}]"
 
     # XXX: not entirely sure about this
@@ -497,7 +462,7 @@ def loadstat_codegen(self, regalloc):
     rdst = regalloc.get_register_for_variable(self.dest)
     res += ii(f"{blue(f'ldr{typeid}')} {rdst}, {src}\n")
     res += regalloc.gen_spill_store_if_necessary(self.dest)
-    return [res, trail]
+    return res
 
 
 LoadStat.codegen = loadstat_codegen
@@ -506,7 +471,6 @@ LoadStat.codegen = loadstat_codegen
 def loadimm_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
     res = ''
-    trail = ''
 
     if self.val == "True":
         self.val = 1
@@ -523,10 +487,9 @@ def loadimm_codegen(self, regalloc):
 
         res += ii(f"{op} {rd}, #{italic(f'{rv}')}\n")
     else:
-        label, trail = new_local_const(repr(self.val))
-        res += ii(f"{blue('ldr')} {rd}, {label}\n")
+        res += ii(f"{blue('ldr')} {rd}, =#{italic(f'{self.val}')}\n")
 
-    return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
+    return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
 LoadImmStat.codegen = loadimm_codegen

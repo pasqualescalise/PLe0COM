@@ -61,12 +61,6 @@ def comment(cont):
     return black(f"@ {cont}\n")
 
 
-def codegen_append(vec, code):
-    if isinstance(code, list):
-        return [vec[0] + code[0], vec[1] + code[1]]
-    return [vec[0] + code, vec[1]]
-
-
 # Returns code that loads into REG_SCRATCH the frame pointer of the static
 # parent of the function we are calling (static chain pointer)
 def load_static_chain_pointer(call):
