@@ -21,7 +21,7 @@ from functools import reduce
 from copy import deepcopy
 from math import log
 
-from codegenhelp import REGISTER_SIZE
+from backend.codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
 

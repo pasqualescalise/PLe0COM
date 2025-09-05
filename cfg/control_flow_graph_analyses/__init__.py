@@ -4,8 +4,8 @@
 properties and errors, like variable liveness or checking if
 a function that has to return actually does so"""
 
-from control_flow_graph_analyses.liveness_analysis import perform_liveness_analysis, liveness_analysis_representation
-from control_flow_graph_analyses.return_analysis import perform_return_analysis
+from cfg.control_flow_graph_analyses.liveness_analysis import perform_liveness_analysis, liveness_analysis_representation
+from cfg.control_flow_graph_analyses.return_analysis import perform_return_analysis
 from logger import h2
 
 

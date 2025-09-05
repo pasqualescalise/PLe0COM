@@ -4,28 +4,32 @@
 
 from argparse import ArgumentParser
 
-import lexer
-import parser
-from support import get_node_list, flattening, lowering
-from datalayout import perform_data_layout
-from cfg import ControlFlowGraph
-from regalloc import LinearScanRegisterAllocator
-from codegen import generate_code
+from frontend.lexer import Lexer
+from frontend.parser import Parser
+
+from ir.support import get_node_list, flattening, lowering
+from ir.pre_lowering_optimizations import perform_pre_lowering_optimizations
+from ir.post_lowering_optimizations import perform_post_lowering_optimizations
+from ir.function_tree import FunctionTree
+
+from cfg.cfg import ControlFlowGraph
+from cfg.control_flow_graph_optimizations import perform_control_flow_graph_optimizations
+from cfg.control_flow_graph_analyses import perform_control_flow_graph_analyses
+
+from backend.datalayout import perform_data_layout
+from backend.regalloc import LinearScanRegisterAllocator
+from backend.codegen import generate_code
+from backend.post_code_generation_optimizations import perform_post_code_generation_optimizations
+
 from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, cyan, bold, italic, underline
-from pre_lowering_optimizations import perform_pre_lowering_optimizations
-from post_lowering_optimizations import perform_post_lowering_optimizations
-from control_flow_graph_optimizations import perform_control_flow_graph_optimizations
-from control_flow_graph_analyses import perform_control_flow_graph_analyses
-from post_code_generation_optimizations import perform_post_code_generation_optimizations
-from function_tree import FunctionTree
 
 
 def compile_program(text, optimization_level):
     print(h1("FRONT-END"))
 
     print(h2("PARSING"))
-    lex = lexer.Lexer(text)
-    pars = parser.Parser(lex)
+    lex = Lexer(text)
+    pars = Parser(lex)
     program = pars.program()
     print(f"\n{green('Parsed program:')}\n{program}")
 
@@ -84,8 +88,8 @@ def compile_program(text, optimization_level):
 
     print(f"\n{green('Optimized program:')}\n{program}")
 
-    cfg.print_cfg_to_dot("cfg.dot")
-    print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg.dot file')}\n")
+    cfg.print_cfg_to_dot("cfg/cfg.dot")
+    print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg/cfg.dot file')}\n")
 
     print(h2("FUNCTION TREE"))
     FunctionTree.populate_function_tree(program, main_symbol)

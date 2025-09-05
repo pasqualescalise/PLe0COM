@@ -5,8 +5,8 @@ a certain variable is actually needed """
 
 from functools import reduce
 
+from cfg.cfg import BasicBlock
 from logger import ii, di, yellow, blue, cyan
-from cfg import BasicBlock
 
 
 def perform_liveness_analysis(cfg):

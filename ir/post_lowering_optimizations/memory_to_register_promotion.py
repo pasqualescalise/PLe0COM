@@ -3,8 +3,8 @@
 """It's faster to access the registers than the stack: move allowed
 variables in registers instead of the stack"""
 
-from ir import StoreStat, ArrayType, PointerType
-from codegenhelp import REGISTER_SIZE
+from ir.ir import StoreStat, ArrayType, PointerType
+from backend.codegenhelp import REGISTER_SIZE
 from logger import red, green, blue
 
 

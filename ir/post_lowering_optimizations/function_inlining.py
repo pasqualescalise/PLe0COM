@@ -5,7 +5,7 @@ when possible, directly replace the function call with its code"""
 
 from copy import deepcopy
 
-from ir import BranchStat, StoreStat, LoadStat, TYPENAMES, EmptyStat
+from ir.ir import BranchStat, StoreStat, LoadStat, TYPENAMES, EmptyStat
 from logger import green, magenta
 
 

@@ -3,7 +3,7 @@
 """Check each path of the ControlFlowGraph of functions that
 return parameters actually end with a return statement"""
 
-from ir import BranchStat
+from ir.ir import BranchStat
 from logger import green
 
 

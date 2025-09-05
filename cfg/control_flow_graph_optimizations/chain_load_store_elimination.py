@@ -15,7 +15,7 @@ Becomes:
     t5 <- t1
 """
 
-from ir import StoreStat, LoadStat, PointerType
+from ir.ir import StoreStat, LoadStat, PointerType
 from logger import green
 
 

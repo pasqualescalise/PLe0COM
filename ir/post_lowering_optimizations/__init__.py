@@ -2,8 +2,8 @@
 
 """Post Lowering Optimizations: this optimizations operate on low-level IR nodes"""
 
-from post_lowering_optimizations.memory_to_register_promotion import memory_to_register_promotion
-from post_lowering_optimizations.function_inlining import function_inlining
+from ir.post_lowering_optimizations.memory_to_register_promotion import memory_to_register_promotion
+from ir.post_lowering_optimizations.function_inlining import function_inlining
 from logger import h3
 
 

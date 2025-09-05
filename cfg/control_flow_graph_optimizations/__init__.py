@@ -4,11 +4,11 @@
 after all the CFG analysis. If instructions are changed or removed, the CFG
 is updated and the liveness analysis is done again"""
 
-from control_flow_graph_optimizations.remove_inlined_functions import remove_inlined_functions
-from control_flow_graph_optimizations.dead_variable_elimination import perform_dead_variable_elimination
-from control_flow_graph_optimizations.chain_load_store_elimination import perform_chain_load_store_elimination
-from control_flow_graph_analyses.liveness_analysis import perform_liveness_analysis, liveness_analysis_representation
-from cfg import ControlFlowGraph
+from cfg.control_flow_graph_optimizations.remove_inlined_functions import remove_inlined_functions
+from cfg.control_flow_graph_optimizations.dead_variable_elimination import perform_dead_variable_elimination
+from cfg.control_flow_graph_optimizations.chain_load_store_elimination import perform_chain_load_store_elimination
+from cfg.control_flow_graph_analyses.liveness_analysis import perform_liveness_analysis, liveness_analysis_representation
+from cfg.cfg import ControlFlowGraph
 from logger import h3, cyan
 
 

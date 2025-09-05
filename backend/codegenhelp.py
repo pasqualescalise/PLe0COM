@@ -2,8 +2,8 @@
 
 """Helper functions used by the code generator"""
 
-from function_tree import FunctionTree, get_distance_between_functions
-from regalloc import RegisterAllocation
+from ir.function_tree import FunctionTree, get_distance_between_functions
+from backend.regalloc import RegisterAllocation
 from logger import ii, black, blue, cyan, bold, italic
 
 REG_FP = 11

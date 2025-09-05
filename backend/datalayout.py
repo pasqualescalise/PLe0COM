@@ -9,9 +9,9 @@ Function parameters exist only in the called function and its nested
 children, and are also referenced using stack offset (even though some
 of them are passed in registers)"""
 
-from codegenhelp import CALLEE_OFFSET, REGISTER_SIZE
+from ir.ir import DataSymbolTable, ArrayType
+from backend.codegenhelp import CALLEE_OFFSET, REGISTER_SIZE
 from logger import cyan
-from ir import DataSymbolTable, ArrayType
 
 
 class SymbolLayout(object):

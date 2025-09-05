@@ -13,9 +13,9 @@ TESTS_SRC_DIR:= "./tests"
 TESTS_EXP_DIR := "./tests/expected"
 TESTS_OUT_DIR := "./tests/output"
 
-CFG_DOT_FILE := cfg.dot
-CFG_PDF_FILE := cfg.pdf
-CFG_PNG_FILE := cfg.png
+CFG_DOT_FILE := cfg/cfg.dot
+CFG_PDF_FILE := cfg/cfg.pdf
+CFG_PNG_FILE := cfg/cfg.png
 
 all: compile execute
 

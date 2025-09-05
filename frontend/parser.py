@@ -2,9 +2,10 @@
 
 """PL/0 recursive descent parser adapted from Wikipedia"""
 
-import ir
-from logger import logger, log_indentation, red, green, yellow, magenta, cyan, bold
 from functools import reduce
+
+import ir.ir as ir
+from logger import logger, log_indentation, red, green, yellow, magenta, cyan, bold
 
 
 class Parser:

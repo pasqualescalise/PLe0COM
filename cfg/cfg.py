@@ -4,9 +4,9 @@
 ControlFlowGraph of all the BasicBlocks that allows further
 analyses and optimizations"""
 
-from ir import BranchStat, StatList, FunctionDef
+from ir.ir import BranchStat, StatList, FunctionDef
+from ir.support import get_node_list
 from logger import ii, di, remove_formatting, yellow, blue
-from support import get_node_list
 
 
 class BasicBlock(object):

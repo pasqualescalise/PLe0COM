@@ -3,7 +3,7 @@
 """Post Code Generation Optimizations: this optimizations operate on the source
 code, as a string"""
 
-from post_code_generation_optimizations.add_literal_pools import add_literal_pools
+from backend.post_code_generation_optimizations.add_literal_pools import add_literal_pools
 from logger import h3
 
 

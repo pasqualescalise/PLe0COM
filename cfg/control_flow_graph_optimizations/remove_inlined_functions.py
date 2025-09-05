@@ -3,8 +3,8 @@
 """Using reference counting, removed useless inlined functions;
 this is done after the CFG so that the original code is still checked"""
 
+from ir.ir import DefinitionList
 from logger import green, magenta
-from ir import DefinitionList
 
 
 def remove_inlined_functions(self):

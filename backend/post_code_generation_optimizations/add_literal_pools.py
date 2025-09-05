@@ -19,8 +19,8 @@ TODO: this could be improved by allocating the pool only if it is actually neede
       for example only if we actually try to load a far away address
 """
 
-from ir import TYPENAMES
-from codegenhelp import comment
+from ir.ir import TYPENAMES
+from backend.codegenhelp import comment
 from logger import ii, hi, red, green, magenta
 
 

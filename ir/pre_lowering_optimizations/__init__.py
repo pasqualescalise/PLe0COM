@@ -2,8 +2,8 @@
 
 """Pre Lowering Optimizations: this optimizations operate on high-level IR nodes"""
 
-from pre_lowering_optimizations.node_expansion import perform_node_expansion
-from pre_lowering_optimizations.loop_unrolling import perform_loop_unrolling
+from ir.pre_lowering_optimizations.node_expansion import perform_node_expansion
+from ir.pre_lowering_optimizations.loop_unrolling import perform_loop_unrolling
 from logger import h3
 
 
