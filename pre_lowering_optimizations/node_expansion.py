@@ -5,7 +5,10 @@ structure that we want, but at the same time, we can't always relay on low-
 level nodes; in this stage, we traverse the IR tree multiple times and we
 expand high-level nodes using other high-level nodes"""
 
-from ir import CallStat, AssignStat, PointerType, StaticArray, Var, Const, PrintStat, ArrayElement, new_temporary
+from functools import reduce
+from copy import deepcopy
+
+from ir import CallStat, AssignStat, PointerType, StaticArray, Var, Const, PrintStat, ArrayElement, BinExpr, String, new_temporary
 from support import get_node_list
 
 
@@ -64,7 +67,10 @@ def array_assign(self):
 
     stride = self.expr.values_type.size // 8
     for i in range(len(self.expr.values)):
-        assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
+        offset = Const(value=(i * stride), symtab=self.symtab)
+        if self.offset:
+            offset = BinExpr(children=['plus', offset, deepcopy(self.offset)], symtab=self.symtab)
+        assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=offset, symtab=self.symtab)
         stats += [assign_stat]
 
     self.children = stats
@@ -81,26 +87,74 @@ def array_print(self):
     if not self.children[0]:
         return
 
-    stats = []
+    expr = self.children[0]
+
+    stats = [PrintStat(expr=String(value="["), newline=False, symtab=self.symtab)]
 
     # printing an array directly
-    if isinstance(self.children[0], StaticArray):
-        for value in self.children[0].values:
-            print_stat = PrintStat(expr=value, symtab=self.symtab)
+    if isinstance(expr, StaticArray):
+        newline = self.newline  # set in the parser to True to the outermost StaticArray
+        for value in expr.values:
+            print_stat = PrintStat(expr=value, newline=False, symtab=self.symtab)
             stats += [print_stat]
+
+            if value != expr.values[-1]:
+                stats += [PrintStat(expr=String(value=", "), newline=False, symtab=self.symtab)]
 
     # printing a variable referencing an array
-    elif isinstance(self.children[0], Var) and self.children[0].symbol.is_array() and not self.children[0].symbol.is_string():
-        type = self.children[0].symbol.stype.basetype
-        size = self.children[0].symbol.stype.size // type.size
+    elif isinstance(expr, Var) and ((expr.symbol.is_array() and not expr.symbol.is_string()) or (expr.symbol.is_string() and not expr.symbol.is_monodimensional_array())):
+        newline = True
+        type = expr.symbol.stype.basetype
+        if expr.symbol.is_monodimensional_array():
+            stride = type.size // 8
+            size = expr.symbol.stype.size // type.size
+        else:
+            stride = reduce(lambda x, y: x * y, expr.symbol.stype.dims[1:]) * (type.size // 8)
+            size = expr.symbol.stype.dims[0]
 
-        stride = type.size // 8
         for i in range(size):
-            array_access = ArrayElement(var=self.children[0].symbol, offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
-            print_stat = PrintStat(expr=array_access, symtab=self.symtab)
+            array_access = ArrayElement(var=expr.symbol, offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
+            print_stat = PrintStat(expr=array_access, newline=False, symtab=self.symtab)
             stats += [print_stat]
+            print_stat.visited = 2
+
+            if i != size - 1:
+                stats += [PrintStat(expr=String(value=", "), newline=False, symtab=self.symtab)]
+
+    # printing an array of arrays
+    elif isinstance(expr, ArrayElement) and not expr.symbol.is_monodimensional_array() and not expr.symbol.is_string():
+        newline = False
+        if not hasattr(self, "visited"):  # trying to print a subarray
+            self.visited = expr.num_of_accesses + 1
+            newline = True
+
+        if self.visited > len(expr.symbol.stype.dims):
+            return
+
+        type = expr.symbol.stype.basetype
+        if self.visited == len(expr.symbol.stype.dims):
+            stride = type.size // 8
+            size = expr.symbol.stype.dims[self.visited - 1]
+        else:
+            stride = reduce(lambda x, y: x * y, expr.symbol.stype.dims[self.visited:]) * (type.size // 8)
+            size = expr.symbol.stype.dims[self.visited - 1]
+
+        for i in range(size):
+            offset = Const(value=(i * stride), symtab=self.symtab)
+            if expr.offset:
+                offset = BinExpr(children=['plus', offset, deepcopy(expr.offset)], symtab=self.symtab)
+            array_access = ArrayElement(var=expr.symbol, offset=offset, symtab=self.symtab)
+            print_stat = PrintStat(expr=array_access, newline=False, symtab=self.symtab)
+            stats += [print_stat]
+            print_stat.visited = self.visited + 1
+
+            if i != size - 1:
+                stats += [PrintStat(expr=String(value=", "), newline=False, symtab=self.symtab)]
+
     else:
         return
+
+    stats += [PrintStat(expr=String(value="]"), newline=newline, symtab=self.symtab)]
 
     self.children = stats
 

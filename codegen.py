@@ -197,6 +197,10 @@ def print_codegen(self, regalloc):
 
     res += save_regs(REGS_CALLERSAVE)
     res += ii(f"{blue('mov')} {get_register_string(0)}, {rp}\n")
+    if self.newline:
+        res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(1)}\n")
+    else:
+        res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(0)}\n")
     if self.print_type == TYPENAMES['char']:
         res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
     elif self.print_type == TYPENAMES['boolean']:

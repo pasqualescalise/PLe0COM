@@ -49,19 +49,22 @@ class Parser:
 
     def array_offset(self, target, symtab):
         offset = None
+        idxes = []
         if target.is_array() and self.new_sym == 'lspar':
-            idxes = []
             for i in range(0, len(target.stype.dims)):
+                if self.new_sym != 'lspar':  # we are referencing a subarray
+                    break
+
                 self.expect('lspar')
                 idxes.append(self.numeric_expression(symtab))
                 self.expect('rspar')
             offset = self.linearize_multid_vector(idxes, target, symtab)
-        return offset
+        return (offset, len(idxes))
 
     @staticmethod
     def linearize_multid_vector(explist, target, symtab):
         offset = None
-        for i in range(0, len(target.stype.dims)):
+        for i in range(0, len(explist)):
             if i + 1 < len(target.stype.dims):
                 planedisp = reduce(lambda x, y: x * y, target.stype.dims[i + 1:])
             else:
@@ -84,11 +87,11 @@ class Parser:
 
             self.accept('ident')
 
-            offset = self.array_offset(var, symtab)
+            offset, num_of_accesses = self.array_offset(var, symtab)
             if offset is None:
                 return ir.Var(var=var, symtab=symtab)
             else:
-                return ir.ArrayElement(var=var, offset=offset, symtab=symtab)
+                return ir.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
         elif self.accept('number'):
             return ir.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
@@ -164,11 +167,11 @@ class Parser:
             var = symtab.find(self, self.new_value)
             if var.is_boolean():
                 self.accept('ident')
-                offset = self.array_offset(var, symtab)
+                offset, num_of_accesses = self.array_offset(var, symtab)
                 if offset is None:
                     return ir.Var(var=var, symtab=symtab)
                 else:
-                    return ir.ArrayElement(var=var, offset=offset, symtab=symtab)
+                    return ir.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
 
         expr = self.algebraic_expression(symtab)
 
@@ -233,11 +236,11 @@ class Parser:
             var = symtab.find(self, self.new_value)
             if var.is_string():
                 self.accept('ident')
-                offset = self.array_offset(var, symtab)
+                offset, num_of_accesses = self.array_offset(var, symtab)
                 if offset is None:
                     return ir.Var(var=var, symtab=symtab)
                 else:
-                    return ir.ArrayElement(var=var, offset=offset, symtab=symtab)
+                    return ir.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
 
         self.error("Can't parse string expression")
 
@@ -297,7 +300,7 @@ class Parser:
 
         elif self.accept('ident'):
             target = symtab.find(self, self.value)
-            offset = self.array_offset(target, symtab)
+            offset, num_of_accesses = self.array_offset(target, symtab)
             self.expect('becomes')
 
             expr = self.expression(symtab)
@@ -334,7 +337,7 @@ class Parser:
                     else:
                         self.accept('ident')
                         var = symtab.find(self, self.value)
-                        offset = self.array_offset(var, symtab)
+                        offset, num_of_accesses = self.array_offset(var, symtab)
                         returns.append((var, offset))
 
                     if self.new_sym == "comma":
@@ -404,7 +407,7 @@ class Parser:
         elif self.accept('read'):
             self.expect('ident')
             target = symtab.find(self, self.value)
-            offset = self.array_offset(target, symtab)
+            offset, num_of_accesses = self.array_offset(var, symtab)
             return ir.AssignStat(target=target, offset=offset, expr=ir.ReadStat(symtab=symtab), symtab=symtab)
 
         elif self.accept('returnsym'):

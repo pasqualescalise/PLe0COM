@@ -1,0 +1,58 @@
+VAR char_array[10][2] : char;
+VAR array_array[5][2] : int;
+VAR three_d_array[2][2][2] : int;
+VAR array_of_array_of_array[2][3][4] : int;
+VAR one, i, j : int;
+
+BEGIN
+	print "String Arrays";
+	char_array := ["A", "B", "C"]char[2];
+	print char_array;
+	print char_array[0];
+	print char_array[1];
+	print char_array[2];
+	print ["A", "B", char_array[2]]char[2];
+	
+	{TODO: arrays of strings}
+
+	print "\nNumeric Arrays of Arrays";
+	one := 1;
+	array_array := [[one, one + one]int, [3, 4]int, [5, 6]int, [7, 8]int, [9, 10]int]int[2];
+	print array_array;
+	for i := 0; i < 5; i := i + 1 do begin
+		print array_array[i]
+	end;
+	print array_array[0][1];
+	three_d_array := [
+					[[one, 2]int, [3, 4]int]int[2],
+					[[5, 6]int, [7 * one, 8]int]int[2]
+				]int[2][2];
+	print three_d_array;
+	array_of_array_of_array :=
+		[
+		    [ 
+		        [one, 2, 3, 4]int,
+		        [5, 6, 7, 8]int,
+		        [9, 10, 11, 12]int
+		    ]int[4],
+		    [ 
+		        [13, 14, 15, 16]int,
+		        [17, 18, 19, 20]int,
+		        [20 + one, 20 + 2, 23, 24]int
+		    ]int[4]
+		]int[3][4];
+	print array_of_array_of_array;
+
+	for i := 0; i < 2; i := i + 1 do begin
+		print array_of_array_of_array[i];
+		
+		for j := 0; j < 3; j := j + 1 do begin
+			print array_of_array_of_array[i][j]
+		end
+	end;
+
+	print array_of_array_of_array[one][one + one][one + one + one];
+
+	print [[[1, 2]int, [3, 4]int]int[2], [[5, 6]int, [7, 8]int]int[2]]int[2][2];
+	print [[1]int, [2]int]int[2]
+END.

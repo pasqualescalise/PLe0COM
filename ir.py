@@ -31,7 +31,6 @@ UNARY_CONDITIONALS = ['odd']
 BINARY_CONDITIONALS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
 
 temporary_count = 0
-data_variables_count = 0
 
 
 def new_temporary(symtab, type):
@@ -39,13 +38,6 @@ def new_temporary(symtab, type):
     temp = Symbol(name=f"t{temporary_count}", stype=type, alloct='reg', is_temporary=True)
     temporary_count += 1
     return temp
-
-
-def new_variable_name():
-    global data_variables_count
-    name = f"data{data_variables_count}"
-    data_variables_count += 1
-    return name
 
 
 def replace_temporary_attributes(node, attributes, mapping, create_new=True):
@@ -200,6 +192,9 @@ class Symbol:
     def is_array(self):
         return isinstance(self.stype, ArrayType)
 
+    def is_monodimensional_array(self):
+        return self.is_array() and len(self.stype.dims) == 1
+
     def is_pointer(self):
         return isinstance(self.stype, PointerType)
 
@@ -216,18 +211,26 @@ class Symbol:
     def is_boolean(self):
         return isinstance(self.stype, BooleanType) or (self.is_array() and isinstance(self.stype.basetype, BooleanType))
 
+    def is_label(self):
+        return isinstance(self.stype, LabelType)
+
     def __repr__(self):
-        base = f"{self.alloct} {self.stype.name}"
+        res = f"{self.alloct} {self.stype.name}"
 
         if isinstance(self.stype, (FunctionType, LabelType)):
-            base = f"{base} {magenta(f'{self.name}')}"
+            res += f" {magenta(f'{self.name}')}"
         elif self.alloct != "reg":
-            base = f"{base} {green(f'{self.name}')}"
+            res += f" {green(f'{self.name}')}"
         else:
-            base = f"{base} {red(f'{self.name}')}"
+            res += f" {red(f'{self.name}')}"
         if self.allocinfo is not None:
-            base = f"{base} {{{yellow(italic(f'{self.allocinfo}'))}}}"
-        return base
+            res += f" {{{yellow(italic(f'{self.allocinfo}'))}}}"
+        if self.value and not self.is_label():
+            res += " value \"" + f"{bold(f'{self.value}')}" + "\""
+        return res
+
+    def __deepcopy__(self, memo):
+        return Symbol(self.name, self.stype, value=self.value, alloct=self.alloct, function_symbol=self.function_symbol, used_in_nested_procedure=self.used_in_nested_procedure, is_temporary=self.is_temporary)
 
 
 class SymbolTable(list):
@@ -271,10 +274,32 @@ class SymbolTable(list):
 
 class DataSymbolTable():
     data_symtab = SymbolTable()
+    data_variables_count = 0
 
     @staticmethod
-    def add_data_symbol(symbol):
-        DataSymbolTable.data_symtab.append(symbol)
+    def new_data_symbol(type, value):
+        name = f"data{DataSymbolTable.data_variables_count}"
+        DataSymbolTable.data_variables_count += 1
+        data_variable = Symbol(name=name, stype=type, value=value, alloct='data')
+        return data_variable
+
+    @staticmethod
+    def add_data_symbol(type, value):
+        found = DataSymbolTable.find_by_type_and_value(type, value)
+        if found is None:
+            new_symbol = DataSymbolTable.new_data_symbol(type, value)
+            DataSymbolTable.data_symtab.append(new_symbol)
+            return new_symbol
+
+        return found
+
+    @staticmethod
+    def find_by_type_and_value(type, value):
+        for symbol in DataSymbolTable.data_symtab:
+            if symbol.stype.name == type.name and symbol.value == value:
+                return symbol
+
+        return None
 
     @staticmethod
     def get_data_symtab():
@@ -515,13 +540,15 @@ class Var(IRNode):
 class ArrayElement(IRNode):
     """loads in a temporary the value pointed by: the symbol + the index"""
 
-    def __init__(self, parent=None, var=None, offset=None, symtab=None):
+    def __init__(self, parent=None, var=None, offset=None, num_of_accesses=0, symtab=None):
         """offset can NOT be a list of exps in case of multi-d arrays; it should
         have already been flattened beforehand"""
         log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
         super().__init__(parent, [offset], symtab)
         self.symbol = var
         self.offset = offset
+        # for a multidimensional array, how deep is this element
+        self.num_of_accesses = num_of_accesses
 
     def used_variables(self):
         a = [self.symbol]
@@ -529,6 +556,7 @@ class ArrayElement(IRNode):
         return a
 
     def lower(self):
+        src = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
         dest = new_temporary(self.symtab, self.symbol.stype.basetype)
         off = self.offset.destination()
 
@@ -548,11 +576,12 @@ class ArrayElement(IRNode):
 
             statl += [loadptr]
 
-        src = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
         add = BinStat(dest=src, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
         statl += [add]
 
-        statl += [LoadStat(dest=dest, symbol=src, symtab=self.symtab)]
+        if self.symbol.is_monodimensional_array() or (not self.symbol.is_monodimensional_array() and not self.symbol.is_string()):
+            statl += [LoadStat(dest=dest, symbol=src, symtab=self.symtab)]
+
         return self.parent.replace(self, StatList(children=statl, symtab=self.symtab))
 
     def __deepcopy__(self, memo):
@@ -573,8 +602,7 @@ class String(IRNode):
 
     def lower(self):
         # put the string in the data SymbolTable
-        data_variable = Symbol(name=new_variable_name(), stype=ArrayType(None, [len(self.value) + 1], TYPENAMES['char']), value=self.value, alloct='data')
-        DataSymbolTable.add_data_symbol(data_variable)
+        data_variable = DataSymbolTable.add_data_symbol(ArrayType(None, [len(self.value) + 1], TYPENAMES['char']), value=self.value)
 
         # load the fixed data string address
         ptrreg_data = new_temporary(self.symtab, PointerType(data_variable.stype.basetype))
@@ -598,10 +626,10 @@ class StaticArray(IRNode):
         for value in self.values:
             value.parent = self
 
-        if size == []:
-            self.size = [len(self.values)]
-        else:
-            self.size = [len(self.values)] + size
+        if size != []:
+            self.values_type = ArrayType(None, size, type)
+
+    # TODO: definitely needs type checking, also stuff like String length
 
 
 # EXPRESSIONS
@@ -1004,9 +1032,9 @@ class ForStat(Stat):
 
 
 class AssignStat(Stat):
-    def __init__(self, parent=None, target=None, offset=None, expr=None, symtab=None):
+    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, symtab=None):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
-        super().__init__(parent, [], symtab)
+        super().__init__(parent, children, symtab)
         self.symbol = target
 
         # TODO: why do this?
@@ -1104,6 +1132,10 @@ class AssignStat(Stat):
         ptrreg_var = new_temporary(self.symtab, PointerType(self.symbol.stype.basetype))
         access_var = LoadPtrToSym(dest=ptrreg_var, symbol=self.symbol, symtab=self.symtab)
 
+        if self.offset:
+            stats += [access_var, self.offset]
+            access_var = BinStat(dest=ptrreg_var, op='plus', srca=ptrreg_var, srcb=self.offset.destination(), symtab=self.symtab)
+
         counter = new_temporary(self.symtab, TYPENAMES['int'])
         counter_initialize = LoadImmStat(dest=counter, val=0, symtab=self.symtab)
 
@@ -1122,15 +1154,13 @@ class AssignStat(Stat):
         dest = new_temporary(self.symtab, TYPENAMES['boolean'])
         cond = BinStat(dest=dest, op='neq', srca=character, srcb=zero, symtab=self.symtab)
 
-        load_data_char = LoadStat(dest=character, symbol=ptrreg_data, symtab=self.symtab)
-
         store_var_char = StoreStat(dest=ptrreg_var, symbol=character, symtab=self.symtab)
 
         increment_data = BinStat(dest=ptrreg_data, op='plus', srca=ptrreg_data, srcb=one, symtab=self.symtab)
         increment_var = BinStat(dest=ptrreg_var, op='plus', srca=ptrreg_var, srcb=one, symtab=self.symtab)
         increment_counter = BinStat(dest=counter, op='plus', srca=counter, srcb=one, symtab=self.symtab)
 
-        body_stats = [load_data_char, store_var_char, increment_data, increment_var, increment_counter]
+        body_stats = [store_var_char, increment_data, increment_var, increment_counter, load_data_char]
 
         body = StatList(children=body_stats, symtab=self.symtab)
         while_loop = WhileStat(cond=cond, body=body, symtab=self.symtab)
@@ -1149,13 +1179,22 @@ class AssignStat(Stat):
     def __deepcopy__(self, memo):
         new_expr = deepcopy(self.expr, memo)
         new_offset = deepcopy(self.offset, memo)
-        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, symtab=self.symtab)
+
+        new_children = []
+        for child in self.children:
+            new_children.append(deepcopy(child, memo))
+
+        return AssignStat(parent=self.parent, children=new_children, target=self.symbol, offset=new_offset, expr=new_expr, symtab=self.symtab)
 
 
 class PrintStat(Stat):
-    def __init__(self, parent=None, expr=None, symtab=None):
+    def __init__(self, parent=None, children=[], expr=None, newline=True, symtab=None):
         log_indentation(bold(f"New PrintStat Node (id: {id(self)})"))
-        super().__init__(parent, [expr], symtab)
+        if children != []:
+            super().__init__(parent, children, symtab)
+        else:
+            super().__init__(parent, [expr], symtab)
+        self.newline = newline
 
     def used_variables(self):
         return self.children[0].used_variables()
@@ -1165,7 +1204,7 @@ class PrintStat(Stat):
             stats = self.children
             return self.parent.replace(self, StatList(children=stats, symtab=self.symtab))
 
-        print_type = TYPENAMES['int']  # TODO: do something for short and byte
+        print_type = TYPENAMES['int']
 
         if self.children[0] and self.children[0].destination().is_string():
             print_type = TYPENAMES['char']
@@ -1180,17 +1219,20 @@ class PrintStat(Stat):
         elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 8:
             print_type = TYPENAMES['byte']
 
-        pc = PrintCommand(src=self.children[0].destination(), print_type=print_type, symtab=self.symtab)
+        pc = PrintCommand(src=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
         stlist = StatList(children=[self.children[0], pc], symtab=self.symtab)
         return self.parent.replace(self, stlist)
 
     def __deepcopy__(self, memo):
-        new_expr = deepcopy(self.children[0], memo)
-        return PrintStat(parent=self.parent, expr=new_expr, symtab=self.symtab)
+        new_children = []
+        for child in self.children:
+            new_children.append(deepcopy(child, memo))
+
+        return PrintStat(parent=self.parent, children=new_children, expr=new_children[0], newline=self.newline, symtab=self.symtab)
 
 
 class PrintCommand(Stat):  # low-level node
-    def __init__(self, parent=None, src=None, print_type=None, symtab=None):
+    def __init__(self, parent=None, src=None, print_type=None, newline=True, symtab=None):
         log_indentation(bold(f"New PrintCommand Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.src = src
@@ -1198,6 +1240,7 @@ class PrintCommand(Stat):  # low-level node
             raise RuntimeError('Trying to print a symbol not stored in a register')
 
         self.print_type = print_type
+        self.newline = newline
 
     def used_variables(self):
         return [self.src]

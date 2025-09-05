@@ -9,48 +9,80 @@
 extern void __pl0_start(void);
 
 
-void __pl0_print_integer(int param)
+void __pl0_print_integer(int param, int newline)
 {
-  printf("%d\n", param);
+  if (newline) {
+  	printf("%d\n", param);
+  } else {
+  	printf("%d", param);
+  }
 }
 
 
-void __pl0_print_short(short param)
+void __pl0_print_short(short param, int newline)
 {
-  printf("%hd\n", param);
+  if (newline) {
+  	printf("%hd\n", param);
+  } else {
+  	printf("%hd", param);
+  }
 }
 
 
-void __pl0_print_byte(char param)
+void __pl0_print_byte(char param, int newline)
 {
-  printf("%hhd\n", param);
+  if (newline) {
+  	printf("%hhd\n", param);
+  } else {
+  	printf("%hhd", param);
+  }
 }
 
 
-void __pl0_print_unsigned_short(unsigned short param)
+void __pl0_print_unsigned_short(unsigned short param, int newline)
 {
-  printf("%hu\n", param);
+  if (newline) {
+  	printf("%hu\n", param);
+  } else {
+  	printf("%hu", param);
+  }
 }
 
 
-void __pl0_print_unsigned_byte(unsigned char param)
+void __pl0_print_unsigned_byte(unsigned char param, int newline)
 {
-  printf("%hhu\n", param);
+  if (newline) {
+  	printf("%hhu\n", param);
+  } else {
+  	printf("%hhu", param);
+  }
 }
 
 
-void __pl0_print_string(int param)
+void __pl0_print_string(int param, int newline)
 {
-  printf("%s\n", param);
+  if (newline) {
+  	printf("%s\n", param);
+  } else {
+  	printf("%s", param);
+  }
 }
 
 
-void __pl0_print_boolean(int param)
+void __pl0_print_boolean(int param, int newline)
 {
   if (param) {
-  	printf("%s\n", "True");
+    if (newline) {
+  	  printf("%s\n", "True");
+	} else {
+  	  printf("%s", "True");
+	}
   } else {
-  	printf("%s\n", "False");
+    if (newline) {
+  	  printf("%s\n", "False");
+	} else {
+  	  printf("%s", "False");
+	}
   }
 }
 
