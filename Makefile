@@ -33,6 +33,9 @@ execute:
 	if [ $(dbg) ]; then\
 		$(RUN_COMMAND) -g 7777 $(EXECUTABLE);\
 	elif [ $(test) ]; then\
+		if [ ! -d $(TESTS_OUT_DIR) ]; then\
+			mkdir $(TESTS_OUT_DIR);\
+		fi;\
 		test_name=$$(basename "$(test)" .pl0);\
 		output_file=$(TESTS_OUT_DIR)/single_test.output;\
 		$(RUN_COMMAND) $(EXECUTABLE) > $$output_file;\
