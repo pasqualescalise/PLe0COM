@@ -6,9 +6,6 @@
  * C compiler targeting ARM. */
 
 
-extern void __pl0_start(void);
-
-
 void __pl0_print_integer(int param, int newline)
 {
   if (newline) {
@@ -92,10 +89,4 @@ int __pl0_read(void)
   int tmp;
   scanf("%d", &tmp);
   return tmp;
-}
-
-
-int main(int argc, char *argv[])
-{
-  __pl0_start();
 }

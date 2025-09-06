@@ -15,6 +15,7 @@ IR instructions (except definitions) need to implement a few methods:
 from functools import reduce
 from copy import deepcopy
 
+from ir.function_tree import FunctionTree
 from backend.codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
@@ -376,44 +377,19 @@ class IRInstruction():  # abstract
 
     def get_function(self):
         if not self.parent:
-            return 'main'
+            return self
         elif isinstance(self.parent, FunctionDef):
             return self.parent
         else:
             return self.parent.get_function()
 
     def find_the_program(self):
-        if self.parent:
-            return self.parent.find_the_program()
-        else:
-            return self
+        return FunctionTree.find_the_program()
 
     # returns the FuncDef with the symbol specified, if it's reachable
     # raises a RuntimeError if it doesn't find it
     def get_function_definition(self, target_function_symbol):
-        current_function = self.get_function()
-
-        # it's the main function
-        if current_function == 'main':
-            program = self.find_the_program()
-            for definition in program.defs.children:
-                if definition.symbol == target_function_symbol:
-                    return definition
-
-            if current_function == 'main':
-                raise RuntimeError(f"Can't find function definition of function {target_function_symbol}")
-
-        # it's the current function
-        if current_function.symbol == target_function_symbol:
-            return current_function
-
-        # it's one of the functions defined in the current function
-        for definition in current_function.body.defs.children:
-            if definition.symbol == target_function_symbol:
-                return definition
-
-        # it's a function defined in the parent
-        return current_function.get_function_definition(target_function_symbol)
+        return FunctionTree.get_function_definition(target_function_symbol)
 
 
 # STATEMENTS

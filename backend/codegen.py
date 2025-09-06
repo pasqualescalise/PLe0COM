@@ -49,7 +49,7 @@ def block_codegen(self, regalloc):
 
     parameters = []
 
-    if self.parent is None:
+    if self.parent.parent is None:
         for sym in self.symtab:
             res += sym.codegen(regalloc)
     else:
@@ -57,10 +57,6 @@ def block_codegen(self, regalloc):
         for sym in [x for x in self.symtab if x.function_symbol == self.parent.symbol]:
             res += sym.codegen(regalloc)
         parameters = self.parent.parameters
-
-    if self.parent is None:
-        res += ii(f".global {magenta('__pl0_start')}\n\n")
-        res += magenta("__pl0_start:\n")
 
     # prelude
     res += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
@@ -87,6 +83,9 @@ def block_codegen(self, regalloc):
     else:
         res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
         res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+        if self.parent.parent is None:
+            res += ii(f"{blue('mov')} {get_register_string(0)}, #{italic('0')}")  # TODO: add a way to exit with not zero
+            res += ii(f"{comment('program ended successfully')}")
         res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
 
     # the place that the loads use to resolve labels (using `ldr rx, =address`)
@@ -114,7 +113,11 @@ DefinitionList.codegen = deflist_codegen
 
 
 def fun_codegen(self, regalloc):
-    res = magenta(f"\n{self.symbol.name}:\n")
+    if self.parent is None:
+        res = ii(f".global {magenta('main')}\n\n")
+        res += magenta("main:\n")
+    else:
+        res = magenta(f"\n{self.symbol.name}:\n")
     res += self.body.codegen(regalloc)
     return res
 

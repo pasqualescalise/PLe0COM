@@ -35,6 +35,10 @@ def compile_program(text, optimization_level):
 
     main_symbol = pars.current_function
 
+    print(h2("FUNCTION TREE"))
+    FunctionTree.populate_function_tree(program, main_symbol)
+    print(FunctionTree.root)
+
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)
     for node in node_list:
@@ -91,7 +95,7 @@ def compile_program(text, optimization_level):
     cfg.print_cfg_to_dot("cfg/cfg.dot")
     print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg/cfg.dot file')}\n")
 
-    print(h2("FUNCTION TREE"))
+    print(h2("NEW FUNCTION TREE"))
     FunctionTree.populate_function_tree(program, main_symbol)
     print(FunctionTree.root)
 

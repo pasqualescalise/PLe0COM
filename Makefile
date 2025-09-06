@@ -79,7 +79,7 @@ clean:
 	rm $(ASSEMBLY) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
 
 dbg:
-	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
+	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b main" --eval-command="c"
 
 showpdf:
 	dot -Tpdf $(CFG_DOT_FILE) -o $(CFG_PDF_FILE)

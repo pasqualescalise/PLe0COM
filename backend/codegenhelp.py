@@ -80,14 +80,20 @@ def load_static_chain_pointer(call):
 
         case (0, 0) | (0, 1):  # recursion or sibling function, pass the frame pointer of the parent
             res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_FP)}, #{italic(-4)}]")
-            res += ii(f"{comment(f'passing frame pointer of parent function {called_function.parent.symbol.name}')}")
+            if called_function.parent is None:  # main
+                res += ii(f"{comment(f'passing frame pointer of parent function main')}")
+            else:
+                res += ii(f"{comment(f'passing frame pointer of parent function {called_function.parent.symbol.name}')}")
 
         case (x, _) if x < 0:  # (grand)parent/uncle function, pass the frame pointer of the parent of that function
             res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_FP)}, #{italic(-4)}]\n")
             for i in range(-x):  # keep loading parent frame pointers until we find the correct one
                 res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_SCRATCH)}, #{italic(-4)}]\n")
             res = res[:-1]
-            res += ii(f"{comment(f'passing frame pointer of parent function {called_function.parent.symbol.name}')}")
+            if called_function.parent is None:  # main
+                res += ii(f"{comment(f'passing frame pointer of parent function main')}")
+            else:
+                res += ii(f"{comment(f'passing frame pointer of parent function {called_function.parent.symbol.name}')}")
 
         case _:
             raise RuntimeError(f"Can't call function {call.target} from function {calling_function.symbol}")  # XXX: this should not be possible

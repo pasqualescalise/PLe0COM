@@ -13,6 +13,7 @@ Each node has to implement the following methods:
 from copy import deepcopy
 from math import log
 
+from ir.function_tree import FunctionTree
 import ir.ir as ir
 from logger import log_indentation, ii, magenta, cyan, bold
 import logger
@@ -143,44 +144,19 @@ class ASTNode:  # abstract
 
     def get_function(self):
         if not self.parent:
-            return 'main'
+            return self
         elif isinstance(self.parent, ir.FunctionDef):
             return self.parent
         else:
             return self.parent.get_function()
 
     def find_the_program(self):
-        if self.parent:
-            return self.parent.find_the_program()
-        else:
-            return self
+        return FunctionTree.find_the_program()
 
     # returns the FuncDef with the symbol specified, if it's reachable
     # raises a RuntimeError if it doesn't find it
     def get_function_definition(self, target_function_symbol):
-        current_function = self.get_function()
-
-        # it's the main function
-        if current_function == 'main':
-            program = self.find_the_program()
-            for definition in program.defs.children:
-                if definition.symbol == target_function_symbol:
-                    return definition
-
-            if current_function == 'main':
-                raise RuntimeError(f"Can't find function definition of function {target_function_symbol}")
-
-        # it's the current function
-        if current_function.symbol == target_function_symbol:
-            return current_function
-
-        # it's one of the functions defined in the current function
-        for definition in current_function.body.defs.children:
-            if definition.symbol == target_function_symbol:
-                return definition
-
-        # it's a function defined in the parent
-        return current_function.get_function_definition(target_function_symbol)
+        return FunctionTree.get_function_definition(target_function_symbol)
 
 
 # CONST and VAR
@@ -932,7 +908,7 @@ class ReturnStat(Stat):
         stats = self.children
 
         function_definition = self.get_function()
-        if function_definition == 'main':
+        if function_definition.parent is None:
             raise RuntimeError("The main function should not have return statements")
 
         # check that the function returns as many values as the defined ones

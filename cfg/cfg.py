@@ -200,10 +200,7 @@ class ControlFlowGraph(list):
             while parent and not isinstance(parent, FunctionDef):
                 parent = parent.parent
 
-            if not parent:
-                res['main'] = bb
-            else:
-                res[parent] = bb
+            res[parent] = bb
         return res
 
     def tails(self):
@@ -225,18 +222,11 @@ class ControlFlowGraph(list):
         heads = self.heads()
         for p in heads:
             bb = heads[p]
-            if p == 'main':
-                dot += 'main [shape=box];\n'
-                if len(bb.live_in):
-                    dot += f'main -> {id(bb)} [label="{bb.live_in}"];\n'
-                else:
-                    dot += f'main -> {id(bb)} [label="{{}}"];\n'
+            dot += f"{p.symbol.name} [shape=box];\n"
+            if len(bb.live_in):
+                dot += f'{p.symbol.name} -> {id(bb)} [label="{bb.live_in}"];\n'
             else:
-                dot += f"{p.symbol.name} [shape=box];\n"
-                if len(bb.live_in):
-                    dot += f'{p.symbol.name} -> {id(bb)} [label="{bb.live_in}"];\n'
-                else:
-                    dot += f'{p.symbol.name} -> {id(bb)} [label="{{}}"];\n'
+                dot += f'{p.symbol.name} -> {id(bb)} [label="{{}}"];\n'
         dot += "}\n"
         f.write(remove_formatting(dot))
         f.close()

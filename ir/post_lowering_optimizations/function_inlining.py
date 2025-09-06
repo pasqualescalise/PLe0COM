@@ -110,16 +110,11 @@ def inline(self):
         return
 
     # avoid inlining recursive functions
-    if self.get_function() != 'main':
-        if self.target == self.get_function().symbol:
-            return
+    if self.target == self.get_function().symbol:
+        return
 
     target_definition_copy = deepcopy(target_definition)
-
-    if self.get_function() != 'main':
-        target_definition_copy.symbol = self.get_function().symbol
-    else:
-        target_definition_copy.symbol = "main"  # TODO: check if this creates problems, it shouldn't since target_definition_copy isn't used after this function
+    target_definition_copy.symbol = self.get_function().symbol
 
     # split the current function in before:body-of-the-function-to-inline:after
     index = self.parent.children.index(self)
@@ -150,10 +145,7 @@ def inline(self):
     # reference counting: if no one is calling the inlined function, it can be removed
     target_definition.called_by_counter -= 1
 
-    if self.get_function() == 'main':
-        print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside the')} {magenta('main')} {green('function')}\n"))
-    else:
-        print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
+    print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
 
 
 BranchStat.inline = inline
