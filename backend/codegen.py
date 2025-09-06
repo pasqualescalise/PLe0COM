@@ -4,7 +4,7 @@
 Codegen functions return a string, consisting of the assembly code they
 correspond to"""
 
-from ir.ir import IRNode, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintCommand, ReadCommand, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
+from ir.ir import IRInstruction, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintStat, ReadStat, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
 from backend.codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
@@ -25,8 +25,8 @@ def symbol_codegen(self, regalloc):
 Symbol.codegen = symbol_codegen
 
 
-def irnode_codegen(self, regalloc):
-    res = ii(f"{comment(f'IRNode {self.type()}, {id(self)}')}")  # TODO: remove this stuff
+def irinstruction_codegen(self, regalloc):
+    res = ii(f"{comment(f'IRInstruction {self.type()}, {id(self)}')}")  # TODO: remove this stuff
     if "children" in dir(self) and len(self.children):
         for node in self.children:
             try:
@@ -41,7 +41,7 @@ def irnode_codegen(self, regalloc):
     return res
 
 
-IRNode.codegen = irnode_codegen
+IRInstruction.codegen = irinstruction_codegen
 
 
 def block_codegen(self, regalloc):
@@ -219,7 +219,7 @@ def print_codegen(self, regalloc):
     return res
 
 
-PrintCommand.codegen = print_codegen
+PrintStat.codegen = print_codegen
 
 
 def read_codegen(self, regalloc):
@@ -239,7 +239,7 @@ def read_codegen(self, regalloc):
     return res
 
 
-ReadCommand.codegen = read_codegen
+ReadStat.codegen = read_codegen
 
 
 # TODO: documentation on the ABI

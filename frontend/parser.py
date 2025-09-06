@@ -4,6 +4,7 @@
 
 from functools import reduce
 
+import frontend.ast as ast
 import ir.ir as ir
 from logger import logger, log_indentation, red, green, yellow, magenta, cyan, bold
 
@@ -72,11 +73,11 @@ class Parser:
                 planedisp = 1
             idx = explist[i]
             esize = (target.stype.basetype.size // 8) * planedisp
-            planed = ir.BinExpr(children=['times', idx, ir.Const(value=esize, symtab=symtab)], symtab=symtab)
+            planed = ast.BinExpr(children=['times', idx, ast.Const(value=esize, symtab=symtab)], symtab=symtab)
             if offset is None:
                 offset = planed
             else:
-                offset = ir.BinExpr(children=['plus', offset, planed], symtab=symtab)
+                offset = ast.BinExpr(children=['plus', offset, planed], symtab=symtab)
         return offset
 
     @logger
@@ -90,11 +91,11 @@ class Parser:
 
             offset, num_of_accesses = self.array_offset(var, symtab)
             if offset is None:
-                return ir.Var(var=var, symtab=symtab)
+                return ast.Var(var=var, symtab=symtab)
             else:
-                return ir.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
+                return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
         elif self.accept('number'):
-            return ir.Const(value=int(self.value), symtab=symtab)
+            return ast.Const(value=int(self.value), symtab=symtab)
         elif self.accept('lparen'):
             expr = self.algebraic_expression(symtab=symtab)
             self.expect('rparen')
@@ -109,7 +110,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.factor(symtab)
-            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     # XXX: shifts have more precedence than plus/minus, which is maybe wrong, but it's easier to parse negative numbers this way
@@ -120,7 +121,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.term(symtab)
-            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     # XXX: weird precedence
@@ -131,7 +132,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.shift(symtab)
-            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     @logger
@@ -142,24 +143,24 @@ class Parser:
             op = self.sym
         expr = self.modulus(symtab)
         if op:
-            expr = ir.UnExpr(children=[op, expr], symtab=symtab)
+            expr = ast.UnExpr(children=[op, expr], symtab=symtab)
         while self.new_sym in ['plus', 'minus']:
             self.getsym()
             op = self.sym
             expr2 = self.modulus(symtab)
-            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     @logger
     def logic_value(self, symtab):
         if self.accept('truesym'):
-            return ir.Const(value="True", symtab=symtab)
+            return ast.Const(value="True", symtab=symtab)
         elif self.accept('falsesym'):
-            return ir.Const(value="False", symtab=symtab)
+            return ast.Const(value="False", symtab=symtab)
         elif self.accept('not'):
-            return ir.UnExpr(children=['not', self.logic_value(symtab)], symtab=symtab)
+            return ast.UnExpr(children=['not', self.logic_value(symtab)], symtab=symtab)
         elif self.accept('oddsym'):
-            return ir.UnExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
+            return ast.UnExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
         elif self.accept('lparen'):
             expr = self.logic_expression(symtab=symtab)
             self.expect('rparen')
@@ -170,14 +171,14 @@ class Parser:
                 self.accept('ident')
                 offset, num_of_accesses = self.array_offset(var, symtab)
                 if offset is None:
-                    return ir.Var(var=var, symtab=symtab)
+                    return ast.Var(var=var, symtab=symtab)
                 else:
-                    return ir.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
+                    return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
 
         expr = self.algebraic_expression(symtab)
 
         # expr is already a condition
-        if isinstance(expr, ir.BinExpr) and expr.children[0] in ir.BINARY_CONDITIONALS:
+        if isinstance(expr, ast.BinExpr) and expr.children[0] in ast.BINARY_CONDITIONALS:
             return expr
 
         # if expr is not a condition, it must be a condition
@@ -194,7 +195,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.logic_value(symtab)
-            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
         try:
             expr = self.condition(expr, symtab)
         except RuntimeError:
@@ -204,11 +205,11 @@ class Parser:
 
     @logger
     def condition(self, expr, symtab):
-        if self.new_sym in ir.BINARY_CONDITIONALS:
+        if self.new_sym in ast.BINARY_CONDITIONALS:
             self.getsym()
             op = self.sym
             expr2 = self.algebraic_expression(symtab)
-            expr = ir.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
             return expr
         self.error("Condition: invalid operator")
 
@@ -232,16 +233,16 @@ class Parser:
             self.accept('string')
             new_string = self.value
             self.accept('quote')
-            return ir.String(value=new_string, symtab=symtab)
+            return ast.String(value=new_string, symtab=symtab)
         elif self.new_sym == 'ident':
             var = symtab.find(self, self.new_value)
             if var.is_string():
                 self.accept('ident')
                 offset, num_of_accesses = self.array_offset(var, symtab)
                 if offset is None:
-                    return ir.Var(var=var, symtab=symtab)
+                    return ast.Var(var=var, symtab=symtab)
                 else:
-                    return ir.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
+                    return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
 
         self.error("Can't parse string expression")
 
@@ -272,7 +273,7 @@ class Parser:
         if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
             self.error(f"The type {type} is not valid for an array")
 
-        return ir.StaticArray(values=values, type=ir.TYPENAMES[type], size=size, symtab=symtab)
+        return ast.StaticArray(values=values, type=ir.TYPENAMES[type], size=size, symtab=symtab)
 
     @logger
     def expression(self, symtab):
@@ -305,7 +306,7 @@ class Parser:
             self.expect('becomes')
 
             expr = self.expression(symtab)
-            return ir.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
+            return ast.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
 
         elif self.accept('callsym'):
             self.expect('ident')
@@ -349,14 +350,14 @@ class Parser:
 
                 self.expect("rparen")
 
-            return ir.CallStat(function_symbol=function_symbol, parameters=parameters, returns=returns, symtab=symtab)
+            return ast.CallStat(function_symbol=function_symbol, parameters=parameters, returns=returns, symtab=symtab)
 
         elif self.accept('ifsym'):
             cond = self.logic_expression(symtab)
             self.expect('thensym')
             then = self.statement(symtab)
 
-            elifs = ir.StatList(symtab=symtab)
+            elifs = ir.StatList(symtab=symtab)  # TODO: this should be a normal list
             while self.new_sym == "elifsym":
                 self.accept("elifsym")
                 elif_cond = self.logic_expression(symtab)
@@ -369,13 +370,13 @@ class Parser:
             els = None
             if self.accept('elsesym'):
                 els = self.statement(symtab)
-            return ir.IfStat(cond=cond, thenpart=then, elifspart=elifs, elsepart=els, symtab=symtab)
+            return ast.IfStat(cond=cond, thenpart=then, elifspart=elifs, elsepart=els, symtab=symtab)
 
         elif self.accept('whilesym'):
             cond = self.logic_expression(symtab)
             self.expect('dosym')
             body = self.statement(symtab)
-            return ir.WhileStat(cond=cond, body=body, symtab=symtab)
+            return ast.WhileStat(cond=cond, body=body, symtab=symtab)
 
         elif self.accept('forsym'):
             log_indentation(yellow("First part of for statement"))
@@ -399,17 +400,17 @@ class Parser:
 
             self.expect('dosym')
             body = self.statement(symtab)
-            return ir.ForStat(init=init, cond=cond, step=step, body=body, symtab=symtab)
+            return ast.ForStat(init=init, cond=cond, step=step, body=body, symtab=symtab)
 
         elif self.accept('print'):
             expr = self.expression(symtab)
-            return ir.PrintStat(expr=expr, symtab=symtab)
+            return ast.PrintStat(expr=expr, symtab=symtab)
 
         elif self.accept('read'):
             self.expect('ident')
             target = symtab.find(self, self.value)
             offset, num_of_accesses = self.array_offset(var, symtab)
-            return ir.AssignStat(target=target, offset=offset, expr=ir.ReadStat(symtab=symtab), symtab=symtab)
+            return ast.AssignStat(target=target, offset=offset, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
 
         elif self.accept('returnsym'):
             self.expect('lparen')
@@ -426,7 +427,7 @@ class Parser:
 
             self.expect('rparen')
 
-            return ir.ReturnStat(children=returns, symtab=symtab)
+            return ast.ReturnStat(children=returns, symtab=symtab)
 
     @logger
     def block(self, parent_symtab, local_symtab, alloct='auto'):

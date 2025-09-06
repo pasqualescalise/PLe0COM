@@ -31,7 +31,7 @@ def compile_program(text, optimization_level):
     lex = Lexer(text)
     pars = Parser(lex)
     program = pars.program()
-    print(f"\n{green('Parsed program:')}\n{program}")
+    print(f"\n{green('Abstract Syntax Tree:')}\n{program}")
 
     main_symbol = pars.current_function
 
@@ -67,7 +67,7 @@ def compile_program(text, optimization_level):
     print(h2("FLATTENING"))
     program.navigate(flattening, quiet=False)
 
-    print(f"\n{green('Lowered and flattened program:')}\n{program}")
+    print(f"\n{green('Intermediate Representation:')}\n{program}")
 
     # XXX: OTHER OPTIMIZATIONS GO HERE
     print(h2("POST-LOWERING OPTIMIZATIONS"))

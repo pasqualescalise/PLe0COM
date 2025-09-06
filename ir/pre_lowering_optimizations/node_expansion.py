@@ -8,7 +8,8 @@ expand high-level nodes using other high-level nodes"""
 from functools import reduce
 from copy import deepcopy
 
-from ir.ir import CallStat, AssignStat, PointerType, StaticArray, Var, Const, PrintStat, ArrayElement, BinExpr, String, new_temporary
+from frontend.ast import CallStat, AssignStat, StaticArray, Var, Const, PrintStat, ArrayElement, BinExpr, String
+from ir.ir import PointerType, new_temporary
 from ir.support import get_node_list
 
 

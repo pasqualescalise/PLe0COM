@@ -8,7 +8,7 @@ from logger import green, magenta
 
 
 def remove_inlined_functions(self):
-    definition_list = DefinitionList(parent=self.parent, children=[])
+    definition_list = DefinitionList(parent=self.parent)
 
     for definition in self.children:
         if definition.called_by_counter < 1:
@@ -19,7 +19,7 @@ def remove_inlined_functions(self):
             print(f"{green('Removed inlined function')} {magenta(f'{definition.symbol.name}')}")
         else:
             definition_list.append(definition)
-    self.parent.replace(self, definition_list)
+    self.parent.defs = definition_list
 
 
 DefinitionList.remove_inlined_functions = remove_inlined_functions

@@ -45,7 +45,8 @@ For now, the LOOP_UNROLLING_FACTOR can only be a power of 2
 from copy import deepcopy
 from math import log
 
-from ir.ir import ForStat, Const, BinExpr, UnExpr, IfStat, StatList, AssignStat, Var
+from frontend.ast import ForStat, Const, BinExpr, UnExpr, IfStat, AssignStat, Var
+from ir.ir import StatList
 from logger import red, green, yellow, magenta, cyan
 
 
