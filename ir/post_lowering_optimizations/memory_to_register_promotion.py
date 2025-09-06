@@ -34,6 +34,12 @@ def memory_to_register_promotion(root):
         if symbol.alloct not in ['auto', 'global']:
             continue
 
+        try:
+            if symbol.checked:
+                continue
+        except AttributeError:
+            symbol.checked = True
+
         print(f"{blue('SYMBOL:')} {symbol}")
 
         if isinstance(symbol.stype, ArrayType) or isinstance(symbol.stype, PointerType):
