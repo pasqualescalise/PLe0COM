@@ -175,7 +175,7 @@ def node_expansion(node):
             node.expanded = True
             node.expand()
         except AttributeError as e:
-            if not str(e).endswith("has no attribute 'expand'"):
+            if e.name != "expand":
                 raise RuntimeError(f"Raised AttributeError {e}")
 
 

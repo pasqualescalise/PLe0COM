@@ -29,5 +29,5 @@ def remove_inlined_functions(node):
     try:
         node.remove_inlined_functions()
     except AttributeError as e:
-        if not str(e).endswith("has no attribute 'remove_inlined_functions'"):
+        if e.name != "remove_inlined_functions":
             raise RuntimeError(f"Raised AttributeError {e}")

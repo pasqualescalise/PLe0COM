@@ -42,6 +42,11 @@ sudo apt install gcc
 
 To use the Makefile on ARM, the variables `$(CC)` and `$(RUN_COMMAND)` must be changed
 
+### Python version
+
+The code was tested on Python 3.11 and uses features from version 3.10 (e.g. `match`),
+so any version 3.10+ should work
+
 ## Compile and run
 
 ### Compile

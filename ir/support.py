@@ -33,7 +33,7 @@ def lowering(node):
         if not check:
             raise RuntimeError(f"Node {repr(node)} did not return anything after lowering")
     except AttributeError as e:
-        if str(e).endswith("has no attribute 'lower'"):
+        if e.name == "lower":
             log_indentation(underline(f"Lowering not yet implemented for type {node.type()}"))
         else:
             raise RuntimeError(e)
@@ -45,7 +45,7 @@ def flattening(node):
     try:
         node.flatten()
     except AttributeError as e:
-        if str(e).endswith("has no attribute 'flatten'"):
+        if e.name == "flatten":
             log_indentation(underline(f"Flattening not yet implemented for type {node.type()}"))
         else:
             raise RuntimeError(e)

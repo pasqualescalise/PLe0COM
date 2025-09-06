@@ -163,5 +163,5 @@ def function_inlining(node):
     try:
         node.inline()
     except AttributeError as e:
-        if not str(e).endswith("has no attribute 'inline'"):
+        if e.name != "inline":
             raise RuntimeError(f"Raised AttributeError {e}")

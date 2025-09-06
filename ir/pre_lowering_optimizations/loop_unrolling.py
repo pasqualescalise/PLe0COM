@@ -118,7 +118,7 @@ def loop_unrolling(node):
     try:
         node.unroll()
     except AttributeError as e:
-        if not str(e).endswith("has no attribute 'unroll'"):
+        if e.name != "unroll":
             raise RuntimeError(f"Raised AttributeError {e}")
 
 
