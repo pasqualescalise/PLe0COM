@@ -150,14 +150,6 @@ class ASTNode:  # abstract
         else:
             return self.parent.get_function()
 
-    def find_the_program(self):
-        return FunctionTree.find_the_program()
-
-    # returns the FuncDef with the symbol specified, if it's reachable
-    # raises a RuntimeError if it doesn't find it
-    def get_function_definition(self, target_function_symbol):
-        return FunctionTree.get_function_definition(target_function_symbol)
-
 
 # CONST and VAR
 
@@ -490,7 +482,7 @@ class CallStat(Stat):
 
     def lower(self):
         # TODO: these need to be moved before the node expansion
-        function_definition = self.get_function_definition(self.function_symbol)
+        function_definition = FunctionTree.get_function_definition(self.function_symbol)
         function_definition.called_by_counter += 1
 
         self.check_parameters_and_returns(function_definition)

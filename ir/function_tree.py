@@ -96,9 +96,11 @@ class FunctionTree:
         return None
 
     @staticmethod
-    def find_the_program():
-        return FunctionTree.root.definition
-
-    @staticmethod
+    # returns the FuncDef with the symbol specified, if it's reachable
+    # raises a RuntimeError if it doesn't find it
     def get_function_definition(target_function_symbol):
-        return FunctionTree.get_function_node(target_function_symbol).definition
+        function_definition = FunctionTree.get_function_node(target_function_symbol).definition
+        if function_definition is None:
+            raise RuntimeError(f"Can't find function {target_function_symbol.name}")
+
+        return function_definition

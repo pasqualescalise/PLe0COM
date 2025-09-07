@@ -15,7 +15,6 @@ IR instructions (except definitions) need to implement a few methods:
 from functools import reduce
 from copy import deepcopy
 
-from ir.function_tree import FunctionTree
 from backend.codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
 import logger
@@ -382,14 +381,6 @@ class IRInstruction():  # abstract
             return self.parent
         else:
             return self.parent.get_function()
-
-    def find_the_program(self):
-        return FunctionTree.find_the_program()
-
-    # returns the FuncDef with the symbol specified, if it's reachable
-    # raises a RuntimeError if it doesn't find it
-    def get_function_definition(self, target_function_symbol):
-        return FunctionTree.get_function_definition(target_function_symbol)
 
 
 # STATEMENTS

@@ -5,6 +5,7 @@ when possible, directly replace the function call with its code"""
 
 from copy import deepcopy
 
+from ir.function_tree import FunctionTree
 from ir.ir import BranchStat, StoreStat, LoadStat, TYPENAMES, EmptyStat
 from logger import green, magenta
 
@@ -105,7 +106,7 @@ def inline(self):
     if not self.is_call():
         return
 
-    target_definition = self.get_function_definition(self.target)
+    target_definition = FunctionTree.get_function_definition(self.target)
     if len(target_definition.body.body.children) >= MAX_INSTRUCTION_TO_INLINE:
         return
 
