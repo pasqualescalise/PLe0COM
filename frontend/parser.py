@@ -3,6 +3,7 @@
 """PL/0 recursive descent parser adapted from Wikipedia"""
 
 from functools import reduce
+from copy import deepcopy
 
 import frontend.ast as ast
 import ir.ir as ir
@@ -303,9 +304,20 @@ class Parser:
         elif self.accept('ident'):
             target = symtab.find(self, self.value)
             offset, num_of_accesses = self.array_offset(target, symtab)
-            self.expect('becomes')
 
-            expr = self.expression(symtab)
+            if self.accept('incsym'):
+                if not target.is_numeric():
+                    self.error("Trying to increment a non numeric variable")
+
+                if offset is None:
+                    dest = ast.Var(var=target, symtab=symtab)
+                else:
+                    dest = ast.ArrayElement(var=target, offset=deepcopy(offset), num_of_accesses=num_of_accesses, symtab=symtab)
+                expr = ast.BinExpr(children=['plus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+            else:
+                self.expect('becomes')
+                expr = self.expression(symtab)
+
             return ast.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
 
         elif self.accept('callsym'):

@@ -1,0 +1,8 @@
+VAR i : ubyte;
+
+BEGIN
+	i := 255;
+	print i;
+	i++;
+	print i
+END.
