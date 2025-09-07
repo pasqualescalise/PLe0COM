@@ -1,4 +1,6 @@
 VAR i : ubyte;
+var x, y : int;
+VAR arr[2] : int;
 
 BEGIN
 	i := 255;
@@ -7,5 +9,22 @@ BEGIN
 	print i;
 	i--;
 	i--;
-	print i
+	print i;
+	x := i++;
+	x := x++;
+	print x;
+	y := x--;
+	print x;
+	print y;
+	x := 1++;
+	print x;
+	x := (5 % 4)++;
+	print x;
+	arr := [1, 2]int;
+	arr[0]++;
+	arr[1] := (77 / (8--));
+	print arr;
+	for i := 0; i < 5; i++ do begin
+		print i
+	end
 END.

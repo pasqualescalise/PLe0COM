@@ -150,6 +150,10 @@ class Parser:
             op = self.sym
             expr2 = self.modulus(symtab)
             expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+
+        # expr++/expr-- becomes expr + 1/expr - 1
+        if self.accept('incsym') or self.accept('decsym'):
+            expr = ast.BinExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
         return expr
 
     @logger
