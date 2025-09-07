@@ -305,15 +305,15 @@ class Parser:
             target = symtab.find(self, self.value)
             offset, num_of_accesses = self.array_offset(target, symtab)
 
-            if self.accept('incsym'):
+            if self.accept('incsym') or self.accept('decsym'):
                 if not target.is_numeric():
-                    self.error("Trying to increment a non numeric variable")
+                    self.error(f"Trying to {'increment' if self.sym == 'incsym' else 'decrement'} a non numeric variable")
 
                 if offset is None:
                     dest = ast.Var(var=target, symtab=symtab)
                 else:
                     dest = ast.ArrayElement(var=target, offset=deepcopy(offset), num_of_accesses=num_of_accesses, symtab=symtab)
-                expr = ast.BinExpr(children=['plus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+                expr = ast.BinExpr(children=['plus' if self.sym == 'incsym' else 'minus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
             else:
                 self.expect('becomes')
                 expr = self.expression(symtab)
