@@ -618,7 +618,6 @@ class Parser:
         """Axiom"""
         # for the main, this acts also as the local_symtab
         global_symtab = ir.SymbolTable()
-        global_symtab.append(self.current_function)  # the main symbol
         self.getsym()
         main_body = self.block(global_symtab, global_symtab, alloct='global')
         main = ir.FunctionDef(symbol=self.current_function, parameters=[], body=main_body, returns=[], called_by_counter=1)

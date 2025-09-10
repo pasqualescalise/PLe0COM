@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 from frontend.lexer import Lexer
 from frontend.parser import Parser
 
-from ir.support import get_node_list, flattening, lowering
+from ir.support import get_node_list, lowering, flattening
 from ir.pre_lowering_optimizations import perform_pre_lowering_optimizations
 from ir.post_lowering_optimizations import perform_post_lowering_optimizations
 from ir.function_tree import FunctionTree
