@@ -1,0 +1,72 @@
+VAR result1, result2 : int;
+
+PROCEDURE function_to_inline_no_return();
+	BEGIN
+		print 10 + 20
+	END;
+
+PROCEDURE function_to_inline_no_return_string();
+	BEGIN
+		print "Hello World!"
+	END;
+
+PROCEDURE function_to_inline_return() -> (int);
+	BEGIN
+		return (10 + 20)
+	END;
+
+PROCEDURE function_to_inline_multiple_return() -> (int, int);
+	BEGIN
+		return (10 + 20, 20)
+	END;
+
+PROCEDURE function_to_inline_more_complex_return() -> (int);
+	BEGIN
+		if 10 > 20 then begin
+			return (10 + 10)
+		end;
+		return (10 + 20)
+	END;
+
+PROCEDURE function_to_inline_empty_return();
+	BEGIN
+		print 10 + 20;
+		return ()
+	END;
+
+PROCEDURE function_to_inline_param(x, y : int);
+	BEGIN
+		print x;
+		print y
+	END;
+
+PROCEDURE function_to_inline_param_return(result : int) -> (int);
+	BEGIN
+		return (result - 1)
+	END;
+
+PROCEDURE function_to_inline_param_return_dont_care(result : int) -> (int, int, int);
+	BEGIN
+		return (result - 1, result, result + 1)
+	END;
+
+BEGIN
+	CALL function_to_inline_no_return();
+	CALL function_to_inline_no_return_string();
+	CALL function_to_inline_no_return();
+	CALL function_to_inline_return() -> (result1);
+	print result1;
+	CALL function_to_inline_multiple_return() -> (result1, result2);
+	print result1;
+	print result2;
+	CALL function_to_inline_more_complex_return() -> (result1);
+	print result1;
+	CALL function_to_inline_empty_return();
+	result1 := 200;
+	result2 := 300;
+	CALL function_to_inline_param(result1, result2);
+	CALL function_to_inline_param_return(result1) -> (result2);
+	print result2;
+	CALL function_to_inline_param_return_dont_care(result2) -> (_, result2, _);
+	print result2
+END.

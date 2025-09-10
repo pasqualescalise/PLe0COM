@@ -2,25 +2,42 @@
 
 """The main function of the compiler, AKA the compiler driver"""
 
-import lexer
-import parser
-from support import get_node_list, flattening, lowering
-from datalayout import perform_data_layout, perform_memory_to_register_promotion
-from cfg import ControlFlowGraph
-from regalloc import LinearScanRegisterAllocator
-from codegen import generate_code
-from logger import initialize_logger, h1, h2, remove_formatting, red, green, yellow, cyan, bold, italic, underline
-# from optimizations import loop_unrolling
+from argparse import ArgumentParser
+
+from frontend.lexer import Lexer
+from frontend.parser import Parser
+
+from ir.support import get_node_list, lowering, flattening
+from ir.pre_lowering_optimizations import perform_pre_lowering_optimizations
+from ir.post_lowering_optimizations import perform_post_lowering_optimizations
+from ir.function_tree import FunctionTree
+
+from cfg.cfg import ControlFlowGraph
+from cfg.control_flow_graph_optimizations import perform_control_flow_graph_optimizations
+from cfg.control_flow_graph_analyses import perform_control_flow_graph_analyses
+
+from backend.datalayout import perform_data_layout
+from backend.regalloc import LinearScanRegisterAllocator
+from backend.codegen import generate_code
+from backend.post_code_generation_optimizations import perform_post_code_generation_optimizations
+
+from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, cyan, bold, italic, underline
 
 
-def compile_program(text):
+def compile_program(text, optimization_level):
     print(h1("FRONT-END"))
 
     print(h2("PARSING"))
-    lex = lexer.Lexer(text)
-    pars = parser.Parser(lex)
+    lex = Lexer(text)
+    pars = Parser(lex)
     program = pars.program()
-    print(f"\n{green('Parsed program:')}\n{program}")
+    print(f"\n{green('Abstract Syntax Tree:')}\n{program}")
+
+    main_symbol = pars.current_function
+
+    print(h2("FUNCTION TREE"))
+    FunctionTree.populate_function_tree(program, main_symbol)
+    print(FunctionTree.root)
 
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)
@@ -43,10 +60,10 @@ def compile_program(text):
     print(h1("MIDDLE-END"))
 
     # XXX: SOME OPTIMIZATIONS GO HERE
-    # print(h2("LOOP UNROLLING"))
-    # loop_unrolling(program)
-    # program.navigate(loop_unrolling, quiet=True)
-    # print('\n', program, '\n')
+    print(h2("PRE-LOWERING OPTIMIZATIONS"))
+    perform_pre_lowering_optimizations(program, optimization_level)
+
+    print(f"\n{green('Optimized program:')}\n{program}")
 
     print(h2("LOWERING"))
     program.navigate(lowering, quiet=False)
@@ -54,27 +71,33 @@ def compile_program(text):
     print(h2("FLATTENING"))
     program.navigate(flattening, quiet=False)
 
-    print(f"\n{green('Lowered and flattened program:')}\n{program}")
+    print(f"\n{green('Intermediate Representation:')}\n{program}")
 
     # XXX: OTHER OPTIMIZATIONS GO HERE
-    print(h2("MEMORY-TO-REGISTER PROMOTION"))
-    perform_memory_to_register_promotion(program)
+    print(h2("POST-LOWERING OPTIMIZATIONS"))
+    perform_post_lowering_optimizations(program, optimization_level)
+
+    print(f"\n{green('Optimized program:')}\n{program}")
 
     ##############################################
 
-    print(h1("CONTROL FLOW GRAPH ANALYSIS"))
+    print(h1("CONTROL FLOW GRAPH ANALYSES"))
     cfg = ControlFlowGraph(program)
 
-    print(h2("LIVENESS ANALYSIS"))
-    cfg.liveness()
-    print(cfg.liveness_analysis_representation())
+    perform_control_flow_graph_analyses(cfg)
 
     # XXX: AND OTHER OPTIMIZATIONS GO HERE
-    print(h2("RETURN ANALYSIS"))
-    cfg.return_analysis()
+    print(h2("CONTROL FLOW GRAPH OPTIMIZATIONS"))
+    cfg = perform_control_flow_graph_optimizations(program, cfg, optimization_level)
 
-    cfg.print_cfg_to_dot("cfg.dot")
-    print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg.dot file')}\n")
+    print(f"\n{green('Optimized program:')}\n{program}")
+
+    cfg.print_cfg_to_dot("cfg/cfg.dot")
+    print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg/cfg.dot file')}\n")
+
+    print(h2("NEW FUNCTION TREE"))
+    FunctionTree.populate_function_tree(program, main_symbol)
+    print(FunctionTree.root)
 
     ##############################################
 
@@ -95,29 +118,34 @@ def compile_program(text):
     code = generate_code(program, register_allocation)
     print(f"\n{green('Final compiled code: ')}\n\n{code}")
 
+    # XXX: THE LAST OPTIMIZATIONS GO HERE
+    print(h2("POST-CODE-GENERATION OPTIMIZATIONS"))
+    code = perform_post_code_generation_optimizations(code, optimization_level)
+    print(f"\n{green('Final optimized code: ')}\n\n{code}")
+
     return remove_formatting(code)
 
 
 def driver_main():
-    from sys import argv
+    parser = ArgumentParser(prog="Pl0COM", description="Optimizing compiler for the (modified) PL/0 language", epilog="")
 
-    if len(argv) <= 2:
-        print(red(bold("\nPlease supply a test file in the pl0 language as first argument")))
-        exit(1)
+    parser.add_argument('-i', '--input_file', required="True")
+    parser.add_argument('-o', '--output_file', default="out.s")
+    parser.add_argument('-O', '--optimization_level', default="2", choices=["0", "1", "2"])
+
+    args = parser.parse_args()
 
     # get a test program from the arguments
-    if len(argv) > 2:
-        with open(argv[1], 'r') as inf:
-            test_program = inf.read()
+    with open(args.input_file, 'r') as inf:
+        test_program = inf.read()
 
-    code = compile_program(test_program)
+    code = compile_program(test_program, int(args.optimization_level))
 
     # write the code in the file specifed in the arguments
-    if len(argv) >= 2:
-        with open(argv[-1], 'w') as outf:
-            outf.write(code)
+    with open(args.output_file, 'w') as outf:
+        outf.write(code)
 
-        print(green(bold(f"\nThe code can be found in the '{argv[-1]}' file")))
+    print(green(bold(f"\nThe code can be found in the '{args.output_file}' file")))
 
 
 if __name__ == '__main__':

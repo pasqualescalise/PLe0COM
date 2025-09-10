@@ -1,0 +1,24 @@
+VAR result : int;
+
+PROCEDURE loop() -> (int);
+	VAR i : int;
+
+	PROCEDURE increase();
+		BEGIN
+			i := i + 1;
+
+			if i < 10 then begin
+				CALL increase()
+			end
+		END;
+
+	BEGIN
+		i := 0;
+		CALL increase();
+		return (i)
+	END;
+
+BEGIN
+	CALL loop() -> (result);
+	print result
+END.

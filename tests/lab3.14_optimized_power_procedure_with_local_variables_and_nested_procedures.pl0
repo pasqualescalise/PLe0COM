@@ -1,18 +1,18 @@
-PROCEDURE power(int base, int exponent);
+PROCEDURE power(base, exponent : int);
 	VAR result : int;
 
-	PROCEDURE square(int x);
+	PROCEDURE square(x : int);
 		BEGIN
 			result := x * x
 		END;
 
-	PROCEDURE powerOfTwo(int exponent);
+	PROCEDURE powerOfTwo(exponent : int);
 		BEGIN
 			{parentheses needed because shift has a higher precedence than -}
 			result := 2 << (exponent - 1)
 		END;
 
-	PROCEDURE powerWithFors(int base, int exponent);
+	PROCEDURE powerWithFors(base, exponent : int);
 		VAR respow, i : int;
 		BEGIN
 			respow := base;

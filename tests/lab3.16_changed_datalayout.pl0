@@ -1,0 +1,134 @@
+VAR global0, global1, global2, global3, global4, global5 : int;
+VAR global6, global7, global8, global9, global10, global11, global12, global13, global14 : int;
+
+PROCEDURE add_4_params_no_returns(param0, param1, param2, param3 : int);
+	BEGIN
+		print param0;
+		print param1;
+		print param2;
+		print param3;
+		print param0 + param1 + param2 + param3
+	END;
+
+PROCEDURE add_6_params_no_returns(param0, param1, param2, param3, param4, param5 : int);
+	VAR local : int;
+
+	BEGIN
+		local := 20;
+		print local;
+		print param0;
+		print param1;
+		print param2;
+		print param3;
+		print param4;
+		print param5;
+		print param0 + param1 + param2 + param3 + param4 + param5
+	END;
+
+PROCEDURE add_4_params_2_returns(param0, param1, param2, param3 : int) -> (int, int);
+	VAR local : int;
+
+	BEGIN
+		local := 20;
+		return (param0 + param1 + param2 + param3, local)
+	END;
+
+PROCEDURE add_6_params_2_returns(param0, param1, param2, param3, param4, param5 : int) -> (int, int);
+	VAR local : int;
+
+	BEGIN
+		local := 20;
+		return (param0 + param1 + param2 + param3 + param4 + param5, local)
+	END;
+
+PROCEDURE add_4_params_6_returns(param0, param1, param2, param3 : int) -> (int, int, int, int, int, int);
+	VAR local : int;
+
+	BEGIN
+		local := 20;
+		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, local, local + 1)
+	END;
+
+PROCEDURE add_6_params_6_returns(param0, param1, param2, param3, param4, param5 : int) -> (int, int, int, int, int, int);
+	VAR local : int;
+
+	BEGIN
+		local := 20;
+		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, param4 + 1, param5 + local)
+	END;
+
+PROCEDURE squares_15_params_15_returns(param0, param1, param2, param3, param4, param5, param6, param7, param8, param9, param10, param11, param12, param13, param14 : int) -> (int, int, int, int, int, int, int, int, int, int, int, int, int, int, int);
+	VAR local0, local1, local2, local3, local4, local5, local6, local7, local8, local9, local10, local11, local12, local13, local14 : int;
+
+	PROCEDURE square(x : int) -> (int);
+		BEGIN
+			return (x * x)
+		END;
+
+	BEGIN
+		CALL square(param0) -> (local0);
+		CALL square(param1) -> (local1);
+		CALL square(param2) -> (local2);
+		CALL square(param3) -> (local3);
+		CALL square(param4) -> (local4);
+		CALL square(param5) -> (local5);
+		CALL square(param6) -> (local6);
+		CALL square(param7) -> (local7);
+		CALL square(param8) -> (local8);
+		CALL square(param9) -> (local9);
+		CALL square(param10) -> (local10);
+		CALL square(param11) -> (local11);
+		CALL square(param12) -> (local12);
+		CALL square(param13) -> (local13);
+		CALL square(param14) -> (local14);
+		return (local0, local1, local2, local3, local4, local5, local6, local7, local8, local9, local10, local11, local12, local13, local14)
+	END;
+
+BEGIN
+	global0 := 1;
+	global2 := 3;
+	CALL add_4_params_no_returns(1, 2, 3, 4);
+	CALL add_4_params_no_returns(global0, 1 + 1, global2, 4);
+	CALL add_6_params_no_returns(global0, 1 + 1, global2, 4, 5, global2 * 2);
+
+	CALL add_4_params_2_returns(1, 2, 3, 4) -> (global0, global1);
+	print global0;
+	print global1;
+	CALL add_6_params_2_returns(1, 2, 3, 4, 5, 6) -> (global2, global3);
+	print global2;
+	print global3;
+	CALL add_6_params_2_returns(1, 1, 1, 1, 1, 1) -> (global5, _);
+	print global5;
+
+	CALL add_4_params_6_returns(1, 2, 3, 4) -> (global0, global1, global2, global3, global4, global5);
+	print global0;
+	print global1;
+	print global2;
+	print global3;
+	print global4;
+	print global5;
+	CALL add_6_params_6_returns(1, 2, 3, 4, 5, 6) -> (global0, global1, global2, global3, global4, global5);
+	print global0;
+	print global1;
+	print global2;
+	print global3;
+	print global4;
+	print global5;
+
+	CALL squares_15_params_15_returns(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) -> (global0, global1, global2, global3, global4, global5, global6, global7, global8, global9, global10, global11, global12, global13, global14);
+	print global0;
+	print global1;
+	print global2;
+	print global3;
+	print global4;
+	print global5;
+	print global6;
+	print global7;
+	print global8;
+	print global9;
+	print global10;
+	print global11;
+	print global12;
+	print global13;
+	print global14
+END.

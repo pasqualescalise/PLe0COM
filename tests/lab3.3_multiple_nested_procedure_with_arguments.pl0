@@ -1,17 +1,17 @@
-PROCEDURE multiply(int x, int y);
+PROCEDURE multiply(x, y : int);
 	VAR result : int;
 
-	PROCEDURE square(int parameter);
+	PROCEDURE square(parameter : int);
 		VAR ressquare : int;
 		BEGIN
 			ressquare := parameter * parameter;
 			print ressquare
 		END;
 
-	PROCEDURE difference(int dif1, int dif2);
+	PROCEDURE difference(dif1, dif2 : int);
 		VAR resdif : int;
 
-		PROCEDURE sum(int sum1, int sum2);
+		PROCEDURE sum(sum1, sum2 : int);
 			VAR ressum : int;
 			BEGIN
 				ressum := sum1 + sum2;

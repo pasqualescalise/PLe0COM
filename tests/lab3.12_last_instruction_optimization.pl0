@@ -1,6 +1,6 @@
 VAR result : int;
 
-PROCEDURE choose(int x, int y) -> (int);
+PROCEDURE choose(x, y : int) -> (int);
 	VAR result : int;
 
 	BEGIN

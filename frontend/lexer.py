@@ -18,6 +18,8 @@ TOKEN_DEFS = {
     'shl': ['<<'],
     'shr': ['>>'],
     'mod': ['%'],
+    'incsym': ['++'],
+    'decsym': ['--'],
     'eql': ['='],
     'neq': ['!='],
     'lss': ['<'],
@@ -39,12 +41,17 @@ TOKEN_DEFS = {
     'forsym': ['for'],
     'dosym': ['do'],
     'becomes': [':='],
-    'constsym': ['const'],
     'comma': [','],
+    'constsym': ['const'],
     'varsym': ['var'],
     'procsym': ['procedure'],
     'period': ['.'],
     'oddsym': ['odd'],
+    'truesym': ['true'],
+    'falsesym': ['false'],
+    'not': ['not'],
+    'and': ['and'],
+    'or': ['or'],
     'print': ['!', 'print'],
     'read': ['?', 'read'],
     'new': ['new'],
@@ -76,6 +83,10 @@ class Lexer:
     def check_symbol(self):
         for s, t in self.str_to_token:
             if self.text[self.pos:self.pos + len(s)].lower() == s:
+                # allow stuff like "varname" as an ident: "var" is alphanumeric, "n" is alphanumeric, so
+                # don't parse "var" as a token; same applies for stuff like var_name
+                if s.isalnum() and (self.text[self.pos + len(s)].isalnum() or self.text[self.pos + len(s)] == "_"):
+                    continue
                 self.pos += len(s)
                 return t, s
         return None, None
@@ -107,6 +118,12 @@ class Lexer:
         while self.pos < len(self.text):
             if self.parsed_string is None:
                 self.skip_whitespace()
+            else:  # return the parsed string
+                self.pos += len(self.parsed_string)
+                yield 'string', self.parsed_string
+                self.skip_quote = True
+                self.parsed_string = None
+                continue
             t, s = self.check_symbol()
             if s:
                 if t == 'quote' and not self.skip_quote:
@@ -125,10 +142,6 @@ class Lexer:
             t = self.check_regex(r'[0-9]+')
             if t:
                 yield 'number', int(t)
-                continue
-            if self.parsed_string is not None:
-                self.pos += len(self.parsed_string)
-                yield 'string', self.parsed_string
                 continue
             t = self.check_regex(r'\w+')
             if t:

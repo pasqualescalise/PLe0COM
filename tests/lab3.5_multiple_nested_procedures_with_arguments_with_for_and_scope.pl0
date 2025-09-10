@@ -1,9 +1,9 @@
 VAR base, exponent : int;
 
-PROCEDURE func1(int x, int y);
+PROCEDURE func1(x, y : int);
 	VAR result : int;
 
-	PROCEDURE square(int x);
+	PROCEDURE square(x : int);
 		VAR ressquare : int;
 		BEGIN
 			ressquare := x * x;
@@ -12,10 +12,10 @@ PROCEDURE func1(int x, int y);
 			{CALL powerWithFors(2, 2)}
 		END;
 
-	PROCEDURE powerWithFors(int x, int y);
+	PROCEDURE powerWithFors(x, y : int);
 		VAR respow : int;
 
-		PROCEDURE func2(int x, int y);
+		PROCEDURE func2(x, y : int);
 			VAR respow, i : int;
 			BEGIN
 				respow := 1;

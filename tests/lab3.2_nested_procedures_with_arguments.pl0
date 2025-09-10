@@ -1,7 +1,7 @@
-PROCEDURE multiply(int x, int y);
+PROCEDURE multiply(x, y : int);
 	VAR result : int;
 
-	PROCEDURE power(int parameter);
+	PROCEDURE power(parameter : int);
 		VAR respow : int;
 		BEGIN
 			respow := parameter * parameter;

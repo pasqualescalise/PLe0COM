@@ -1,0 +1,79 @@
+VAR i : int;
+VAR bool1, bool2 : boolean;
+
+BEGIN
+	if not false then begin
+		print True
+	end else begin
+		print False
+	end;
+	if not true then begin
+		print False
+	end else begin
+		print True
+	end;
+
+	for i := 0; i < 10; i := i + 1 do begin
+		if not odd i then begin
+			print i;
+			print "Even"
+		end else begin
+			print i;
+			print "Odd"
+		end
+	end;
+
+	bool1 := true;
+	while bool1 do begin
+		print bool1;
+		bool1 := false
+	end;
+	print bool1;
+
+	print not not true;
+	print not not not true;
+
+	print true or false;
+	print true and true;
+	print false or not false;
+	print false or false or false or true;
+
+	bool1 := true;
+	bool2 := false;
+
+	print bool1;
+	print bool2;
+
+	print not bool1;
+	print not bool2;
+
+	print bool1 and bool2;
+	print bool1 or bool2;
+
+	print bool1 and not bool2;
+	print bool1 or not bool2;
+
+	print not bool1 and bool2;
+	print not bool1 or bool2;
+
+	print not bool1 and not bool2;
+	print not bool1 or not bool2;
+
+	print 2 = 2;
+	print 2 != 2;
+
+	i := 10;
+	print (i > 5);
+	print (i > 20);
+
+	print (True and (False or True));
+
+	print False = True;
+	print (10 > 5) = True;
+	print (10 > 5) = (5 > 2);
+	print odd 2 + 2 = True;
+	print True = (True != False);
+	print (True = True) != (False = False)
+	{print True > False} {TODO: these get compiled, we need some good type checking asap}
+	{print (2 - 1) = True}
+END.

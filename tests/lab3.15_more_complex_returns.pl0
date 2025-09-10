@@ -10,7 +10,7 @@ PROCEDURE function_multiple_returns() -> (int, int);
 		return (10 + 20, 20)
 	END;
 
-PROCEDURE function_with_if_else(int x, int y) -> (int);
+PROCEDURE function_with_if_else(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
 			return (y)
@@ -19,7 +19,7 @@ PROCEDURE function_with_if_else(int x, int y) -> (int);
 		end
 	END;
 
-PROCEDURE function_with_if_elif_else(int x, int y) -> (int);
+PROCEDURE function_with_if_elif_else(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
 			return (y)
@@ -36,12 +36,36 @@ PROCEDURE function_with_if_elif_else(int x, int y) -> (int);
 		return (-1)
 	END;
 
-PROCEDURE function_with_if_and_dangling_return(int x, int y) -> (int);
+PROCEDURE function_with_if_elif_no_else(x, y : int) -> (int);
+	BEGIN
+		if x = 1 then begin
+			return (1)
+		end elif x = 2 then begin
+			return (2)
+		end elif x = 3 then begin
+			return (3)
+		end elif x = 4 then begin
+			return (4)
+		end;
+
+		return (y)
+	END;
+
+PROCEDURE function_with_if_and_dangling_return(x, y : int) -> (int);
 	BEGIN
 		if x > 1 then begin
 			return (y)
 		end;
 		return (100)
+	END;
+
+PROCEDURE function_that_just_returns(x, y : int);
+	BEGIN
+		if x > 10 then begin
+			print y
+		end else begin
+			return ()
+		end
 	END;
 
 BEGIN
@@ -60,6 +84,10 @@ BEGIN
 	print result1;
 	CALL function_with_if_elif_else(1, 2) -> (result1);
 	print result1;
+	CALL function_with_if_elif_no_else(5, 100) -> (result1);
+	print result1;
 	CALL function_with_if_and_dangling_return(1, 2) -> (result1);
+	print result1;
+	CALL function_that_just_returns(1, 2);
 	print result1
 END.

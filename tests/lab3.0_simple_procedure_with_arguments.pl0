@@ -1,4 +1,4 @@
-PROCEDURE multiply(int x, int y);
+PROCEDURE multiply(x, y : int);
 	VAR result : int;
 	BEGIN
 		result := x * y;

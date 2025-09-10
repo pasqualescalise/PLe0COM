@@ -1,6 +1,6 @@
 VAR base, exponent : int;
 
-PROCEDURE power(int x, int y);
+PROCEDURE power(x, y : int);
 	VAR result, i : int;
 	BEGIN
 		result := 1;

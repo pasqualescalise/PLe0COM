@@ -5,6 +5,7 @@ CFLAGS := -g -static -march=armv6 -z noexecstack
 
 ASSEMBLY := out.s
 EXECUTABLE := out
+OPTIMIZATION_LEVEL := 2
 RUN_COMMAND := qemu-arm -cpu arm1136 
 DEBUGGER := pwndbg
 
@@ -12,15 +13,15 @@ TESTS_SRC_DIR:= "./tests"
 TESTS_EXP_DIR := "./tests/expected"
 TESTS_OUT_DIR := "./tests/output"
 
-CFG_DOT_FILE := cfg.dot
-CFG_PDF_FILE := cfg.pdf
-CFG_PNG_FILE := cfg.png
+CFG_DOT_FILE := cfg/cfg.dot
+CFG_PDF_FILE := cfg/cfg.pdf
+CFG_PNG_FILE := cfg/cfg.png
 
 all: compile execute
 
 compile:
 	if [ $(test) ]; then\
-		python3 main.py $(test) $(ASSEMBLY);\
+		python3 main.py -i $(test) -o $(ASSEMBLY) -O$(OPTIMIZATION_LEVEL);\
 	fi;
 	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE)
 	if [ ! $$? -eq 0 ]; then\
@@ -32,6 +33,9 @@ execute:
 	if [ $(dbg) ]; then\
 		$(RUN_COMMAND) -g 7777 $(EXECUTABLE);\
 	elif [ $(test) ]; then\
+		if [ ! -d $(TESTS_OUT_DIR) ]; then\
+			mkdir $(TESTS_OUT_DIR);\
+		fi;\
 		test_name=$$(basename "$(test)" .pl0);\
 		output_file=$(TESTS_OUT_DIR)/single_test.output;\
 		$(RUN_COMMAND) $(EXECUTABLE) > $$output_file;\
@@ -75,7 +79,7 @@ clean:
 	rm $(ASSEMBLY) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
 
 dbg:
-	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b __pl0_start" --eval-command="c"
+	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b main" --eval-command="c"
 
 showpdf:
 	dot -Tpdf $(CFG_DOT_FILE) -o $(CFG_PDF_FILE)

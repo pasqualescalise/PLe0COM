@@ -1,9 +1,9 @@
 VAR result : int;
 
-PROCEDURE f1(int x, int y);
+PROCEDURE f1(x, y : int);
 	VAR result : int;
 
-	PROCEDURE f2(int x, int y);
+	PROCEDURE f2(x, y : int);
 		BEGIN
 			result := x * y
 		END;

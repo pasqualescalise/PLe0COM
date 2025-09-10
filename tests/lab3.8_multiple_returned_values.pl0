@@ -1,6 +1,6 @@
 VAR sum, multiplication : int;
 
-PROCEDURE sumAndMultiply(int x, int y) -> (int, int);
+PROCEDURE sumAndMultiply(x, y : int) -> (int, int);
 	BEGIN
 		return (x + y, x * y)
 	END;
