@@ -10,11 +10,12 @@ from logger import magenta, cyan
 
 
 class FunctionNode:
-    def __init__(self, symbol, children, parent=None, siblings=[]):
+    def __init__(self, symbol, children, parent=None, siblings=[], definition=None):
         self.symbol = symbol
         self.children = children
         self.parent = parent
         self.siblings = []
+        self.definition = definition
 
     def __repr__(self):
         res = f"{cyan('|')} {magenta(f'{self.symbol.name}')}\n"
@@ -69,9 +70,9 @@ class FunctionTree:
 
     @staticmethod
     def create_function_tree(root, symbol):
-        function_tree = FunctionNode(symbol, [])
-        for function in root.defs.children:
-            new_node = FunctionTree.create_function_tree(function.body, function.symbol)
+        function_tree = FunctionNode(symbol, [], definition=root)
+        for function in root.body.defs.children:
+            new_node = FunctionTree.create_function_tree(function, function.symbol)
             function_tree.children.append(new_node)
             new_node.parent = function_tree
             new_node.siblings = function_tree.children
@@ -93,3 +94,13 @@ class FunctionTree:
                 return x
 
         return None
+
+    @staticmethod
+    # returns the FuncDef with the symbol specified, if it's reachable
+    # raises a RuntimeError if it doesn't find it
+    def get_function_definition(target_function_symbol):
+        function_definition = FunctionTree.get_function_node(target_function_symbol).definition
+        if function_definition is None:
+            raise RuntimeError(f"Can't find function {target_function_symbol.name}")
+
+        return function_definition

@@ -10,9 +10,9 @@ from logger import red, green, blue
 
 # Remove the symbol from the symbol table and convert it to a register
 def promote_symbol(symbol, root):
-    instructions = root.body.children
+    instructions = root.body.body.children
 
-    root.symtab.remove(symbol)
+    root.body.symtab.remove(symbol)
     symbol.alloct = 'reg'
 
     for i in range(0, len(instructions)):
@@ -27,7 +27,7 @@ def promote_symbol(symbol, root):
 def memory_to_register_promotion(root):
     to_promote = []
 
-    for symbol in root.symtab:
+    for symbol in root.body.symtab:
         if symbol.stype.size <= 0:
             continue
 
@@ -60,5 +60,5 @@ def memory_to_register_promotion(root):
     for symbol in to_promote:
         promote_symbol(symbol, root)
 
-    for function_definition in root.defs.children:
-        memory_to_register_promotion(function_definition.body)
+    for function_definition in root.body.defs.children:
+        memory_to_register_promotion(function_definition)

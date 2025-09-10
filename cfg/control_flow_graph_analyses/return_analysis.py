@@ -10,7 +10,7 @@ from logger import green
 def perform_return_analysis(cfg):
     for bb in cfg.tails():
         function_definition = bb.get_function()
-        if function_definition == 'main':
+        if function_definition.parent is None:
             continue  # the main does not return anything
 
         number_of_returns = len(function_definition.returns)

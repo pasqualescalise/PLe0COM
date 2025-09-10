@@ -9,6 +9,7 @@ from functools import reduce
 from copy import deepcopy
 
 from frontend.ast import CallStat, AssignStat, StaticArray, Var, Const, PrintStat, ArrayElement, BinExpr, String
+from ir.function_tree import FunctionTree
 from ir.ir import PointerType, new_temporary
 from ir.support import get_node_list
 
@@ -23,7 +24,7 @@ def add_return_assignments(self):
     if len(self.returns) == 0:
         return
 
-    function_returns = self.get_function_definition(self.function_symbol).returns
+    function_returns = FunctionTree.get_function_definition(self.function_symbol).returns
     assign_stats = []
     for i in range(len(self.returns)):
         if self.returns[i][0] == "_":

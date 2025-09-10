@@ -42,7 +42,7 @@ class GlobalSymbolLayout(SymbolLayout):
 def perform_data_layout(root):
     perform_data_layout_of_program(root)
 
-    for defin in root.defs.children:
+    for defin in root.body.defs.children:
         perform_data_layout_of_function(defin)
 
     perform_data_layout_of_data_variables()
@@ -100,7 +100,7 @@ def perform_data_layout_of_function(funcroot):
 
 # Calculate the size of all the global variables
 def perform_data_layout_of_program(root):
-    for var in root.symtab.exclude_alloct(['reg', 'data']):
+    for var in root.body.symtab.exclude_alloct(['reg', 'data']):
         if var.stype.size == 0:
             continue
 
@@ -109,7 +109,7 @@ def perform_data_layout_of_program(root):
         name = f"_g_main_{var.name}"
         var.set_alloc_info(GlobalSymbolLayout(name, bsize))
 
-    print(f"{cyan('main')} {root.symtab}")
+    print(f"{cyan('main')} {root.body.symtab}")
 
 
 def perform_data_layout_of_data_variables():

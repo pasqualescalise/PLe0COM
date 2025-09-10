@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 from frontend.lexer import Lexer
 from frontend.parser import Parser
 
-from ir.support import get_node_list, flattening, lowering
+from ir.support import get_node_list, lowering, flattening
 from ir.pre_lowering_optimizations import perform_pre_lowering_optimizations
 from ir.post_lowering_optimizations import perform_post_lowering_optimizations
 from ir.function_tree import FunctionTree
@@ -34,6 +34,10 @@ def compile_program(text, optimization_level):
     print(f"\n{green('Abstract Syntax Tree:')}\n{program}")
 
     main_symbol = pars.current_function
+
+    print(h2("FUNCTION TREE"))
+    FunctionTree.populate_function_tree(program, main_symbol)
+    print(FunctionTree.root)
 
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)
@@ -91,7 +95,7 @@ def compile_program(text, optimization_level):
     cfg.print_cfg_to_dot("cfg/cfg.dot")
     print(f"\n{underline('A dot file representation of the ControlFlowGraph can be found in the cfg/cfg.dot file')}\n")
 
-    print(h2("FUNCTION TREE"))
+    print(h2("NEW FUNCTION TREE"))
     FunctionTree.populate_function_tree(program, main_symbol)
     print(FunctionTree.root)
 
