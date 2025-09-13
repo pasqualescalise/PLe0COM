@@ -1,11 +1,40 @@
-VAR size, i : int;
+VAR size, i, j, k : int;
+VAR y[2][3][4] : int;
 
 BEGIN
-	size := 4;
-	new(x, int, [size][size]);
-    for i := 0; i < size; i := i + 1 do begin
-		x[i][0] := i
-	end;
-	print x[0][0];
-	print x[size - 1][0]
+	size := 3;
+	new(x, int, [size - 1][size][size + 1]);
+	x :=
+		[
+		    [ 
+		        [1, 2, 3, 4]int,
+		        [5, 6, 7, 8]int,
+		        [9, 10, 11, 12]int
+		    ]int[4],
+		    [ 
+		        [13, 14, 15, 16]int,
+		        [17, 18, 19, 20]int,
+		        [21, 22, 23, 24]int
+		    ]int[4]
+		]int[3][4];
+	y :=
+		[
+		    [ 
+		        [1, 2, 3, 4]int,
+		        [5, 6, 7, 8]int,
+		        [9, 10, 11, 12]int
+		    ]int[4],
+		    [ 
+		        [13, 14, 15, 16]int,
+		        [17, 18, 19, 20]int,
+		        [21, 22, 23, 24]int
+		    ]int[4]
+		]int[3][4];
+    for i := 0; i < size - 1; i++ do begin
+		for j := 0; j < size; j++ do begin
+			for k := 0; k < size + 1; k++ do begin
+				print x[i][j][k] = y[i][j][k]
+			end
+		end
+	end
 END.

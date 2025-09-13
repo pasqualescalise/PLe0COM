@@ -221,22 +221,6 @@ class ArrayElement(ASTNode):
         dest = ir.new_temporary(self.symtab, self.symbol.stype.basetype)
         off = self.offset.destination()
 
-        # at compile time, the dimensions of the array are always 0; we correct
-        # this by getting the symbol that contains the real dynamic size of the
-        # dimensions and substituiting the constant "0" with this symbol
-        if self.symbol.alloct == 'heap':
-            dynamic_sizes = self.symbol.dynamic_sizes
-            i = 0
-            for child in self.offset.children:
-                if len(child.children) < 2:
-                    continue
-
-                size_statement = child.children[1].children[0]
-                correct_size_statement = ir.LoadStat(dest=size_statement.dest, symbol=dynamic_sizes[i], symtab=size_statement.symtab)
-                child.children[1].replace(size_statement, correct_size_statement)
-
-                i += 1
-
         statl = [self.offset]
 
         if self.symbol.alloct == 'param':
@@ -736,23 +720,6 @@ class AssignStat(Stat):
                 if isinstance(desttype, ir.ArrayType):  # this is always true at the moment
                     desttype = desttype.basetype
 
-                # TODO: avoid duplicating code here and in ArrayElement
-                # at compile time, the dimensions of the array are always 0; we correct
-                # this by getting the symbol that contains the real dynamic size of the
-                # dimensions and substituiting the constant "0" with this symbol
-                if self.symbol.alloct == 'heap':
-                    dynamic_sizes = self.symbol.dynamic_sizes
-                    i = 0
-                    for child in self.offset.children:
-                        if len(child.children) < 2:
-                            continue
-
-                        size_statement = child.children[1].children[0]
-                        correct_size_statement = ir.LoadStat(dest=size_statement.dest, symbol=dynamic_sizes[i], symtab=size_statement.symtab)
-                        child.children[1].replace(size_statement, correct_size_statement)
-
-                        i += 1
-
                 if self.symbol.alloct == 'param' or self.symbol.is_string():
                     # pass by reference, we have to deallocate the pointer twice
                     parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.stype.basetype)))
@@ -971,6 +938,7 @@ class NewStat(Stat):
         size = target.stype.size // 8
 
         # this temporary will be used each time the target symbol is used
+        # XXX: huge register stress
         memory_addr = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
         target.set_address(memory_addr)
 
@@ -994,16 +962,17 @@ class NewStat(Stat):
             load_type_size = ir.LoadImmStat(dest=size_temp, val=target.stype.basetype.size // 8, symtab=self.symtab)
             statl.append(load_type_size)
 
-            for expr in self.expr.children:
+            for i in range(len(self.expr.children)):
+                expr = self.expr.children[i]
                 statl.append(expr)
+
+                # put the dimension value in the dimension symbols
+                statl.append(ir.StoreStat(dest=target.stype.dims[i], symbol=expr.destination(), killhint=target.stype.dims[i], symtab=self.symtab))
 
                 multiply_size = ir.BinStat(dest=size_temp, op='times', srca=size_temp, srcb=expr.destination(), symtab=self.symtab)
                 statl.append(multiply_size)
 
             load_size = ir.StatList(self, statl, symtab=self.symtab)
-
-            # give the target the array with all the symbols containing its sizes
-            target.set_dynamic_sizes([expr.destination() for expr in self.expr.children])
 
         reduce_brk = ir.BinStat(dest=brk_temp, op='plus', srca=memory_addr, srcb=size_temp, symtab=self.symtab)
 

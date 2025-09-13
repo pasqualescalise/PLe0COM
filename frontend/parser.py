@@ -65,25 +65,55 @@ class Parser:
                 self.expect('lspar')
                 idxes.append(self.numeric_expression(symtab))
                 self.expect('rspar')
-            offset = self.linearize_multid_vector(idxes, target, symtab)
+            offset = self.array_offset_expression(idxes, target, symtab)
         return (offset, len(idxes))
 
-    @staticmethod
-    def linearize_multid_vector(explist, target, symtab):
+    def array_offset_expression(self, accesses, target, symtab):
+        if target.alloct == 'heap':  # the dimensions are stored in symbols
+            return self.array_offset_expression_heap(accesses, target, symtab)
+
         offset = None
-        for i in range(0, len(explist)):
+        for i in range(0, len(accesses)):
             if i + 1 < len(target.stype.dims):
-                planedisp = reduce(lambda x, y: x * y, target.stype.dims[i + 1:])
+                dimension_size = reduce(lambda x, y: x * y, target.stype.dims[i + 1:])
             else:
-                planedisp = 1
-            idx = explist[i]
-            esize = (target.stype.basetype.size // 8) * planedisp
-            planed = ast.BinExpr(children=['times', idx, ast.Const(value=esize, symtab=symtab)], symtab=symtab)
+                dimension_size = 1  # for the last one just use the basetype size
+            idx = accesses[i]
+            typed_dimension_size = (target.stype.basetype.size // 8) * dimension_size
+            dimension_offset = ast.BinExpr(children=['times', idx, ast.Const(value=typed_dimension_size, symtab=symtab)], symtab=symtab)
             if offset is None:
-                offset = planed
+                offset = dimension_offset
             else:
-                offset = ast.BinExpr(children=['plus', offset, planed], symtab=symtab)
+                offset = ast.BinExpr(children=['plus', offset, dimension_offset], symtab=symtab)
         return offset
+
+    def array_offset_expression_heap(self, accesses, target, symtab):
+        offset = None
+        for i in range(0, len(accesses)):
+            if i + 1 < len(target.stype.dims):
+                dimension_size = self.create_dimension_size_heap(target.stype.dims[i + 1:], symtab)
+            else:
+                dimension_size = ast.Const(value=1, symtab=symtab)  # for the last one just use the basetype size
+            typed_dimension_size = ast.BinExpr(children=['times', ast.Const(value=target.stype.basetype.size // 8, symtab=symtab), dimension_size], symtab=symtab)
+            dimension_offset = ast.BinExpr(children=['times', accesses[i], typed_dimension_size], symtab=symtab)
+            if offset is None:
+                offset = dimension_offset
+            else:
+                offset = ast.BinExpr(children=['plus', offset, dimension_offset], symtab=symtab)
+        return offset
+
+    # recursively create a tree of multiplications between elements of dims,
+    # which are symbols containing the dimensions
+    def create_dimension_size_heap(self, dims, symtab):
+        match len(dims):
+            case 1:
+                return ast.Var(var=dims[0], symtab=symtab)
+            case 2:
+                return ast.BinExpr(children=['times', ast.Var(var=dims[0], symtab=symtab), ast.Var(var=dims[1], symtab=symtab)], symtab=symtab)
+            case x if x > 2:
+                return ast.BinExpr(children=['times', ast.Var(var=dims[0], symtab=symtab), Parser.create_dimension_size_heap(dims[1:], symtab)], symtab=symtab)
+            case _:
+                self.error("Error while calculating heap array dimension offset")
 
     @logger
     def factor(self, symtab):
@@ -466,10 +496,11 @@ class Parser:
             size_expr = None
             if self.accept('comma'):  # get the size of the array to allocate, in the form [size][size]...
                 size_exprs = []
+                dimension_symbols = []  # holds the symbols that will contain the sizes (XXX: register stress)
                 while self.accept('lspar'):
+                    dimension_symbols.append(ir.new_temporary(symtab, ir.TYPENAMES['int']))
                     new_expr = self.numeric_expression(symtab)
-                    type_size = ast.Const(value=ir.TYPENAMES[type].size // 8, symtab=symtab)
-                    size_exprs.append(ast.BinExpr(children=["times", new_expr, type_size], symtab=symtab))
+                    size_exprs.append(new_expr)
                     self.expect('rspar')
                 if len(size_exprs) == 0:
                     self.error("Can't create size 0 array")
@@ -486,7 +517,7 @@ class Parser:
             if size_expr is None:
                 target = ir.Symbol(variable, ir.TYPENAMES[type], alloct='heap', function_symbol=self.current_function)
             else:
-                target = ir.Symbol(variable, ir.ArrayType(None, [0] * len(size_expr.children), ir.TYPENAMES[type]), alloct='heap', function_symbol=self.current_function)
+                target = ir.Symbol(variable, ir.ArrayType(None, dimension_symbols, ir.TYPENAMES[type]), alloct='heap', function_symbol=self.current_function)
             symtab.append(target)
 
             self.expect('rparen')

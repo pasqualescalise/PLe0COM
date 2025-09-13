@@ -76,12 +76,17 @@ class Type:
 class ArrayType(Type):
     def __init__(self, name, dims, basetype):
         """dims is a list of dimensions: dims = [5]: array of 5 elements;
-        dims = [5, 5]: 5x5 matrix; and so on; it's [] if the array size
-        gets computed at run time"""
+        dims = [5, 5]: 5x5 matrix; and so on; if it's a list of symbols,
+        they will contain the size at run time"""
         self.dims = dims
-        if basetype is not None:
-            super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
-            self.name = name if name else self.default_name()
+        try:
+            if basetype is not None:
+                super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
+                self.name = name if name else self.default_name()
+        except TypeError:  # list of symbols
+            if basetype is not None:
+                super().__init__(name, 0, basetype)  # initialize with size zero
+                self.name = name if name else self.default_name()
 
     def default_name(self):
         return self.basetype.name + repr(self.dims)
@@ -184,6 +189,8 @@ class Symbol:
 
     # if alloct == 'heap' and stype is ArrayType, self.dynamic_sizes is a list
     # containing the symbols referencing the sizes in each dimension
+    # XXX: this is a list of temporaries: I don't like this solution since it
+    #      creates register stress, but I really don't know where to put these
     def set_dynamic_sizes(self, dynamic_sizes):
         self.dynamic_sizes = dynamic_sizes
 
@@ -638,6 +645,8 @@ class LoadPtrToSym(Stat):
 
     def used_variables(self):
         if self.symbol.alloct == 'heap':
+            if self.symbol.is_array():
+                return [self.symbol, self.symbol.address] + self.symbol.stype.dims
             return [self.symbol, self.symbol.address]
         return [self.symbol]
 
@@ -678,6 +687,8 @@ class StoreStat(Stat):
         if self.dest.alloct == 'reg' and isinstance(self.dest.stype, PointerType):
             return [self.symbol, self.dest]
         elif self.dest.alloct == 'heap':  # do not overwrite the temporary that has the heap address
+            if self.symbol.is_array():
+                return [self.symbol, self.dest.address] + self.dest.stype.dims
             return [self.symbol, self.dest.address]
         return [self.symbol]
 
@@ -723,6 +734,8 @@ class LoadStat(Stat):
 
     def used_variables(self):
         if self.symbol.alloct == 'heap':
+            if self.symbol.is_array():
+                return [self.symbol, self.symbol.address] + self.symbol.stype.dims
             return [self.symbol, self.symbol.address]
         if self.usehint:
             return [self.symbol, self.usehint]
