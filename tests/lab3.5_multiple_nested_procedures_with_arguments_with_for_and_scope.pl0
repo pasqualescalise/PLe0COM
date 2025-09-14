@@ -6,7 +6,7 @@ PROCEDURE func1(x, y : int);
 	PROCEDURE square(x : int);
 		VAR ressquare : int;
 		BEGIN
-			ressquare := x * x;
+			ressquare = x * x;
 			print ressquare
 			/* XXX: this fails like it would in C but maybe it doesn't have to
 			 * CALL powerWithFors(2, 2)
@@ -19,9 +19,9 @@ PROCEDURE func1(x, y : int);
 		PROCEDURE func2(x, y : int);
 			VAR respow, i : int;
 			BEGIN
-				respow := 1;
-				for i := 0; i < y; i := i + 1 DO BEGIN
-					respow := respow * x
+				respow = 1;
+				for i = 0; i < y; i = i + 1 DO BEGIN
+					respow = respow * x
 				END;
 				print respow
 			END;
@@ -39,7 +39,7 @@ PROCEDURE func1(x, y : int);
 	END;
 
 BEGIN
-	base := 3;
-	exponent := 4;
+	base = 3;
+	exponent = 4;
 	CALL func1(base, exponent)
 END

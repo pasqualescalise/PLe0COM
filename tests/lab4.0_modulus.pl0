@@ -2,7 +2,7 @@ VAR i : int;
 
 BEGIN
     print 20 % 16;
-	for i := 1; i < 35; i := i + 1 do begin
+	for i = 1; i < 35; i = i + 1 do begin
 		print 35 % i
 	end
 END

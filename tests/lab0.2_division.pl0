@@ -1,9 +1,9 @@
 VAR x, y, result : int;
 
 BEGIN
-	x := 10;
-	y := 5;
-	result := x / y;
+	x = 10;
+	y = 5;
+	result = x / y;
 	print result;
 	print 100 / 10;
 	print 5255 / 43;

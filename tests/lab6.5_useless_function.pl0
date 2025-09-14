@@ -2,14 +2,14 @@ VAR y, z : int;
 
 PROCEDURE useless(x : int);
 	BEGIN
-		x := 4;
-		y := 3;
-		z := x + y
+		x = 4;
+		y = 3;
+		z = x + y
 	END;
 
 BEGIN
 	CALL useless(2)
-END.
+END
 
 /*
 XXX: this is not identified as "useless" since the variable
@@ -19,10 +19,10 @@ VAR y, z, i : int;
 
 PROCEDURE useless(int x);
 	BEGIN
-		for i := 0; i < 100; i := i + 1 do BEGIN
-			x := 4;
-			y := 3;
-			z := x + y
+		for i = 0; i < 100; i = i + 1 do BEGIN
+			x = 4;
+			y = 3;
+			z = x + y
 		END
 	END;
 

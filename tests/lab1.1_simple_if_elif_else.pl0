@@ -1,7 +1,7 @@
 VAR i : int;
 
 BEGIN
-	i := 30;
+	i = 30;
 
     if i > 100 then begin
 		print 0

@@ -38,13 +38,13 @@ PROCEDURE function_with_if_elif_else(x, y : int) -> (int);
 
 PROCEDURE function_with_if_elif_no_else(x, y : int) -> (int);
 	BEGIN
-		if x = 1 then begin
+		if x == 1 then begin
 			return (1)
-		end elif x = 2 then begin
+		end elif x == 2 then begin
 			return (2)
-		end elif x = 3 then begin
+		end elif x == 3 then begin
 			return (3)
-		end elif x = 4 then begin
+		end elif x == 4 then begin
 			return (4)
 		end;
 
@@ -79,7 +79,7 @@ BEGIN
 	print result2;
 	CALL function_simple_return() -> (result1);
 	print result1;
-	result1 := 100;
+	result1 = 100;
 	CALL function_with_if_else(1, 2) -> (result1);
 	print result1;
 	CALL function_with_if_elif_else(1, 2) -> (result1);

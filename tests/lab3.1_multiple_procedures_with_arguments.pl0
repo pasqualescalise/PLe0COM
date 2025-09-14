@@ -1,14 +1,14 @@
 PROCEDURE multiply(x, y : int);
 	VAR result : int;
 	BEGIN
-		result := x * y;
+		result = x * y;
 		print result
 	END;
 
 PROCEDURE power(parameter : int);
 	VAR result_2 : int;
 	BEGIN
-		result_2 := parameter * parameter;
+		result_2 = parameter * parameter;
 		print result_2
 	END;
 

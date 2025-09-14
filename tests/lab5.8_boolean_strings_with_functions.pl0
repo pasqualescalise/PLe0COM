@@ -41,7 +41,7 @@ BEGIN
 	CALL is_true(odd 3 and (True or False)) -> (result);
 	print result;
 	CALL print_string("Hello World!");
-	result_string := "Result?";
+	result_string = "Result?";
 	CALL print_string(result_string);
 	CALL even_or_odd(3, False) -> (result_string);
 	CALL print_string(result_string);

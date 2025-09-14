@@ -3,34 +3,34 @@ PROCEDURE power(base, exponent : int);
 
 	PROCEDURE square(x : int);
 		BEGIN
-			result := x * x
+			result = x * x
 		END;
 
 	PROCEDURE powerOfTwo(exponent : int);
 		BEGIN
 			// parentheses needed because shift has a higher precedence than -
-			result := 2 << (exponent - 1)
+			result = 2 << (exponent - 1)
 		END;
 
 	PROCEDURE powerWithFors(base, exponent : int);
 		VAR respow, i : int;
 		BEGIN
-			respow := base;
-			for i := 0; i < (exponent - 1); i := i + 1 DO BEGIN
-				respow := respow * base
+			respow = base;
+			for i = 0; i < (exponent - 1); i = i + 1 DO BEGIN
+				respow = respow * base
 			END;
-			result := respow
+			result = respow
 		END;
 
 	BEGIN
 		if exponent < 0 then begin
-			result := -1
+			result = -1
 		/* mistake? x**0 = 1, x**1 = x */
-		end elif exponent = 0 then begin
-			result := base
-		end elif exponent = 2 then begin
+		end elif exponent == 0 then begin
+			result = base
+		end elif exponent == 2 then begin
 			CALL square(base)
-		end elif base = 2 then begin
+		end elif base == 2 then begin
 			CALL powerOfTwo(exponent)
 		end else begin
 			CALL powerWithFors(base, exponent)

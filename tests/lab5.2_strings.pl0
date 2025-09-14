@@ -1,13 +1,13 @@
 VAR str[100] : char;
 
 BEGIN
-	str := "Hello World!";
+	str = "Hello World!";
 	print str;
-	str := "";
+	str = "";
 	print str;
-	str := "\"H\"e\"l\"l\"o\"\" \"\"W\"o\"r\"l\"d\"!\"";
+	str = "\"H\"e\"l\"l\"o\"\" \"\"W\"o\"r\"l\"d\"!\"";
 	print str;
-	str := "
+	str = "
 		Hello
 		World
 		!

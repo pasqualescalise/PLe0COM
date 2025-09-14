@@ -54,45 +54,45 @@ PROCEDURE big_unsigned_function(b1, b2 : ubyte, sh1, sh2 : ushort, int1 : uint, 
 	VAR local_int : uint;
 
 	BEGIN
-		local_byte1 := b1 + b2;
-		local_byte2 := b3 + local_byte1;
-		local_short := sh1 + sh2 + b1;
-		local_int := sh2 + local_byte2;
+		local_byte1 = b1 + b2;
+		local_byte2 = b3 + local_byte1;
+		local_short = sh1 + sh2 + b1;
+		local_int = sh2 + local_byte2;
 
 		return (local_byte1, local_byte2, local_short, local_short, local_int)
 	END;
 
 BEGIN
-	short1 := 32768;
-	short2 := 32769;
+	short1 = 32768;
+	short2 = 32769;
 	CALL sum_shorts(short1, short2) -> (short1);
 	print short1;
 
-	byte1 := 128;
-	byte2 := 129;
+	byte1 = 128;
+	byte2 = 129;
 	CALL sum_bytes(byte1, byte2) -> (byte1);
 	print byte1;
 
-	byte1 := 128;
-	byte2 := 129;
+	byte1 = 128;
+	byte2 = 129;
 	CALL sum_bytes_return_int(byte1, byte2) -> (result);
 	print result;
 
-	result := 100;
-	short1 := 200;
+	result = 100;
+	short1 = 200;
 	CALL sum_int_short_return_byte(result, short1) -> (byte1);
 	print byte1;
 
-	byte1 := 255;
-	result := 100;
+	byte1 = 255;
+	result = 100;
 	CALL duplicate_byte_sum_int_return_short(byte1, result) -> (short1);
 	print short1;
 
-	byte1 := 200;
-	byte2 := 60;
-	short1 := 30000;
-	short2 := 40000;
-	result := 100;
+	byte1 = 200;
+	byte2 = 60;
+	short1 = 30000;
+	short2 = 40000;
+	result = 100;
 	CALL big_function(byte1, byte2, short1, short2, result, byte1, short2) -> (byte1, byte2, short1, short2, result);
 	print byte1;
 	print byte2;
@@ -100,11 +100,11 @@ BEGIN
 	print short2;
 	print result;
 
-	ubyte1 := 200;
-	ubyte2 := 60;
-	ushort1 := 30000;
-	ushort2 := 40000;
-	uresult := 100;
+	ubyte1 = 200;
+	ubyte2 = 60;
+	ushort1 = 30000;
+	ushort2 = 40000;
+	uresult = 100;
 	CALL big_unsigned_function(ubyte1, ubyte2, ushort1, ushort2, uresult, ubyte1, ushort2) -> (ubyte1, ubyte2, ushort1, ushort2, uresult);
 	print ubyte1;
 	print ubyte2;

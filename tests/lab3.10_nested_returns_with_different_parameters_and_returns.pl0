@@ -16,9 +16,9 @@ PROCEDURE performArithmetic(x, y : int) -> (int);
 	PROCEDURE power(base, exponent : int) -> (int);
 		VAR respow, i : int;
 		BEGIN
-			respow := base;
-			for i := 0; i < (exponent - 1); i := i + 1 DO BEGIN
-				respow := respow * base
+			respow = base;
+			for i = 0; i < (exponent - 1); i = i + 1 DO BEGIN
+				respow = respow * base
 			END;
 			return (respow)
 		END;

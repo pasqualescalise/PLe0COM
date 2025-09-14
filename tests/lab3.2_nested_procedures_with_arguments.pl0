@@ -4,12 +4,12 @@ PROCEDURE multiply(x, y : int);
 	PROCEDURE power(parameter : int);
 		VAR respow : int;
 		BEGIN
-			respow := parameter * parameter;
+			respow = parameter * parameter;
 			print respow
 		END;
 
 	BEGIN
-		result := x * y;
+		result = x * y;
 		print result;
 		CALL power(result)
 	END;
