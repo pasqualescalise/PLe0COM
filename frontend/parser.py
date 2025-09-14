@@ -11,12 +11,13 @@ from logger import logger, log_indentation, red, green, yellow, magenta, cyan, b
 
 
 class Parser:
-    def __init__(self, the_lexer):
+    def __init__(self, lexer):
         self.sym = None
         self.value = None
         self.new_sym = None
         self.new_value = None
-        self.the_lexer = the_lexer.tokens()
+        self.lexer = lexer
+        self.tokens = lexer.tokens()
 
         # used to mantain scope
         self.current_function = ir.Symbol("main", ir.TYPENAMES['function'])
@@ -26,14 +27,15 @@ class Parser:
         try:
             self.sym = self.new_sym
             self.value = self.new_value
-            self.new_sym, self.new_value = next(self.the_lexer)
+            self.new_sym, self.new_value = next(self.tokens)
         except StopIteration:
             return 2
         log_indentation(f"{magenta('Next symbol:')} {self.new_sym} {self.new_value}")
         return 1
 
     def error(self, msg):
-        log_indentation(red(f"{msg} - Current symbol: {self.new_sym} {self.new_value}"))
+        line = self.lexer.line_number
+        log_indentation(red(f"Line {line} - {msg} - Current symbol: {self.new_sym} {self.new_value}"))
         raise RuntimeError("Raised error during parsing")
 
     def accept(self, s):

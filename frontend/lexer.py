@@ -63,6 +63,7 @@ class Lexer:
     def __init__(self, text):
         self.text = text
         self.pos = 0
+        self.line_number = 1
         self.str_to_token = list([(s, t) for t, ss in TOKEN_DEFS.items() for s in ss])
         self.str_to_token.sort(key=lambda a: -len(a[0]))
 
@@ -88,6 +89,9 @@ class Lexer:
                 in_comment = False
                 inline_comment = False
 
+            if self.text[self.pos] == '\n':
+                self.line_number += 1
+
             self.pos += 1
 
     def check_symbol(self):
@@ -110,6 +114,9 @@ class Lexer:
         if regex_match:
             found = regex_match.group(0)
             self.parsed_string = found[1:-1]
+
+            # if this string contained newlines, they also count for the total program lines
+            self.line_number += 0 if self.parsed_string.count('\n') == 0 else self.parsed_string.count('\n') - 1
             return True
 
         return False
