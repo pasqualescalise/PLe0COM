@@ -14,7 +14,7 @@ PROCEDURE add_6_params_no_returns(param0, param1, param2, param3, param4, param5
 	VAR local : int;
 
 	BEGIN
-		local := 20;
+		local = 20;
 		print local;
 		print param0;
 		print param1;
@@ -29,7 +29,7 @@ PROCEDURE add_4_params_2_returns(param0, param1, param2, param3 : int) -> (int, 
 	VAR local : int;
 
 	BEGIN
-		local := 20;
+		local = 20;
 		return (param0 + param1 + param2 + param3, local)
 	END;
 
@@ -37,7 +37,7 @@ PROCEDURE add_6_params_2_returns(param0, param1, param2, param3, param4, param5 
 	VAR local : int;
 
 	BEGIN
-		local := 20;
+		local = 20;
 		return (param0 + param1 + param2 + param3 + param4 + param5, local)
 	END;
 
@@ -45,7 +45,7 @@ PROCEDURE add_4_params_6_returns(param0, param1, param2, param3 : int) -> (int, 
 	VAR local : int;
 
 	BEGIN
-		local := 20;
+		local = 20;
 		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, local, local + 1)
 	END;
 
@@ -53,7 +53,7 @@ PROCEDURE add_6_params_6_returns(param0, param1, param2, param3, param4, param5 
 	VAR local : int;
 
 	BEGIN
-		local := 20;
+		local = 20;
 		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, param4 + 1, param5 + local)
 	END;
 
@@ -85,8 +85,8 @@ PROCEDURE squares_15_params_15_returns(param0, param1, param2, param3, param4, p
 	END;
 
 BEGIN
-	global0 := 1;
-	global2 := 3;
+	global0 = 1;
+	global2 = 3;
 	CALL add_4_params_no_returns(1, 2, 3, 4);
 	CALL add_4_params_no_returns(global0, 1 + 1, global2, 4);
 	CALL add_6_params_no_returns(global0, 1 + 1, global2, 4, 5, global2 * 2);
@@ -131,4 +131,4 @@ BEGIN
 	print global12;
 	print global13;
 	print global14
-END.
+END

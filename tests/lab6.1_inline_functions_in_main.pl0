@@ -62,11 +62,11 @@ BEGIN
 	CALL function_to_inline_more_complex_return() -> (result1);
 	print result1;
 	CALL function_to_inline_empty_return();
-	result1 := 200;
-	result2 := 300;
+	result1 = 200;
+	result2 = 300;
 	CALL function_to_inline_param(result1, result2);
 	CALL function_to_inline_param_return(result1) -> (result2);
 	print result2;
 	CALL function_to_inline_param_return_dont_care(result2) -> (_, result2, _);
 	print result2
-END.
+END

@@ -24,4 +24,4 @@ BEGIN
 	CALL sumAndMultiply(23, 32) -> (sum_res, multiplication);
 	print sum_res;
 	print multiplication
-END.
+END

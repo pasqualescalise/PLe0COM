@@ -4,10 +4,10 @@ VAR ubyte_array[10] : ubyte;
 VAR boolean_array[10] : boolean;
 
 BEGIN
-	int_array := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]int;
-	short_array := [0, 100, 200, 300, 400, 500, 600, 700, 800, 900]short;
-	ubyte_array := [0, 100, 200, 300, 400, 500, 600, 700, 800, 900]ubyte;
-	boolean_array := [True and True, False or False, True, False, True, False, True, False, True, False]boolean;
+	int_array = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]int;
+	short_array = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900]short;
+	ubyte_array = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900]ubyte;
+	boolean_array = [True and True, False or False, True, False, True, False, True, False, True, False]boolean;
 
 	print int_array;
 	print short_array;
@@ -15,4 +15,4 @@ BEGIN
 	print boolean_array;
 	print [0, 1, 2, 3, 4]int;
 	print [odd 0, odd 1, odd 2, odd 3, odd 4]boolean
-END.
+END

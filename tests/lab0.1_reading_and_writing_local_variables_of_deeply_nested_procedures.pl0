@@ -8,17 +8,17 @@ PROCEDURE f1(x, y : int);
 
 		PROCEDURE f3(x, y : int);
 			BEGIN
-				result := x + x
+				result = x + x
 			END;
 
 		PROCEDURE f4(x, y : int);
 			VAR space : int;
 			BEGIN
-				result := result + x
+				result = result + x
 			END;
 
 		BEGIN
-			result := x * y;
+			result = x * y;
 			print result;
 			CALL f3(x, y);
 			print result;
@@ -28,7 +28,7 @@ PROCEDURE f1(x, y : int);
 		END;
 
 	BEGIN
-		result := x + y;
+		result = x + y;
 		CALL f2(x, y) -> (ret);
 		print result;
 		print ret
@@ -36,4 +36,4 @@ PROCEDURE f1(x, y : int);
 
 BEGIN
 	CALL f1(3, 4)
-END.
+END

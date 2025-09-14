@@ -4,7 +4,7 @@ PROCEDURE multiply(x, y : int);
 	PROCEDURE square(parameter : int);
 		VAR ressquare : int;
 		BEGIN
-			ressquare := parameter * parameter;
+			ressquare = parameter * parameter;
 			print ressquare
 		END;
 
@@ -14,18 +14,18 @@ PROCEDURE multiply(x, y : int);
 		PROCEDURE sum(sum1, sum2 : int);
 			VAR ressum : int;
 			BEGIN
-				ressum := sum1 + sum2;
+				ressum = sum1 + sum2;
 				print ressum
 			END;
 
 		BEGIN
-			resdif := dif1 - dif2;
+			resdif = dif1 - dif2;
 			print resdif;
 			CALL sum(resdif, 3)
 		END;
 
 	BEGIN
-		result := x * y;
+		result = x * y;
 		print result;
 		CALL square(result);
 		CALL difference(result, x)
@@ -33,4 +33,4 @@ PROCEDURE multiply(x, y : int);
 
 BEGIN
 	CALL multiply(4 + 1, 2)
-END.
+END

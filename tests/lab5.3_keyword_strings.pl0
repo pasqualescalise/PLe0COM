@@ -1,4 +1,4 @@
 BEGIN
 	print "print";
 	print "while"
-END.
+END

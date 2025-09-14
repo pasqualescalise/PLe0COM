@@ -13,7 +13,7 @@ BEGIN
 		print True
 	end;
 
-	for i := 0; i < 10; i := i + 1 do begin
+	for i = 0; i < 10; i = i + 1 do begin
 		if not odd i then begin
 			print i;
 			print "Even"
@@ -23,10 +23,10 @@ BEGIN
 		end
 	end;
 
-	bool1 := true;
+	bool1 = true;
 	while bool1 do begin
 		print bool1;
-		bool1 := false
+		bool1 = false
 	end;
 	print bool1;
 
@@ -38,8 +38,8 @@ BEGIN
 	print false or not false;
 	print false or false or false or true;
 
-	bool1 := true;
-	bool2 := false;
+	bool1 = true;
+	bool2 = false;
 
 	print bool1;
 	print bool2;
@@ -59,21 +59,23 @@ BEGIN
 	print not bool1 and not bool2;
 	print not bool1 or not bool2;
 
-	print 2 = 2;
+	print 2 == 2;
 	print 2 != 2;
 
-	i := 10;
+	i = 10;
 	print (i > 5);
 	print (i > 20);
 
 	print (True and (False or True));
 
-	print False = True;
-	print (10 > 5) = True;
-	print (10 > 5) = (5 > 2);
-	print odd 2 + 2 = True;
-	print True = (True != False);
-	print (True = True) != (False = False)
-	{print True > False} {TODO: these get compiled, we need some good type checking asap}
-	{print (2 - 1) = True}
-END.
+	print False == True;
+	print (10 > 5) == True;
+	print (10 > 5) == (5 > 2);
+	print odd 2 + 2 == True;
+	print True == (True != False);
+	print (True == True) != (False == False)
+
+	// TODO: these get compiled, we need some good type checking asap
+	// print True > False}
+	// print (2 - 1) == True
+END

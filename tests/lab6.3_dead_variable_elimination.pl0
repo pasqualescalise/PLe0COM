@@ -1,4 +1,4 @@
-{VAR x, y : int; TODO: this broke the inlining}
+/* VAR x, y : int; TODO: this broke the inlining */
 
 PROCEDURE inlined(x, y : int);
 	BEGIN
@@ -7,4 +7,4 @@ PROCEDURE inlined(x, y : int);
 
 BEGIN
 	CALL inlined(1, 2)
-END.
+END

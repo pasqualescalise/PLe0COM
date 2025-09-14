@@ -1,9 +1,9 @@
 VAR i : int;
 
 BEGIN
-	i := 10;
+	i = 10;
     while i > 0 do begin
-		i := i - 1;
+		i = i - 1;
     	print i
     end
-END.
+END

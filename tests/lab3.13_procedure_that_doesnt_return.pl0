@@ -8,7 +8,7 @@ PROCEDURE function(x, y : int) -> (int);
 	END;
 
 BEGIN
-	result := 100;
+	result = 100;
 	CALL function(1, 2) -> (result);
 	print result
-END.
+END

@@ -20,7 +20,7 @@ TOKEN_DEFS = {
     'mod': ['%'],
     'incsym': ['++'],
     'decsym': ['--'],
-    'eql': ['='],
+    'eql': ['=='],
     'neq': ['!='],
     'lss': ['<'],
     'leq': ['<='],
@@ -40,12 +40,11 @@ TOKEN_DEFS = {
     'whilesym': ['while'],
     'forsym': ['for'],
     'dosym': ['do'],
-    'becomes': [':='],
+    'becomes': ['='],
     'comma': [','],
     'constsym': ['const'],
     'varsym': ['var'],
     'procsym': ['procedure'],
-    'period': ['.'],
     'oddsym': ['odd'],
     'truesym': ['true'],
     'falsesym': ['false'],
@@ -64,6 +63,7 @@ class Lexer:
     def __init__(self, text):
         self.text = text
         self.pos = 0
+        self.line_number = 1
         self.str_to_token = list([(s, t) for t, ss in TOKEN_DEFS.items() for s in ss])
         self.str_to_token.sort(key=lambda a: -len(a[0]))
 
@@ -72,11 +72,26 @@ class Lexer:
 
     def skip_whitespace(self):
         in_comment = False
-        while self.pos < len(self.text) and (self.text[self.pos].isspace() or self.text[self.pos] == '{' or in_comment):
-            if self.text[self.pos] == '{' and not in_comment:
+        inline_comment = False
+        while self.pos < len(self.text) and (self.text[self.pos].isspace() or self.text[self.pos:self.pos + 2] == '/*' or self.text[self.pos:self.pos + 2] == '//' or in_comment):
+            if self.text[self.pos:self.pos + 2] == '/*' and not in_comment:
+                self.pos += 1
                 in_comment = True
-            elif in_comment and self.text[self.pos] == '}':
+            elif self.text[self.pos:self.pos + 2] == '*/' and in_comment:
+                self.pos += 1
                 in_comment = False
+
+            elif self.text[self.pos:self.pos + 2] == '//' and not in_comment:
+                self.pos += 1
+                in_comment = True
+                inline_comment = True
+            elif self.text[self.pos] == '\n' and in_comment and inline_comment:
+                in_comment = False
+                inline_comment = False
+
+            if self.text[self.pos] == '\n':
+                self.line_number += 1
+
             self.pos += 1
 
     def check_symbol(self):
@@ -99,6 +114,9 @@ class Lexer:
         if regex_match:
             found = regex_match.group(0)
             self.parsed_string = found[1:-1]
+
+            # if this string contained newlines, they also count for the total program lines
+            self.line_number += 0 if self.parsed_string.count('\n') == 0 else self.parsed_string.count('\n') - 1
             return True
 
         return False

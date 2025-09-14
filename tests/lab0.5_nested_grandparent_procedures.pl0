@@ -6,19 +6,19 @@ PROCEDURE grandparent() -> (int);
 
 	PROCEDURE auncle();
 		BEGIN
-			grandparent_var := grandparent_var + 1
+			grandparent_var = grandparent_var + 1
 		END;
 
 	PROCEDURE parent() -> (int);
 
 		PROCEDURE other_sibling();
 			BEGIN
-				grandparent_var := grandparent_var + 1
+				grandparent_var = grandparent_var + 1
 			END;
 
 		PROCEDURE sibling();
 			BEGIN
-				grandparent_var := grandparent_var + 1;
+				grandparent_var = grandparent_var + 1;
 				CALL other_sibling();
 				CALL auncle()
 			END;
@@ -30,7 +30,7 @@ PROCEDURE grandparent() -> (int);
 			END;
 
 		BEGIN
-			grandparent_var := 0;
+			grandparent_var = 0;
 			CALL child();
 			return (grandparent_var)
 		END;
@@ -43,4 +43,4 @@ PROCEDURE grandparent() -> (int);
 BEGIN
 	CALL grandparent() -> (result);
 	print result
-END.
+END

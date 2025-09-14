@@ -6,7 +6,7 @@ PROCEDURE for_in_print(arr[10], len : int);
 	VAR i : int;
 
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
+		for i = 0; i < len; i = i + 1 do begin
 			print arr[i]
 		end
 	END;
@@ -14,9 +14,9 @@ PROCEDURE for_in_print(arr[10], len : int);
 PROCEDURE for_in_square_and_print(arr[10], len : int);
 	VAR elem, i : int;
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
-			elem := arr[i];
-			arr[i] := elem * elem
+		for i = 0; i < len; i = i + 1 do begin
+			elem = arr[i];
+			arr[i] = elem * elem
 		end;
 
 		CALL for_in_print(arr, len)
@@ -26,7 +26,7 @@ PROCEDURE for_in_print_byte(arr[20] : byte, len : int);
 	VAR i : int;
 
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
+		for i = 0; i < len; i = i + 1 do begin
 			print arr[i]
 		end
 	END;
@@ -34,9 +34,9 @@ PROCEDURE for_in_print_byte(arr[20] : byte, len : int);
 PROCEDURE for_in_cube_and_print_byte(arr[10] : byte, len : int);
 	VAR elem, i : int;
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
-			elem := arr[i];
-			arr[i] := elem * elem * elem
+		for i = 0; i < len; i = i + 1 do begin
+			elem = arr[i];
+			arr[i] = elem * elem * elem
 		end;
 
 		CALL for_in_print_byte(arr, len)
@@ -46,7 +46,7 @@ PROCEDURE for_in_print_ubyte(arr[20] : ubyte, len : int);
 	VAR i : int;
 
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
+		for i = 0; i < len; i = i + 1 do begin
 			print arr[i]
 		end
 	END;
@@ -54,9 +54,9 @@ PROCEDURE for_in_print_ubyte(arr[20] : ubyte, len : int);
 PROCEDURE for_in_cube_and_print_ubyte(arr[10] : ubyte, len : int);
 	VAR elem, i : int;
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
-			elem := arr[i];
-			arr[i] := elem * elem * elem
+		for i = 0; i < len; i = i + 1 do begin
+			elem = arr[i];
+			arr[i] = elem * elem * elem
 		end;
 
 		CALL for_in_print_ubyte(arr, len)
@@ -65,8 +65,8 @@ PROCEDURE for_in_cube_and_print_ubyte(arr[10] : ubyte, len : int);
 PROCEDURE square_and_return_elements(arr[7], len : int) -> (int, int, int, int, int, int, int);
 	VAR i, squared[7] : int;
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
-			squared[i] := arr[i] * arr[i]
+		for i = 0; i < len; i = i + 1 do begin
+			squared[i] = arr[i] * arr[i]
 		end;
 		return (squared[0], squared[1], squared[2], squared[3], squared[4], squared[5], squared[6])
 	END;
@@ -75,43 +75,43 @@ PROCEDURE square_and_return_elements_byte(arr[7] : byte, len : int) -> (byte, by
 	VAR i : int;
 	VAR squared[7] : byte;
 	BEGIN
-		for i := 0; i < len; i := i + 1 do begin
-			squared[i] := arr[i] * arr[i]
+		for i = 0; i < len; i = i + 1 do begin
+			squared[i] = arr[i] * arr[i]
 		end;
 		return (squared[0], squared[1], squared[2], squared[3], squared[4], squared[5], squared[6])
 	END;
 
 BEGIN
-	for i := 0; i < 10; i := i + 1 do begin
-		array[i] := i
+	for i = 0; i < 10; i = i + 1 do begin
+		array[i] = i
 	end;
 	CALL for_in_print(array, 10);
 	CALL for_in_square_and_print(array, 10);
 	CALL for_in_print(array, 10);
 
-	for i := 0; i < 10; i := i + 1 do begin
-		byte_array[i] := i
+	for i = 0; i < 10; i = i + 1 do begin
+		byte_array[i] = i
 	end;
 	CALL for_in_print_byte(byte_array, 10);
 	CALL for_in_cube_and_print_byte(byte_array, 10);
 	CALL for_in_print_byte(byte_array, 10);
 
-	for i := 0; i < 10; i := i + 1 do begin
-		ubyte_array[i] := i
+	for i = 0; i < 10; i = i + 1 do begin
+		ubyte_array[i] = i
 	end;
 	CALL for_in_print_ubyte(ubyte_array, 10);
 	CALL for_in_cube_and_print_ubyte(ubyte_array, 10);
 	CALL for_in_print_ubyte(ubyte_array, 10);
 
-	for i := 0; i < 7; i := i + 1 do begin
-		array[i] := i
+	for i = 0; i < 7; i = i + 1 do begin
+		array[i] = i
 	end;
 	CALL square_and_return_elements(array, 7) -> (array[0], array[1], array[2], array[3], array[4], array[5], array[6]);
 	CALL for_in_print(array, 7);
 
-	for i := 0; i < 7; i := i + 1 do begin
-		byte_array[i] := i
+	for i = 0; i < 7; i = i + 1 do begin
+		byte_array[i] = i
 	end;
 	CALL square_and_return_elements_byte(byte_array, 7) -> (byte_array[0], byte_array[1], byte_array[2], byte_array[3], byte_array[4], byte_array[5], byte_array[6]);
 	CALL for_in_print_byte(byte_array, 7)
-END.
+END

@@ -5,12 +5,12 @@ VAR parent_var : int;
 
 	PROCEDURE other_sibling();
 		BEGIN
-			parent_var := parent_var + 1
+			parent_var = parent_var + 1
 		END;
 
 	PROCEDURE sibling();
 		BEGIN
-			parent_var := parent_var + 1;
+			parent_var = parent_var + 1;
 			CALL other_sibling()
 		END;
 
@@ -21,7 +21,7 @@ VAR parent_var : int;
 		END;
 
 	BEGIN
-		parent_var := 0;
+		parent_var = 0;
 		CALL child();
 		return (parent_var)
 	END;
@@ -29,4 +29,4 @@ VAR parent_var : int;
 BEGIN
 	CALL parent() -> (result);
 	print result
-END.
+END

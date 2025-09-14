@@ -10,16 +10,16 @@ PROCEDURE power(base, exponent : int) -> (int);
 
 	PROCEDURE powerOfTwo(exponent : int) -> (int);
 		BEGIN
-			{parentheses needed because shift has a higher precedence than -}
+			// parentheses needed because shift has a higher precedence than -
 			return (2 << (exponent - 1))
 		END;
 
 	PROCEDURE powerWithFors(base, exponent : int) -> (int);
 		VAR respow, i : int;
 		BEGIN
-			respow := base;
-			for i := 0; i < (exponent - 1); i := i + 1 DO BEGIN
-				respow := respow * base
+			respow = base;
+			for i = 0; i < (exponent - 1); i = i + 1 DO BEGIN
+				respow = respow * base
 			END;
 			return (respow)
 		END;
@@ -27,11 +27,11 @@ PROCEDURE power(base, exponent : int) -> (int);
 	BEGIN
 		if exponent < 0 then begin
 			return (-1)
-		end elif exponent = 0 then begin
+		end elif exponent == 0 then begin
 			return (base)
-		end elif exponent = 2 then begin
+		end elif exponent == 2 then begin
 			CALL square(base) -> (result)
-		end elif base = 2 then begin
+		end elif base == 2 then begin
 			CALL powerOfTwo(exponent) -> (result)
 		end else begin
 			CALL powerWithFors(base, exponent) -> (result)
@@ -51,4 +51,4 @@ BEGIN
 	print result;
 	CALL power(4, -1) -> (result);
 	print result
-END.
+END

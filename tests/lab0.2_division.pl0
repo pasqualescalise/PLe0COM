@@ -1,13 +1,13 @@
 VAR x, y, result : int;
 
 BEGIN
-	x := 10;
-	y := 5;
-	result := x / y;
+	x = 10;
+	y = 5;
+	result = x / y;
 	print result;
 	print 100 / 10;
 	print 5255 / 43;
 	print 230984289 / 8584334;
 	print 230984289 / 8;
 	print 2147483647 / 32767 / 127 / 15
-END.
+END

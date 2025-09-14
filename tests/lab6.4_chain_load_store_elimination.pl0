@@ -5,4 +5,4 @@ PROCEDURE inlined(x, y : int);
 
 BEGIN
 	CALL inlined(3, 4)
-END.
+END
