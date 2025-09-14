@@ -73,4 +73,4 @@ PROCEDURE function_not_to_inline();
 
 BEGIN
 	CALL function_not_to_inline()
-END.
+END

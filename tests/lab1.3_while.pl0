@@ -6,4 +6,4 @@ BEGIN
 		i := i - 1;
     	print i
     end
-END.
+END

@@ -17,4 +17,4 @@ BEGIN
 		CALL factorial(i) -> (result);
 		print result
 	end
-END.
+END

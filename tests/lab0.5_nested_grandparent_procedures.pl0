@@ -43,4 +43,4 @@ PROCEDURE grandparent() -> (int);
 BEGIN
 	CALL grandparent() -> (result);
 	print result
-END.
+END

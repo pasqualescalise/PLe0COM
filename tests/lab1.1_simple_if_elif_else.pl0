@@ -10,4 +10,4 @@ BEGIN
 	end else begin
 		print 2
 	end
-END.
+END

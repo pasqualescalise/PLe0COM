@@ -69,4 +69,4 @@ BEGIN
 	print result2;
 	CALL function_to_inline_param_return_dont_care(result2) -> (_, result2, _);
 	print result2
-END.
+END

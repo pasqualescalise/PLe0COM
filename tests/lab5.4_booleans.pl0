@@ -30,4 +30,4 @@ BEGIN
 	end;
 
 	print bool
-END.
+END

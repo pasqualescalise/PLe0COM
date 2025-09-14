@@ -111,4 +111,4 @@ BEGIN
 	print ushort1;
 	print ushort2;
 	print uresult
-END.
+END

@@ -14,4 +14,4 @@ BEGIN
 	end else begin
 		print 100
 	end
-END.
+END

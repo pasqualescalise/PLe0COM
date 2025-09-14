@@ -45,7 +45,6 @@ TOKEN_DEFS = {
     'constsym': ['const'],
     'varsym': ['var'],
     'procsym': ['procedure'],
-    'period': ['.'],
     'oddsym': ['odd'],
     'truesym': ['true'],
     'falsesym': ['false'],

@@ -42,4 +42,4 @@ PROCEDURE performArithmetic(x, y : int) -> (int);
 BEGIN
 	CALL performArithmetic(23, 32) -> (result);
 	print result
-END.
+END

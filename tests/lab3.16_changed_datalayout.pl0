@@ -131,4 +131,4 @@ BEGIN
 	print global12;
 	print global13;
 	print global14
-END.
+END

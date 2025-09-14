@@ -15,4 +15,4 @@ BEGIN
 	print boolean_array;
 	print [0, 1, 2, 3, 4]int;
 	print [odd 0, odd 1, odd 2, odd 3, odd 4]boolean
-END.
+END

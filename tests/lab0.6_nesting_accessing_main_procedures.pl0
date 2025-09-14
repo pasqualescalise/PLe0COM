@@ -40,4 +40,4 @@ PROCEDURE grandgrandgrandparent();
 BEGIN
 	CALL grandgrandgrandparent();
 	print global_var
-END.
+END

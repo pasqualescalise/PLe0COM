@@ -90,4 +90,4 @@ BEGIN
 	print result1;
 	CALL function_that_just_returns(1, 2);
 	print result1
-END.
+END

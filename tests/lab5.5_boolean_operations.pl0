@@ -78,4 +78,4 @@ BEGIN
 	// TODO: these get compiled, we need some good type checking asap
 	// print True > False}
 	// print (2 - 1) = True
-END.
+END

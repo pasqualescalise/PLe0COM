@@ -42,4 +42,4 @@ BEGIN
 	base := 3;
 	exponent := 4;
 	CALL func1(base, exponent)
-END.
+END

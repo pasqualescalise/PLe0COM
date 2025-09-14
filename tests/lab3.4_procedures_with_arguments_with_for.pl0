@@ -15,4 +15,4 @@ BEGIN
 	exponent := 4;
 	CALL power(base, exponent);
 	CALL power(exponent, base)
-END.
+END

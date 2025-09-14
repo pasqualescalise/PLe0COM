@@ -17,4 +17,4 @@ PROCEDURE choose(x, y : int) -> (int);
 BEGIN
 	CALL choose(-3, 4) -> (result);
 	print result
-END.
+END

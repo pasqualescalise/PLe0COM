@@ -21,4 +21,4 @@ PROCEDURE loop() -> (int);
 BEGIN
 	CALL loop() -> (result);
 	print result
-END.
+END

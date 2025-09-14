@@ -637,5 +637,5 @@ class Parser:
         self.getsym()
         main_body = self.block(global_symtab, global_symtab, alloct='global')
         main = ir.FunctionDef(symbol=self.current_function, parameters=[], body=main_body, returns=[], called_by_counter=1)
-        self.expect('period')
+        self.expect('end of file')
         return main

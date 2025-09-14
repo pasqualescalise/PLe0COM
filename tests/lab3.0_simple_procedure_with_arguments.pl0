@@ -9,4 +9,4 @@ BEGIN
 	CALL multiply(4 + 1, 2);
 	CALL multiply(4, 3);
 	CALL multiply(10 * 10, 3 + 2)
-END.
+END

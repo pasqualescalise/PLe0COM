@@ -11,4 +11,4 @@ BEGIN
 	result := 100;
 	CALL function(1, 2) -> (result);
 	print result
-END.
+END

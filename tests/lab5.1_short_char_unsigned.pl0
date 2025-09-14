@@ -34,4 +34,4 @@ BEGIN
 	print ubyte;
 	ubyte := 128;
 	print ubyte
-END.
+END

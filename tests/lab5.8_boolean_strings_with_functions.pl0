@@ -51,4 +51,4 @@ BEGIN
 	CALL print_string(result_string);
 	CALL even_or_odd(3, 3 > 2) -> (result_string);
 	CALL print_string(result_string)
-END.
+END

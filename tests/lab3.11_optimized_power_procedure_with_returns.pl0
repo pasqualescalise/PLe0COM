@@ -51,4 +51,4 @@ BEGIN
 	print result;
 	CALL power(4, -1) -> (result);
 	print result
-END.
+END

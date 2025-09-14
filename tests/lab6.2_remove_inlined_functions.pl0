@@ -57,4 +57,4 @@ PROCEDURE not_inline_1();
 
 BEGIN
 	CALL not_inline_1()
-END.
+END

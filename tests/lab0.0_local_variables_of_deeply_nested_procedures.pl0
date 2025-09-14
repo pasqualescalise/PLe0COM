@@ -16,4 +16,4 @@ PROCEDURE f1(x, y : int);
 
 BEGIN
 	CALL f1(3, 4)
-END.
+END

@@ -114,4 +114,4 @@ BEGIN
 	end;
 	CALL square_and_return_elements_byte(byte_array, 7) -> (byte_array[0], byte_array[1], byte_array[2], byte_array[3], byte_array[4], byte_array[5], byte_array[6]);
 	CALL for_in_print_byte(byte_array, 7)
-END.
+END

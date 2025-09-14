@@ -27,4 +27,4 @@ BEGIN
 	for i := 0; i < 5; i++ do begin
 		print i
 	end
-END.
+END
