@@ -66,10 +66,10 @@ def compile_program(text, optimization_level):
     print(f"\n{green('Optimized program:')}\n{program}")
 
     print(h2("LOWERING"))
-    program.navigate(lowering, quiet=False)
+    FunctionTree.navigate(lowering, quiet=False)
 
     print(h2("FLATTENING"))
-    program.navigate(flattening, quiet=False)
+    FunctionTree.navigate(flattening, quiet=False)
 
     print(f"\n{green('Intermediate Representation:')}\n{program}")
 

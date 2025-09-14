@@ -295,7 +295,7 @@ class Parser:
     @logger
     def statement(self, symtab):
         if self.accept('beginsym'):
-            statement_list = ir.StatList(symtab=symtab)
+            statement_list = ast.StatList(symtab=symtab)
 
             statement_list.append(self.statement(symtab))
             while self.accept('semicolon'):
@@ -373,7 +373,7 @@ class Parser:
             self.expect('thensym')
             then = self.statement(symtab)
 
-            elifs = ir.StatList(symtab=symtab)  # TODO: this should be a normal list
+            elifs = ast.StatList(symtab=symtab)
             while self.new_sym == "elifsym":
                 self.accept("elifsym")
                 elif_cond = self.logic_expression(symtab)

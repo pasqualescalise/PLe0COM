@@ -17,7 +17,6 @@ from copy import deepcopy
 
 from backend.codegenhelp import REGISTER_SIZE
 from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, cyan, bold, italic, underline
-import logger
 
 
 # UTILITIES
@@ -295,6 +294,7 @@ class IRInstruction():  # abstract
     def __init__(self, parent=None, symtab=None):
         self.symtab = symtab
         self.parent = parent
+        self.label = None
 
     # XXX: must only be used for printing
     def type(self):
@@ -318,9 +318,9 @@ class IRInstruction():  # abstract
             res += ii("children: {\n")
             for i in range(len(self.children)):
                 rep = repr(self.children[i]).split("\n")
-                if isinstance(self.children[i], EmptyStat):
+                if isinstance(self.children[i], EmptyInstruction):
                     res += li(f"{self.children[i]}")  # label
-                elif isinstance(self, StatList) and self.flat:
+                elif isinstance(self, InstructionList) and self.flat:
                     res += "\n".join([f"{' ' * 8}{i}: {s}" for s in rep])
                 else:
                     res += "\n".join([f"{' ' * 8}{s}" for s in rep])
@@ -340,40 +340,6 @@ class IRInstruction():  # abstract
         res += "}"
         return res
 
-    def navigate(self, action, *args, quiet=False):
-        attrs = ['defs', 'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'global_symtab', 'local_symtab', 'offset', 'epilogue']
-        attrs = [x for x in attrs if x in set(dir(self))]
-
-        if 'children' in dir(self) and len(self.children):
-            if not quiet:
-                log_indentation(f"Navigating to {cyan(len(self.children))} children of {cyan(self.type())}, {id(self)}")
-            for node in self.children:
-                try:
-                    logger.indentation += 1
-                    node.navigate(action, *args, quiet=quiet)
-                    logger.indentation -= 1
-                except AttributeError:
-                    logger.indentation -= 1
-
-        for attr in attrs:
-            try:
-                if not quiet:
-                    log_indentation(f"Navigating to attribute {cyan(attr)} of {cyan(self.type())}, {id(self)}")
-                logger.indentation += 1
-                node = getattr(self, attr)
-                node.navigate(action, *args, quiet=quiet)
-                logger.indentation -= 1
-            except AttributeError:
-                logger.indentation -= 1
-        if not quiet:
-            log_indentation(f"Navigating to {cyan(self.type())}, {id(self)}")
-
-        # XXX: shitty solution
-        try:
-            action(self, *args)
-        except TypeError:
-            action(self)
-
     def get_function(self):
         if not self.parent:
             return self
@@ -381,14 +347,6 @@ class IRInstruction():  # abstract
             return self.parent
         else:
             return self.parent.get_function()
-
-
-# STATEMENTS
-
-class Stat(IRInstruction):  # abstract
-    def __init__(self, parent=None, symtab=None):
-        super().__init__(parent, symtab)
-        self.label = None
 
     def set_label(self, label):
         self.label = label
@@ -406,9 +364,9 @@ class Stat(IRInstruction):  # abstract
         return []
 
 
-class PrintStat(Stat):
+class PrintInstruction(IRInstruction):
     def __init__(self, parent=None, src=None, print_type=None, newline=True, symtab=None):
-        log_indentation(bold(f"New PrintStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New PrintInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.src = src
         if src.alloct != 'reg':
@@ -427,12 +385,12 @@ class PrintStat(Stat):
         replace_temporary_attributes(self, ['src'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return PrintStat(parent=self.parent, src=self.src, print_type=self.print_type, symtab=self.symtab)
+        return PrintInstruction(parent=self.parent, src=self.src, print_type=self.print_type, symtab=self.symtab)
 
 
-class ReadStat(Stat):
+class ReadInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, symtab=None):
-        log_indentation(bold(f"New ReadStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New ReadInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.dest = dest
         if dest.alloct != 'reg':
@@ -454,17 +412,17 @@ class ReadStat(Stat):
         replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return ReadStat(parent=self.parent, dest=self.dest, symtab=self.symtab)
+        return ReadInstruction(parent=self.parent, dest=self.dest, symtab=self.symtab)
 
 
-class BranchStat(Stat):
+class BranchInstruction(IRInstruction):
     def __init__(self, parent=None, cond=None, target=None, negcond=False, parameters=[], returns=[], symtab=None):
         """cond == None -> branch always taken.
         If negcond is True and Cond != None, the branch is taken when cond is false,
         otherwise the branch is taken when cond is true.
         If the target is a function symbol, this is a branch-and-link instruction.
         If target is None, the branch is a return and the 'target' is computed at runtime"""
-        log_indentation(bold(f"New BranchStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New BranchInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.cond = cond
         self.negcond = negcond
@@ -576,16 +534,16 @@ class BranchStat(Stat):
         self.returns = new_returns
 
     def __deepcopy__(self, memo):
-        return BranchStat(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, parameters=self.parameters, returns=self.returns, symtab=self.symtab)
+        return BranchInstruction(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, parameters=self.parameters, returns=self.returns, symtab=self.symtab)
 
 
-class EmptyStat(Stat):
+class EmptyInstruction(IRInstruction):
     pass
 
     def __repr__(self):
         if self.get_label() != '':
             return magenta(f"{self.get_label().name}: ")
-        return 'empty statement'
+        return 'empty instruction'
 
     def used_variables(self):
         return []
@@ -601,17 +559,17 @@ class EmptyStat(Stat):
                     self.set_label(new_label)
 
     def __deepcopy__(self, memo):
-        new = EmptyStat(parent=self.parent, symtab=self.symtab)
+        new = EmptyInstruction(parent=self.parent, symtab=self.symtab)
         new.set_label(self.get_label())
         return new
 
 
-class LoadPtrToSym(Stat):
+class LoadPointerInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, symbol=None, symtab=None):
         """Loads to the 'dest' symbol the location in memory (as an absolute
         address) of 'symbol'. This instruction is used as a starting point for
         lowering nodes which need any kind of pointer arithmetic."""
-        log_indentation(bold(f"New LoadPtrToSym Node (id: {id(self)})"))
+        log_indentation(bold(f"New LoadPointerInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.symbol = symbol
         self.dest = dest
@@ -636,10 +594,10 @@ class LoadPtrToSym(Stat):
         replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return LoadPtrToSym(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
+        return LoadPointerInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
 
 
-class StoreStat(Stat):
+class StoreInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, symbol=None, killhint=None, symtab=None):
         """Stores the value in the 'symbol' temporary (register) to 'dest' which
         can be a symbol allocated in memory, or a temporary (symbol allocated to a
@@ -647,7 +605,7 @@ class StoreStat(Stat):
         the second case the dest symbol is used as a pointer to an arbitrary
         location in memory.
         Special cases for parameters and returns defined in the codegen"""
-        log_indentation(bold(f"New StoreStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New StoreInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.symbol = symbol
         if self.symbol.alloct != 'reg':
@@ -683,17 +641,17 @@ class StoreStat(Stat):
             self.killhint = mapping[self.killhint]
 
     def __deepcopy__(self, memo):
-        return StoreStat(parent=self.parent, dest=self.dest, symbol=self.symbol, killhint=self.killhint, symtab=self.symtab)
+        return StoreInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, killhint=self.killhint, symtab=self.symtab)
 
 
-class LoadStat(Stat):
+class LoadInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, symbol=None, usehint=None, symtab=None):
         """Loads the value in symbol to dest, which must be a temporary. 'symbol'
         can be a symbol allocated in memory, or a temporary (symbol allocated to a
         register). In the first case, the value contained in the symbol itself is
         loaded; in the second case the symbol is used as a pointer to an arbitrary
         location in memory."""
-        log_indentation(bold(f"New LoadStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New LoadInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.symbol = symbol
         self.dest = dest
@@ -723,12 +681,12 @@ class LoadStat(Stat):
             self.usehint = mapping[self.usehint]
 
     def __deepcopy__(self, memo):
-        return LoadStat(parent=self.parent, dest=self.dest, symbol=self.symbol, usehint=self.usehint, symtab=self.symtab)
+        return LoadInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, usehint=self.usehint, symtab=self.symtab)
 
 
-class LoadImmStat(Stat):
+class LoadImmInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, val=0, symtab=None):
-        log_indentation(bold(f"New LoadImmStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New LoadImmInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.val = val
         self.dest = dest
@@ -751,21 +709,21 @@ class LoadImmStat(Stat):
         replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return LoadImmStat(parent=self.parent, dest=self.dest, val=self.val, symtab=self.symtab)
+        return LoadImmInstruction(parent=self.parent, dest=self.dest, val=self.val, symtab=self.symtab)
 
 
-class BinStat(Stat):
+class BinaryInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, op=None, srca=None, srcb=None, symtab=None):
-        log_indentation(bold(f"New BinStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New BinaryInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.dest = dest  # symbol
         self.op = op
         self.srca = srca  # symbol
         self.srcb = srcb  # symbol
         if self.dest.alloct != 'reg':
-            raise RuntimeError('The destination of the BinStat is not a register')
+            raise RuntimeError('The destination of the BinaryInstruction is not a register')
         if self.srca.alloct != 'reg' or self.srcb.alloct != 'reg':
-            raise RuntimeError('A source of the Binstat is not a register')
+            raise RuntimeError('A source of the BinaryInstruction is not a register')
 
     def killed_variables(self):
         return [self.dest]
@@ -783,20 +741,20 @@ class BinStat(Stat):
         replace_temporary_attributes(self, ['dest', 'srca', 'srcb'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return BinStat(parent=self.parent, dest=self.dest, op=self.op, srca=self.srca, srcb=self.srcb, symtab=self.symtab)
+        return BinaryInstruction(parent=self.parent, dest=self.dest, op=self.op, srca=self.srca, srcb=self.srcb, symtab=self.symtab)
 
 
-class UnaryStat(Stat):
+class UnaryInstruction(IRInstruction):
     def __init__(self, parent=None, dest=None, op=None, src=None, symtab=None):
-        log_indentation(bold(f"New UnaryStat Node (id: {id(self)})"))
+        log_indentation(bold(f"New UnaryInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.dest = dest
         self.op = op
         self.src = src
         if self.dest.alloct != 'reg':
-            raise RuntimeError('The destination of the UnaryStat is not a register')
+            raise RuntimeError('The destination of the UnaryInstruction is not a register')
         if self.src.alloct != 'reg':
-            raise RuntimeError('The source of the UnaryStat is not a register')
+            raise RuntimeError('The source of the UnaryInstruction is not a register')
 
     def killed_variables(self):
         return [self.dest]
@@ -814,12 +772,12 @@ class UnaryStat(Stat):
         replace_temporary_attributes(self, ['dest', 'src'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return UnaryStat(parent=self.parent, dest=self.dest, op=self.op, src=self.src, symtab=self.symtab)
+        return UnaryInstruction(parent=self.parent, dest=self.dest, op=self.op, src=self.src, symtab=self.symtab)
 
 
-class StatList(Stat):
+class InstructionList(IRInstruction):
     def __init__(self, parent=None, children=None, flat=False, symtab=None):
-        log_indentation(bold(f"New StatList Node (id: {id(self)})"))
+        log_indentation(bold(f"New InstructionList Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         if children:
             self.children = children
@@ -827,61 +785,14 @@ class StatList(Stat):
                 child.parent = self
         else:
             self.children = []
-        # when printing, print line numbers of flattened StatLists
+        # when printing, print line numbers of flattened InstructionLists
         self.flat = flat
-
-    def append(self, elem):
-        elem.parent = self
-        log_indentation(f"Appending statement {id(elem)} of type {elem.type()} to StatList {id(self)}")
-        self.children.append(elem)
-
-    def replace(self, old, new):
-        new.parent = self
-        if 'children' in dir(self) and len(self.children) and old in self.children:
-            self.children[self.children.index(old)] = new
-            return True
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'epilogue'} & set(dir(self))
-
-        for d in attrs:
-            try:
-                if getattr(self, d) == old:
-                    setattr(self, d, new)
-                    return True
-            except AttributeError:
-                pass
-        return False
 
     def used_variables(self):
         u = []
         for c in self.children:
             u += c.used_variables()
         return u
-
-    def get_content(self):
-        content = f"Recap StatList {id(self)}: [\n"
-        for n in self.children:
-            content += ii(f"{n.type()}, {id(n)};\n")
-        content += "]"
-        return content
-
-    def flatten(self):
-        """Remove nested StatLists"""
-        if isinstance(self.parent, StatList):
-            log_indentation(green(f"Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}"))
-            if self.get_label():
-                emptystat = EmptyStat(self, symtab=self.symtab)
-                self.children.insert(0, emptystat)
-                emptystat.set_label(self.get_label())
-            for c in self.children:
-                c.parent = self.parent
-            try:
-                i = self.parent.children.index(self)
-            except Exception as e:
-                print(e)
-            self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
-        else:
-            log_indentation(f"{red('NOT')} flattening {cyan(f'{self.type()}')}, {id(self)} into parent {cyan(f'{self.parent.type()}')}, {id(self.parent)}")
-            self.flat = True
 
     def destination(self):
         for i in range(-1, -len(self.children) - 1, -1):
@@ -895,7 +806,32 @@ class StatList(Stat):
         try:
             self.children.remove(instruction)
         except ValueError:
-            raise RuntimeError(f"Can't find instruction '{instruction}' to remove in StatList {id(self)}")
+            raise RuntimeError(f"Can't find instruction '{instruction}' to remove in InstructionList {id(self)}")
+
+    def flatten(self):
+        """Remove nested InstructionLists"""
+        for child in self.children:
+            try:
+                child.flatten()
+            except AttributeError:
+                pass
+
+        if isinstance(self.parent, InstructionList):
+            log_indentation(green(f"Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}"))
+            if self.get_label():
+                empty = EmptyInstruction(self, symtab=self.symtab)
+                self.children.insert(0, empty)
+                empty.set_label(self.get_label())
+            for c in self.children:
+                c.parent = self.parent
+            try:
+                i = self.parent.children.index(self)
+            except Exception as e:
+                print(e)
+            self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
+        else:
+            log_indentation(f"{red('NOT')} flattening {cyan(f'{self.type()}')}, {id(self)} into parent {cyan(f'{self.parent.type()}')}, {id(self.parent)}")
+            self.flat = True
 
     def replace_temporaries(self, mapping, create_new=True):
         for child in self.children:
@@ -906,10 +842,10 @@ class StatList(Stat):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return StatList(parent=self.parent, children=new_children, flat=self.flat, symtab=self.symtab)
+        return InstructionList(parent=self.parent, children=new_children, flat=self.flat, symtab=self.symtab)
 
 
-class Block(Stat):
+class Block(IRInstruction):
     def __init__(self, parent=None, gl_sym=None, lc_sym=None, defs=None, body=None):
         log_indentation(bold(f"New Block Node (id: {id(self)})"))
         super().__init__(parent, lc_sym)

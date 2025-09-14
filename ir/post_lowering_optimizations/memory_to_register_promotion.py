@@ -3,7 +3,7 @@
 """It's faster to access the registers than the stack: move allowed
 variables in registers instead of the stack"""
 
-from ir.ir import StoreStat, ArrayType, PointerType
+from ir.ir import StoreInstruction
 from backend.codegenhelp import REGISTER_SIZE
 from logger import red, green, blue
 
@@ -16,7 +16,7 @@ def promote_symbol(symbol, root):
     symbol.alloct = 'reg'
 
     for i in range(0, len(instructions)):
-        if isinstance(instructions[i], StoreStat) and instructions[i].dest == symbol:
+        if isinstance(instructions[i], StoreInstruction) and instructions[i].dest == symbol:
             instructions[i].killhint = symbol
 
 
@@ -42,7 +42,7 @@ def memory_to_register_promotion(root):
 
         print(f"{blue('SYMBOL:')} {symbol}")
 
-        if isinstance(symbol.stype, ArrayType) or isinstance(symbol.stype, PointerType):
+        if symbol.is_array() or symbol.is_pointer():
             print(red("Can't promote because the symbol address needs to be accessible\n"))
             continue
 

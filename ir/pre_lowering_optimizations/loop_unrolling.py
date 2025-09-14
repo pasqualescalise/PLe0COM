@@ -45,8 +45,8 @@ For now, the LOOP_UNROLLING_FACTOR can only be a power of 2
 from copy import deepcopy
 from math import log
 
-from frontend.ast import ForStat, Const, BinExpr, UnExpr, IfStat, AssignStat, Var
-from ir.ir import StatList
+from frontend.ast import ForStat, Const, BinExpr, UnExpr, IfStat, AssignStat, Var, StatList
+from ir.function_tree import FunctionTree
 from logger import red, green, yellow, magenta, cyan
 
 
@@ -130,7 +130,7 @@ def perform_loop_unrolling(program):
         print(red(f"Skipping Loop Unrolling because the LOOP_UNROLLING_FACTOR is {LOOP_UNROLLING_FACTOR}"))
         return
 
-    program.navigate(loop_unrolling, quiet=True)
+    FunctionTree.navigate(loop_unrolling, quiet=True)
 
 
 # Returns True only if the loop is "normalized" -> Es. for var := 0; var < [number]; var := var + 1

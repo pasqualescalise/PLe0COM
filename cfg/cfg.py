@@ -4,7 +4,7 @@
 ControlFlowGraph of all the BasicBlocks that allows further
 analyses and optimizations"""
 
-from ir.ir import BranchStat, StatList, FunctionDef
+from ir.ir import BranchInstruction, InstructionList, FunctionDef
 from ir.support import get_node_list
 from logger import ii, di, remove_formatting, yellow, blue
 
@@ -118,16 +118,16 @@ class BasicBlock(object):
             raise RuntimeError(f"Can't find instruction '{instruction}' to remove in BasicBlock {id(self)}")
 
 
-def stat_list_to_bb(stat_list):
+def instruction_list_to_bb(instruction_list):
     bbs = []
-    # accumulator for statements to be inserted in the next BasicBlock
+    # accumulator for instructions to be inserted in the next BasicBlock
     instructions = []
     # accumulator for the labels that refer to this BasicBlock
     labels = []
 
-    for statement in stat_list.children:
+    for instruction in instruction_list.children:
         try:
-            label = statement.get_label()
+            label = instruction.get_label()
             if label:
                 if len(instructions) > 0:
                     bb = BasicBlock(instrs=instructions, labels=labels)
@@ -139,15 +139,15 @@ def stat_list_to_bb(stat_list):
 
                     labels = [label]
                 else:
-                    # empty statement, keep just the label
+                    # empty instruction, keep just the label
                     labels.append(label)
         except Exception:
             pass  # instruction doesn't have a label
 
-        instructions.append(statement)
+        instructions.append(instruction)
 
-        # if this is BranchStat is a function call, it marks the end of a BasicBlock
-        if isinstance(statement, BranchStat) and not statement.is_call():
+        # if this BranchInstruction is a function call, it marks the end of a BasicBlock
+        if isinstance(instruction, BranchInstruction) and not instruction.is_call():
             bb = BasicBlock(instrs=instructions, labels=labels)
             instructions = []
 
@@ -172,8 +172,8 @@ class ControlFlowGraph(list):
 
     def __init__(self, root):
         super().__init__()
-        stat_lists = [n for n in get_node_list(root, quiet=True) if isinstance(n, StatList)]
-        self += sum([stat_list_to_bb(sl) for sl in stat_lists], [])  # XXX: I really don't like this syntax
+        instruction_lists = [n for n in get_node_list(root, quiet=True) if isinstance(n, InstructionList)]
+        self += sum([instruction_list_to_bb(sl) for sl in instruction_lists], [])
 
         for bb in self:
             if bb.target:

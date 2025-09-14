@@ -185,7 +185,7 @@ def perform_node_expansion(program):
     program_size = len(get_node_list(program, quiet=True))
     old_program_size = 0
     while old_program_size < program_size:
-        program.navigate(node_expansion, quiet=True)
+        FunctionTree.navigate(node_expansion, quiet=True)
 
         old_program_size = program_size
         program_size = len(get_node_list(program, quiet=True))

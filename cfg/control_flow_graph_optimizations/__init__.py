@@ -4,6 +4,7 @@
 after all the CFG analysis. If instructions are changed or removed, the CFG
 is updated and the liveness analysis is done again"""
 
+from ir.function_tree import FunctionTree
 from cfg.control_flow_graph_optimizations.remove_inlined_functions import remove_inlined_functions
 from cfg.control_flow_graph_optimizations.dead_variable_elimination import perform_dead_variable_elimination
 from cfg.control_flow_graph_optimizations.chain_load_store_elimination import perform_chain_load_store_elimination
@@ -17,8 +18,11 @@ def perform_control_flow_graph_optimizations(program, cfg, optimization_level):
 
     if optimization_level > 1:
         print(h3("REMOVE INLINED FUNCTIONS"))
-        program.navigate(remove_inlined_functions, quiet=True)
-        cfg = ControlFlowGraph(program)  # rebuild the ControlFlowGraph since BasicBlocks have disappeared
+        remove_inlined_functions()
+
+        # rebuild the FunctionTree and the ControlFlowGraph
+        FunctionTree.populate_function_tree(program, FunctionTree.root.symbol)
+        cfg = ControlFlowGraph(program)
         perform_liveness_analysis(cfg)
 
         print(h3("DEAD VARIABLE ELIMINATION"))
@@ -55,6 +59,7 @@ def apply_cfg_optimization(cfg, optimization_pass):
 
 
 # After optimizations, eliminate useless BasicBlocks and recompute liveness analysis
+# TODO: what happens if we remove a whole function that was not inlined?
 def update_cfg(cfg):
     for bb in reversed(cfg):
         if len(bb.instrs) == 0:

@@ -6,7 +6,7 @@ when possible, directly replace the function call with its code"""
 from copy import deepcopy
 
 from ir.function_tree import FunctionTree
-from ir.ir import BranchStat, StoreStat, LoadStat, TYPENAMES, EmptyStat
+from ir.ir import BranchInstruction, StoreInstruction, LoadInstruction, EmptyInstruction, TYPENAMES
 from logger import green, magenta
 
 
@@ -26,31 +26,31 @@ def replace_temporaries(instructions):
 # an exit label to simulate a return
 def remove_returns(instructions, returns):
     exit_label = TYPENAMES['label']()
-    exit_stat = EmptyStat(instructions[0].parent, symtab=instructions[0].symtab)
-    exit_stat.set_label(exit_label)
-    exit_stat.marked_for_removal = False
+    exit_instr = EmptyInstruction(instructions[0].parent, symtab=instructions[0].symtab)
+    exit_instr.set_label(exit_label)
+    exit_instr.marked_for_removal = False
     no_exit_label = True  # decides whether or not to put the label at the end
 
     for i in range(len(instructions)):
         instruction = instructions[i]
         instruction.marked_for_removal = False
 
-        if isinstance(instruction, BranchStat) and instruction.is_return():
+        if isinstance(instruction, BranchInstruction) and instruction.is_return():
             instruction.marked_for_removal = True
 
             if i < len(instructions) - 1:  # if this isn't the last istruction, add a jump to an exit label
                 no_exit_label = False
-                instructions[i] = BranchStat(target=exit_label, symtab=instruction.symtab)
+                instructions[i] = BranchInstruction(target=exit_label, symtab=instruction.symtab)
                 instructions[i].marked_for_removal = False
 
     if not no_exit_label:
-        instructions.append(exit_stat)
+        instructions.append(exit_instr)
 
     instructions = list(filter(lambda x: not x.marked_for_removal, instructions))
     return instructions
 
 
-# Whenever there's a return, add before the StoreStats that put the value
+# Whenever there's a return, add before the StoreInstructions that put the value
 # returned by the inlined function into the symbol used by the inliner function
 def add_returns_stores(instructions, returns):
     stores_indices = []
@@ -59,18 +59,18 @@ def add_returns_stores(instructions, returns):
         instruction = instructions[i]
         instruction.marked_for_removal = False
 
-        if isinstance(instruction, BranchStat) and instruction.is_return():
+        if isinstance(instruction, BranchInstruction) and instruction.is_return():
             new_stores = []
             for j in range(len(returns)):
                 if returns[j] != "_":  # skip dontcares
-                    new_store = StoreStat(parent=instruction.parent, dest=returns[j], symbol=instruction.returns[j], killhint=returns[j], symtab=instruction.symtab)
+                    new_store = StoreInstruction(parent=instruction.parent, dest=returns[j], symbol=instruction.returns[j], killhint=returns[j], symtab=instruction.symtab)
                     new_stores.append(new_store)
             stores_indices.append((i, new_stores))
 
     for stores_index in reversed(stores_indices):  # reversed order otherwise the indices get mixed
         i = stores_index[0]  # index in the instruction list
-        for storestat in stores_index[1]:
-            instructions.insert(i, storestat)
+        for store in stores_index[1]:
+            instructions.insert(i, store)
             i += 1
 
     return instructions
@@ -86,10 +86,10 @@ def map_symbols(function_symbols, call_symbols):
     return destinations
 
 
-# Change all LoadStat symbols from variables to temporaries using the provided mapping
+# Change all LoadInstruction symbols from variables to temporaries using the provided mapping
 def change_loads(instructions, destinations):
     for instruction in instructions:
-        if isinstance(instruction, LoadStat) and instruction.symbol in destinations:
+        if isinstance(instruction, LoadInstruction) and instruction.symbol in destinations:
             if instruction.symbol.is_array() and destinations[instruction.symbol].is_pointer():
                 # fix pass-by-reference, instead this becomes a move of the array address
                 destinations[instruction.symbol].stype = instruction.symbol.stype
@@ -98,7 +98,7 @@ def change_loads(instructions, destinations):
     return instructions
 
 
-# If this call-BranchStat can be inlined, get all the instructions of the function,
+# If this call-BranchInstruction can be inlined, get all the instructions of the function,
 # apply transformations to them (substituting returns with branches to exit, ...),
 # get all the instructions before and after the call, apply transformations to them
 # (change store of parameters to store in registers, ...), then put everything together
@@ -149,7 +149,7 @@ def inline(self):
     print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
 
 
-BranchStat.inline = inline
+BranchInstruction.inline = inline
 
 
 def function_inlining(node):

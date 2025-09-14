@@ -5,6 +5,7 @@ the same thing in this compiler).
 These functions expose high level interfaces (passes) for actions that can be
 applied to multiple IR nodes."""
 
+from ir.function_tree import FunctionTree
 from logger import log_indentation, green, underline
 
 
@@ -20,13 +21,13 @@ def get_node_list(root, quiet=True):
         return right
 
     node_list = []
-    root.navigate(register_nodes(node_list), quiet=quiet)
+    FunctionTree.navigate(register_nodes(node_list), quiet=quiet)
     return node_list
 
 
 def lowering(node):
     """Navigation action: lowering
-    (all high level nodes can be lowered to lower-level representation)"""
+    (convert AST nodes into IR instructions)"""
     try:
         check = node.lower()
         log_indentation(green(f"Lowered {node.type()}, {id(node)}"))
@@ -41,7 +42,7 @@ def lowering(node):
 
 def flattening(node):
     """Navigation action: flattening
-    (nested StatList nodes are flattened into a single StatList)"""
+    (nested InstructionList nodes are flattened into a single InstructionList)"""
     try:
         node.flatten()
     except AttributeError as e:

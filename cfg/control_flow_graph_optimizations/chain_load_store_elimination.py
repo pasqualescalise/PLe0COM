@@ -15,7 +15,7 @@ Becomes:
     t5 <- t1
 """
 
-from ir.ir import StoreStat, LoadStat, PointerType
+from ir.ir import StoreInstruction, LoadInstruction
 from logger import green
 
 
@@ -24,19 +24,19 @@ def perform_chain_load_store_elimination(bb):
     mapping = {}
 
     for instruction in bb.instrs:
-        if not isinstance(instruction, (StoreStat, LoadStat)):
+        if not isinstance(instruction, (StoreInstruction, LoadInstruction)):
             continue
 
         # do not delete chains involving pointers
-        if not (instruction.dest.alloct == 'reg' and instruction.symbol.alloct == 'reg' and not isinstance(instruction.dest.stype, PointerType) and not isinstance(instruction.symbol.stype, PointerType)):
+        if not (instruction.dest.alloct == 'reg' and instruction.symbol.alloct == 'reg' and not instruction.dest.is_pointer() and not instruction.symbol.is_pointer()):
             continue
 
         # XXX: can we do this also for non temporaries?
-        if isinstance(instruction, StoreStat):
+        if isinstance(instruction, StoreInstruction):
             if not instruction.dest.is_temporary:
                 continue
 
-        if isinstance(instruction, LoadStat):
+        if isinstance(instruction, LoadInstruction):
             if not instruction.symbol.is_temporary:
                 continue
 

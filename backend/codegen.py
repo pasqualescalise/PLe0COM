@@ -4,7 +4,7 @@
 Codegen functions return a string, consisting of the assembly code they
 correspond to"""
 
-from ir.ir import IRInstruction, Symbol, Block, BranchStat, DefinitionList, FunctionDef, BinStat, PrintStat, ReadStat, EmptyStat, LoadPtrToSym, PointerType, StoreStat, LoadStat, LoadImmStat, UnaryStat, DataSymbolTable, TYPENAMES
+from ir.ir import IRInstruction, Symbol, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, EmptyInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
 from backend.codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
@@ -76,9 +76,9 @@ def block_codegen(self, regalloc):
         print(red("Can't execute codegen"))
         raise RuntimeError(e)
 
-    last_statement_of_block = self.body.children[-1]
-    if isinstance(last_statement_of_block, BranchStat) and last_statement_of_block.target is None:
-        # optmization: if the last statement is a return this instructions are useless
+    last_instruction_of_block = self.body.children[-1]
+    if isinstance(last_instruction_of_block, BranchInstruction) and last_instruction_of_block.target is None:
+        # optmization: if the last instruction is a return this instructions are useless
         pass
     else:
         res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
@@ -105,14 +105,14 @@ def block_codegen(self, regalloc):
 Block.codegen = block_codegen
 
 
-def deflist_codegen(self, regalloc):
+def definitionlist_codegen(self, regalloc):
     return ''.join([child.codegen(regalloc) for child in self.children])
 
 
-DefinitionList.codegen = deflist_codegen
+DefinitionList.codegen = definitionlist_codegen
 
 
-def fun_codegen(self, regalloc):
+def functiondef_codegen(self, regalloc):
     if self.parent is None:
         res = ii(f".global {magenta('main')}\n\n")
         res += magenta("main:\n")
@@ -122,10 +122,10 @@ def fun_codegen(self, regalloc):
     return res
 
 
-FunctionDef.codegen = fun_codegen
+FunctionDef.codegen = functiondef_codegen
 
 
-def binstat_codegen(self, regalloc):
+def binary_codegen(self, regalloc):
     res = regalloc.gen_spill_load_if_necessary(self.srca)
     res += regalloc.gen_spill_load_if_necessary(self.srcb)
     ra = regalloc.get_register_for_variable(self.srca)
@@ -191,7 +191,40 @@ def binstat_codegen(self, regalloc):
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
-BinStat.codegen = binstat_codegen
+BinaryInstruction.codegen = binary_codegen
+
+
+def unary_codegen(self, regalloc):
+    res = regalloc.gen_spill_load_if_necessary(self.src)
+    rs = regalloc.get_register_for_variable(self.src)
+    rd = regalloc.get_register_for_variable(self.dest)
+
+    # algebric operations
+    if self.op == 'plus':
+        if rs != rd:
+            res += ii(f"{blue('mov')} {rd}, {rs}\n")
+    elif self.op == 'minus':
+        res += ii(f"{blue('mvn')} {rd}, {rs}\n")
+        res += ii(f"{yellow('add')} {rd}, {rd}, #{italic('1')}\n")
+
+    # conditional operations
+    elif self.op == 'odd':
+        res += ii(f"{yellow('and')} {rd}, {rs}, #{italic('1')}\n")
+
+    # logic operations
+    elif self.op == 'not':
+        res += ii(f"{blue('cmp')} {rs}, #{italic('0')}\n")
+        res += ii(f"{blue('moveq')} {rd}, #{italic('1')}\n")
+        res += ii(f"{blue('movne')} {rd}, #{italic('0')}\n")
+
+    else:
+        raise RuntimeError(f"Unexpected operation {self.op}")
+
+    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    return res
+
+
+UnaryInstruction.codegen = unary_codegen
 
 
 def print_codegen(self, regalloc):
@@ -222,7 +255,7 @@ def print_codegen(self, regalloc):
     return res
 
 
-PrintStat.codegen = print_codegen
+PrintInstruction.codegen = print_codegen
 
 
 def read_codegen(self, regalloc):
@@ -242,7 +275,7 @@ def read_codegen(self, regalloc):
     return res
 
 
-ReadStat.codegen = read_codegen
+ReadInstruction.codegen = read_codegen
 
 
 # TODO: documentation on the ABI
@@ -353,17 +386,17 @@ def branch_codegen(self, regalloc):
     return call_codegen(self, regalloc)
 
 
-BranchStat.codegen = branch_codegen
+BranchInstruction.codegen = branch_codegen
 
 
-def emptystat_codegen(self, regalloc):
-    return ii(f"{comment('Empty statement')}")
+def empty_codegen(self, regalloc):
+    return ii(f"{comment('Empty instruction')}")
 
 
-EmptyStat.codegen = emptystat_codegen
+EmptyInstruction.codegen = empty_codegen
 
 
-def ldptrto_codegen(self, regalloc):
+def loadpointer_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
     res = ''
 
@@ -375,10 +408,10 @@ def ldptrto_codegen(self, regalloc):
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
-LoadPtrToSym.codegen = ldptrto_codegen
+LoadPointerInstruction.codegen = loadpointer_codegen
 
 
-def storestat_codegen(self, regalloc):
+def store_codegen(self, regalloc):
     res = ''
 
     if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.dest.is_pointer():
@@ -423,10 +456,10 @@ def storestat_codegen(self, regalloc):
     return res
 
 
-StoreStat.codegen = storestat_codegen
+StoreInstruction.codegen = store_codegen
 
 
-def loadstat_codegen(self, regalloc):
+def load_codegen(self, regalloc):
     res = ''
 
     if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.symbol.is_pointer():
@@ -472,7 +505,7 @@ def loadstat_codegen(self, regalloc):
     return res
 
 
-LoadStat.codegen = loadstat_codegen
+LoadInstruction.codegen = load_codegen
 
 
 def loadimm_codegen(self, regalloc):
@@ -499,40 +532,7 @@ def loadimm_codegen(self, regalloc):
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
-LoadImmStat.codegen = loadimm_codegen
-
-
-def unarystat_codegen(self, regalloc):
-    res = regalloc.gen_spill_load_if_necessary(self.src)
-    rs = regalloc.get_register_for_variable(self.src)
-    rd = regalloc.get_register_for_variable(self.dest)
-
-    # algebric operations
-    if self.op == 'plus':
-        if rs != rd:
-            res += ii(f"{blue('mov')} {rd}, {rs}\n")
-    elif self.op == 'minus':
-        res += ii(f"{blue('mvn')} {rd}, {rs}\n")
-        res += ii(f"{yellow('add')} {rd}, {rd}, #{italic('1')}\n")
-
-    # conditional operations
-    elif self.op == 'odd':
-        res += ii(f"{yellow('and')} {rd}, {rs}, #{italic('1')}\n")
-
-    # logic operations
-    elif self.op == 'not':
-        res += ii(f"{blue('cmp')} {rs}, #{italic('0')}\n")
-        res += ii(f"{blue('moveq')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movne')} {rd}, #{italic('0')}\n")
-
-    else:
-        raise RuntimeError(f"Unexpected operation {self.op}")
-
-    res += regalloc.gen_spill_store_if_necessary(self.dest)
-    return res
-
-
-UnaryStat.codegen = unarystat_codegen
+LoadImmInstruction.codegen = loadimm_codegen
 
 
 def generate_data_section():

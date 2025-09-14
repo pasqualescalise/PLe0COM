@@ -6,7 +6,8 @@ the full IR tree
 
 This tree can only be accessed via the static class FunctionTree"""
 
-from logger import magenta, cyan
+from logger import log_indentation, magenta, cyan
+import logger
 
 
 class FunctionNode:
@@ -104,3 +105,42 @@ class FunctionTree:
             raise RuntimeError(f"Can't find function {target_function_symbol.name}")
 
         return function_definition
+
+    @staticmethod
+    def navigate(action, *args, quiet=False):
+        FunctionTree.__navigate(FunctionTree.root, action, *args, quiet=quiet)
+
+    @staticmethod
+    def __navigate(root, action, *args, quiet=False):
+        if not quiet:
+            log_indentation(f"Navigating to function {magenta(root.symbol.name)}, {id(root.definition)}")
+        logger.indentation += 1
+
+        for child in root.children:
+            FunctionTree.__navigate(child, action, *args, quiet=quiet)
+
+        body = root.definition.body.body
+        if not quiet:
+            log_indentation(f"Navigating to {cyan(body.type())}, {id(body)}")
+        logger.indentation += 1
+
+        for child in body.children:
+            if 'navigate' in dir(child):
+                if not quiet:
+                    log_indentation(f"Navigating to child {cyan(child.type())} of {cyan(body.type())}, {id(body)}")
+                logger.indentation += 1
+                child.navigate(action, *args, quiet=quiet)
+                logger.indentation -= 1
+            else:
+                if not quiet:
+                    log_indentation(f"Performing action {magenta(action.__name__)} on child {cyan(child.type())}, {id(child)}")
+                action(child)
+
+        logger.indentation -= 1
+        if not quiet:
+            log_indentation(f"Performing action {magenta(action.__name__)} on {cyan(body.type())}, {id(body)}")
+
+        action(body)
+        logger.indentation -= 1
+        if not quiet:
+            log_indentation(f"Navigated function {magenta(root.symbol.name)}, {id(root.definition)}")
