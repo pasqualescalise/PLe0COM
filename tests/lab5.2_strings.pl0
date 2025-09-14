@@ -13,5 +13,6 @@ BEGIN
 		!
 	";
 	print str;
-	print "Hello inlined World!"
+	print "Hello inlined World!";
+	print "This has a /* comment */ inside // actually two"
 END.

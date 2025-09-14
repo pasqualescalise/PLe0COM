@@ -1,8 +1,6 @@
 VAR result : boolean;
 VAR result_string[30] : char;
 
-{TODO: arrays of booleans and strings}
-
 PROCEDURE is_true(condition : boolean) -> (boolean);
 	BEGIN
 		if condition then begin

@@ -10,7 +10,7 @@ PROCEDURE power(base, exponent : int) -> (int);
 
 	PROCEDURE powerOfTwo(exponent : int) -> (int);
 		BEGIN
-			{parentheses needed because shift has a higher precedence than -}
+			// parentheses needed because shift has a higher precedence than -
 			return (2 << (exponent - 1))
 		END;
 

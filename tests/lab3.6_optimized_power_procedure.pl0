@@ -11,7 +11,7 @@ PROCEDURE power(base, exponent : int);
 	PROCEDURE powerOfTwo(exponent : int);
 		VAR resshift : int;
 		BEGIN
-			{parentheses needed because shift has a higher precedence than -}
+			// parentheses needed because shift has a higher precedence than -
 			resshift := 2 << (exponent - 1);
 			print resshift
 		END;

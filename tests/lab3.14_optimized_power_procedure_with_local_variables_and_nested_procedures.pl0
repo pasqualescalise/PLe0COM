@@ -8,7 +8,7 @@ PROCEDURE power(base, exponent : int);
 
 	PROCEDURE powerOfTwo(exponent : int);
 		BEGIN
-			{parentheses needed because shift has a higher precedence than -}
+			// parentheses needed because shift has a higher precedence than -
 			result := 2 << (exponent - 1)
 		END;
 
@@ -25,7 +25,7 @@ PROCEDURE power(base, exponent : int);
 	BEGIN
 		if exponent < 0 then begin
 			result := -1
-		{mistake? x**0 = 1, x**1 = x}
+		/* mistake? x**0 = 1, x**1 = x */
 		end elif exponent = 0 then begin
 			result := base
 		end elif exponent = 2 then begin

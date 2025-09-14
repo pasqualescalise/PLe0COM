@@ -7,7 +7,7 @@ VAR ushort : ushort;
 VAR ubyte : ubyte;
 
 BEGIN
-	{ signed variables can't represent these numbers }
+	// signed variables can't represent these numbers
 	integer := 2147483647;
 	print integer;
 	integer := 2147483648;
@@ -21,7 +21,7 @@ BEGIN
 	byte := 128;
 	print byte;
 
-	{ there is no real difference between signed and unsigned integers }
+	// there is no real difference between signed and unsigned integers
 	uinteger := 2147483647;
 	print uinteger;
 	uinteger := 2147483648;

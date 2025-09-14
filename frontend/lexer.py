@@ -72,11 +72,23 @@ class Lexer:
 
     def skip_whitespace(self):
         in_comment = False
-        while self.pos < len(self.text) and (self.text[self.pos].isspace() or self.text[self.pos] == '{' or in_comment):
-            if self.text[self.pos] == '{' and not in_comment:
+        inline_comment = False
+        while self.pos < len(self.text) and (self.text[self.pos].isspace() or self.text[self.pos:self.pos + 2] == '/*' or self.text[self.pos:self.pos + 2] == '//' or in_comment):
+            if self.text[self.pos:self.pos + 2] == '/*' and not in_comment:
+                self.pos += 1
                 in_comment = True
-            elif in_comment and self.text[self.pos] == '}':
+            elif self.text[self.pos:self.pos + 2] == '*/' and in_comment:
+                self.pos += 1
                 in_comment = False
+
+            elif self.text[self.pos:self.pos + 2] == '//' and not in_comment:
+                self.pos += 1
+                in_comment = True
+                inline_comment = True
+            elif self.text[self.pos] == '\n' and in_comment and inline_comment:
+                in_comment = False
+                inline_comment = False
+
             self.pos += 1
 
     def check_symbol(self):

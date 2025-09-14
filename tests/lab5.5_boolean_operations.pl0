@@ -74,6 +74,8 @@ BEGIN
 	print odd 2 + 2 = True;
 	print True = (True != False);
 	print (True = True) != (False = False)
-	{print True > False} {TODO: these get compiled, we need some good type checking asap}
-	{print (2 - 1) = True}
+
+	// TODO: these get compiled, we need some good type checking asap
+	// print True > False}
+	// print (2 - 1) = True
 END.

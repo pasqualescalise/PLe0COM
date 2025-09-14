@@ -23,7 +23,7 @@ PROCEDURE performArithmetic(x, y : int) -> (int);
 			return (respow)
 		END;
 
-	{ this computes (x + y) * (x ^ 2) }
+	/* this computes (x + y) * (x ^ 2) */
 	PROCEDURE operation(x, y : int) -> (int, int, int);
 		VAR sum_res, power_res, res : int;
 		BEGIN

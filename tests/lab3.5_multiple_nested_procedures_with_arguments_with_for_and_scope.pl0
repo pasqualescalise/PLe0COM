@@ -8,8 +8,9 @@ PROCEDURE func1(x, y : int);
 		BEGIN
 			ressquare := x * x;
 			print ressquare
-			{XXX: this fails like it would in C but maybe it doesn't have to}
-			{CALL powerWithFors(2, 2)}
+			/* XXX: this fails like it would in C but maybe it doesn't have to
+			 * CALL powerWithFors(2, 2)
+			 */
 		END;
 
 	PROCEDURE powerWithFors(x, y : int);

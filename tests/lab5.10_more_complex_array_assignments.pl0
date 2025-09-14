@@ -13,7 +13,7 @@ BEGIN
 	print char_array[2];
 	print ["A", "B", char_array[2]]char[2];
 	
-	{TODO: arrays of strings}
+	// TODO: arrays of strings
 
 	print "\nNumeric Arrays of Arrays";
 	one := 1;
