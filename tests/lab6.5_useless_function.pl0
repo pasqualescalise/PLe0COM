@@ -11,7 +11,7 @@ BEGIN
 	CALL useless(2)
 END.
 
-{
+/*
 XXX: this is not identified as "useless" since the variable
 i is live at the end of every BasicBlock
 
@@ -29,4 +29,4 @@ PROCEDURE useless(int x);
 BEGIN
 	CALL useless(2)
 END.
-}
+*/
