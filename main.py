@@ -9,7 +9,7 @@ from frontend.parser import Parser
 from frontend.abstract_syntax_tree_optimizations import perform_abstract_syntax_tree_optimizations
 
 from ir.support import get_node_list, lowering, flattening
-from ir.post_lowering_optimizations import perform_post_lowering_optimizations
+from ir.intermediate_representation_optimizations import perform_intermediate_representation_optimizations
 from ir.function_tree import FunctionTree
 
 from cfg.cfg import ControlFlowGraph
@@ -74,8 +74,8 @@ def compile_program(text, optimization_level):
     print(f"\n{green('Intermediate Representation:')}\n{program}")
 
     # XXX: OTHER OPTIMIZATIONS GO HERE
-    print(h2("POST-LOWERING OPTIMIZATIONS"))
-    perform_post_lowering_optimizations(program, optimization_level)
+    print(h2("INTERMEDIATE REPRESENTATION OPTIMIZATIONS"))
+    perform_intermediate_representation_optimizations(program, optimization_level)
 
     print(f"\n{green('Optimized program:')}\n{program}")
 
