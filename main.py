@@ -6,9 +6,9 @@ from argparse import ArgumentParser
 
 from frontend.lexer import Lexer
 from frontend.parser import Parser
+from frontend.abstract_syntax_tree_optimizations import perform_abstract_syntax_tree_optimizations
 
 from ir.support import get_node_list, lowering, flattening
-from ir.pre_lowering_optimizations import perform_pre_lowering_optimizations
 from ir.post_lowering_optimizations import perform_post_lowering_optimizations
 from ir.function_tree import FunctionTree
 
@@ -39,6 +39,12 @@ def compile_program(text, optimization_level):
     FunctionTree.populate_function_tree(program, main_symbol)
     print(FunctionTree.root)
 
+    # XXX: SOME OPTIMIZATIONS GO HERE
+    print(h2("ABSTRACT SYNTAX TREE OPTIMIZATIONS"))
+    perform_abstract_syntax_tree_optimizations(program, optimization_level)
+
+    print(f"\n{green('Optimized Abstract Syntax Tree:')}\n{program}")
+
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)
     for node in node_list:
@@ -58,12 +64,6 @@ def compile_program(text, optimization_level):
     ##############################################
 
     print(h1("MIDDLE-END"))
-
-    # XXX: SOME OPTIMIZATIONS GO HERE
-    print(h2("PRE-LOWERING OPTIMIZATIONS"))
-    perform_pre_lowering_optimizations(program, optimization_level)
-
-    print(f"\n{green('Optimized program:')}\n{program}")
 
     print(h2("LOWERING"))
     FunctionTree.navigate(lowering, quiet=False)
