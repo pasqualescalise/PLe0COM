@@ -30,12 +30,12 @@ def lowering(node):
     (convert AST nodes into IR instructions)"""
     try:
         check = node.lower()
-        log_indentation(green(f"Lowered {node.type()}, {id(node)}"))
+        log_indentation(green(f"Lowered {node.type_repr()}, {id(node)}"))
         if not check:
             raise RuntimeError(f"Node {repr(node)} did not return anything after lowering")
     except AttributeError as e:
         if e.name == "lower":
-            log_indentation(underline(f"Lowering not yet implemented for type {node.type()}"))
+            log_indentation(underline(f"Lowering not yet implemented for type {node.type_repr()}"))
         else:
             raise RuntimeError(e)
 
@@ -47,6 +47,6 @@ def flattening(node):
         node.flatten()
     except AttributeError as e:
         if e.name == "flatten":
-            log_indentation(underline(f"Flattening not yet implemented for type {node.type()}"))
+            log_indentation(underline(f"Flattening not yet implemented for type {node.type_repr()}"))
         else:
             raise RuntimeError(e)

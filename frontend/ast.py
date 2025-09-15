@@ -52,7 +52,7 @@ class ASTNode:  # abstract
             self.children = []
 
     # XXX: must only be used for printing
-    def type(self):
+    def type_repr(self):
         return ".".join(str(type(self)).split("'")[1].split(".")[-2:])
 
     def __repr__(self):
@@ -64,7 +64,7 @@ class ASTNode:  # abstract
 
         attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values'} & set(dir(self))
 
-        res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
+        res = f"{cyan(f'{self.type_repr()}')}, {id(self)}" + " {"
         if self.parent is not None:
             # res += f"\nparent: {id(self.parent)};\n"
             res += "\n"
@@ -98,7 +98,7 @@ class ASTNode:  # abstract
 
         if 'children' in dir(self) and len(self.children):
             if not quiet:
-                log_indentation(f"Navigating to {cyan(len(self.children))} children of {cyan(self.type())}, {id(self)}")
+                log_indentation(f"Navigating to {cyan(len(self.children))} children of {cyan(self.type_repr())}, {id(self)}")
             for node in self.children:
                 try:
                     logger.indentation += 1
@@ -110,7 +110,7 @@ class ASTNode:  # abstract
         for attr in attrs:
             try:
                 if not quiet:
-                    log_indentation(f"Navigating to attribute {cyan(attr)} of {cyan(self.type())}, {id(self)}")
+                    log_indentation(f"Navigating to attribute {cyan(attr)} of {cyan(self.type_repr())}, {id(self)}")
                 logger.indentation += 1
                 node = getattr(self, attr)
                 node.navigate(action, *args, quiet=quiet)
@@ -118,7 +118,7 @@ class ASTNode:  # abstract
             except AttributeError:
                 logger.indentation -= 1
         if not quiet:
-            log_indentation(f"Navigating to {cyan(self.type())}, {id(self)}")
+            log_indentation(f"Navigating to {cyan(self.type_repr())}, {id(self)}")
 
         # XXX: shitty solution
         try:
@@ -934,7 +934,7 @@ class StatList(Stat):
 
     def append(self, elem):
         elem.parent = self
-        log_indentation(f"Appending statement {id(elem)} of type {elem.type()} to StatList {id(self)}")
+        log_indentation(f"Appending statement {id(elem)} of type {elem.type_repr()} to StatList {id(self)}")
         self.children.append(elem)
 
     def replace(self, old, new):
@@ -956,7 +956,7 @@ class StatList(Stat):
     def get_content(self):
         content = f"Recap StatList {id(self)}: [\n"
         for n in self.children:
-            content += ii(f"{n.type()}, {id(n)};\n")
+            content += ii(f"{n.type_repr()}, {id(n)};\n")
         content += "]"
         return content
 

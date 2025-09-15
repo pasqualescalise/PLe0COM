@@ -121,24 +121,24 @@ class FunctionTree:
 
         body = root.definition.body.body
         if not quiet:
-            log_indentation(f"Navigating to {cyan(body.type())}, {id(body)}")
+            log_indentation(f"Navigating to {cyan(body.type_repr())}, {id(body)}")
         logger.indentation += 1
 
         for child in body.children:
             if 'navigate' in dir(child):
                 if not quiet:
-                    log_indentation(f"Navigating to child {cyan(child.type())} of {cyan(body.type())}, {id(body)}")
+                    log_indentation(f"Navigating to child {cyan(child.type_repr())} of {cyan(body.type_repr())}, {id(body)}")
                 logger.indentation += 1
                 child.navigate(action, *args, quiet=quiet)
                 logger.indentation -= 1
             else:
                 if not quiet:
-                    log_indentation(f"Performing action {magenta(action.__name__)} on child {cyan(child.type())}, {id(child)}")
+                    log_indentation(f"Performing action {magenta(action.__name__)} on child {cyan(child.type_repr())}, {id(child)}")
                 action(child)
 
         logger.indentation -= 1
         if not quiet:
-            log_indentation(f"Performing action {magenta(action.__name__)} on {cyan(body.type())}, {id(body)}")
+            log_indentation(f"Performing action {magenta(action.__name__)} on {cyan(body.type_repr())}, {id(body)}")
 
         action(body)
         logger.indentation -= 1

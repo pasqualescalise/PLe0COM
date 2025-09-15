@@ -49,9 +49,9 @@ def compile_program(text, optimization_level):
     node_list = get_node_list(program, quiet=True)
     for node in node_list:
         if node.parent is not None:
-            print(f"{yellow(f'{node.type()}, {id(node)}')} is child of {yellow(f'{node.parent.type()}, {id(node.parent)}')}")
+            print(f"{yellow(f'{node.type_repr()}, {id(node)}')} is child of {yellow(f'{node.parent.type_repr()}, {id(node.parent)}')}")
         else:
-            print(f"{yellow(f'{node.type()}, {id(node)}')} is {bold('root')} node")
+            print(f"{yellow(f'{node.type_repr()}, {id(node)}')} is {bold('root')} node")
     print(f"\nTotal nodes in IR: {cyan(len(node_list))}")
 
     print(h2("STATEMENT LISTS"))

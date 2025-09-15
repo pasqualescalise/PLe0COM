@@ -297,13 +297,13 @@ class IRInstruction():  # abstract
         self.label = None
 
     # XXX: must only be used for printing
-    def type(self):
+    def type_repr(self):
         return ".".join(str(type(self)).split("'")[1].split(".")[-2:])
 
     def __repr__(self):
         attrs = {'body', 'symbol', 'defs', 'local_symtab', 'parameters', 'returns', 'called_by_counter'} & set(dir(self))
 
-        res = f"{cyan(f'{self.type()}')}, {id(self)}" + " {"
+        res = f"{cyan(f'{self.type_repr()}')}, {id(self)}" + " {"
         if self.parent is not None:
             # res += f"\nparent: {id(self.parent)};\n"
             res += "\n"
@@ -817,7 +817,7 @@ class InstructionList(IRInstruction):
                 pass
 
         if isinstance(self.parent, InstructionList):
-            log_indentation(green(f"Flattened {self.type()}, {id(self)} into parent {self.parent.type()}, {id(self.parent)}"))
+            log_indentation(green(f"Flattened {self.type_repr()}, {id(self)} into parent {self.parent.type_repr()}, {id(self.parent)}"))
             if self.get_label():
                 empty = EmptyInstruction(self, symtab=self.symtab)
                 self.children.insert(0, empty)
@@ -830,7 +830,7 @@ class InstructionList(IRInstruction):
                 print(e)
             self.parent.children = self.parent.children[:i] + self.children + self.parent.children[i + 1:]
         else:
-            log_indentation(f"{red('NOT')} flattening {cyan(f'{self.type()}')}, {id(self)} into parent {cyan(f'{self.parent.type()}')}, {id(self.parent)}")
+            log_indentation(f"{red('NOT')} flattening {cyan(f'{self.type_repr()}')}, {id(self)} into parent {cyan(f'{self.parent.type_repr()}')}, {id(self.parent)}")
             self.flat = True
 
     def replace_temporaries(self, mapping, create_new=True):
@@ -903,7 +903,7 @@ class DefinitionList(IRInstruction):
 
     def append(self, elem):
         if not isinstance(elem, FunctionDef):
-            raise RuntimeError(f"Trying to append node {id(elem)} of type {elem.type()} to DefinitionList {id(self)}, that can only contatin FunctionDefs")
+            raise RuntimeError(f"Trying to append node {id(elem)} of type {elem.type_repr()} to DefinitionList {id(self)}, that can only contatin FunctionDefs")
         elem.parent = self
         self.children.append(elem)
 

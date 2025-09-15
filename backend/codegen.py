@@ -26,7 +26,7 @@ Symbol.codegen = symbol_codegen
 
 
 def irinstruction_codegen(self, regalloc):
-    res = ii(f"{comment(f'IRInstruction {self.type()}, {id(self)}')}")  # TODO: remove this stuff
+    res = ii(f"{comment(f'IRInstruction {self.type_repr()}, {id(self)}')}")  # TODO: remove this stuff
     if "children" in dir(self) and len(self.children):
         for node in self.children:
             try:
@@ -37,7 +37,7 @@ def irinstruction_codegen(self, regalloc):
                     pass
                 res += node.codegen(regalloc)
             except RuntimeError as e:
-                raise RuntimeError(f"Node {node.type()}, {id(node)} did not generate any code; error: {e}")
+                raise RuntimeError(f"Node {node.type_repr()}, {id(node)} did not generate any code; error: {e}")
     return res
 
 
