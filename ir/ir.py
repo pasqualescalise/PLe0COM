@@ -88,6 +88,7 @@ class Type:
         return self.basetype == "Int"
 
     def is_string(self):
+        """A type is string if it's char[] or &char"""
         return (isinstance(self, ArrayType) and self.basetype.basetype == "Char" and len(self.dims) == 1) or (isinstance(self, PointerType) and self.pointstotype.basetype == "Char")
 
 
@@ -206,8 +207,7 @@ class Symbol:
         return (self.type.is_numeric()) or (self.is_array() and self.type.basetype.is_numeric())
 
     def is_string(self):
-        """A Symbol references a string if it's of type char[] or &char"""
-        return (self.is_array() and self.type.basetype.name == "char") or (isinstance(self.type, PointerType) and self.stype.pointstotype.name == "char")
+        return self.type.is_string()
 
     def is_boolean(self):
         return (self.type == TYPENAMES['boolean']) or (self.is_array() and self.type.basetype == TYPENAMES['boolean'])
@@ -218,7 +218,7 @@ class Symbol:
     def __repr__(self):
         res = f"{self.alloct} {self.type}"
 
-        if isinstance(self.type, (FunctionType, LabelType)):
+        if self.type in [FunctionType(), LabelType()]:
             res += f" {magenta(f'{self.name}')}"
         elif self.alloct != "reg":
             res += f" {green(f'{self.name}')}"
@@ -476,7 +476,7 @@ class BranchInstruction(IRInstruction):
         return False
 
     def is_call(self):
-        if isinstance(self.target, Symbol) and isinstance(self.target.type, FunctionType):
+        if isinstance(self.target, Symbol) and self.target.type == FunctionType():
             return True
         return False
 
@@ -634,7 +634,7 @@ class StoreInstruction(IRInstruction):
         self.killhint = killhint
 
     def used_variables(self):
-        if self.dest.alloct == 'reg' and isinstance(self.dest.type, PointerType):
+        if self.dest.alloct == 'reg' and self.dest.is_pointer():
             return [self.symbol, self.dest]
         return [self.symbol]
 
@@ -650,7 +650,7 @@ class StoreInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        if isinstance(self.dest.type, PointerType):
+        if self.dest.is_pointer():
             return f"[{self.dest}] {bold('<-')} {self.symbol}"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
@@ -690,7 +690,7 @@ class LoadInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        if isinstance(self.symbol.type, PointerType):
+        if self.symbol.is_pointer():
             return f"{self.dest} {bold('<-')} [{self.symbol}]"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 

@@ -9,7 +9,7 @@ Function parameters exist only in the called function and its nested
 children, and are also referenced using stack offset (even though some
 of them are passed in registers)"""
 
-from ir.ir import DataSymbolTable, ArrayType
+from ir.ir import DataSymbolTable
 from backend.codegenhelp import CALLEE_OFFSET, REGISTER_SIZE
 from logger import cyan
 
@@ -81,7 +81,7 @@ def perform_data_layout_of_function(funcroot):
         name = f"_p_{fname}_{parameter.name}"
         bsize = parameter.type.size // 8  # in byte
 
-        if isinstance(parameter.type, ArrayType):  # pass by reference
+        if parameter.is_array():  # pass by reference
             bsize = REGISTER_SIZE // 8
 
         padding = 4 - bsize

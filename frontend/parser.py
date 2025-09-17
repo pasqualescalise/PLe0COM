@@ -477,7 +477,7 @@ class Parser:
                 for new_symbol in new_symbols:
                     if new_symbol.type is None:
                         new_symbol.type = type
-                    elif isinstance(new_symbol.type, ir.ArrayType):
+                    elif new_symbol.is_array():
                         size = new_symbol.type.dims
                         new_symbol.type = ir.ArrayType(None, size, type)
                     local_symtab.push(new_symbol)
@@ -526,7 +526,7 @@ class Parser:
                 for new_parameter in new_parameters:
                     if new_parameter.type is None:
                         new_parameter.type = type
-                    elif isinstance(new_parameter.type, ir.ArrayType):
+                    elif new_parameter.is_array():
                         size = new_parameter.type.dims
                         new_parameter.type = ir.ArrayType(None, size, type)
 
