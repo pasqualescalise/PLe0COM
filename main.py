@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 from frontend.lexer import Lexer
 from frontend.parser import Parser
 from frontend.abstract_syntax_tree_optimizations import perform_abstract_syntax_tree_optimizations
+from frontend.type_checking import perform_type_checking
 
 from ir.support import get_node_list, lowering, flattening
 from ir.intermediate_representation_optimizations import perform_intermediate_representation_optimizations
@@ -44,6 +45,9 @@ def compile_program(text, optimization_level):
     perform_abstract_syntax_tree_optimizations(program, optimization_level)
 
     print(f"\n{green('Optimized Abstract Syntax Tree:')}\n{program}")
+
+    print(h2("TYPE CHECKING"))
+    perform_type_checking(program)
 
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)

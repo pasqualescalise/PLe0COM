@@ -237,7 +237,7 @@ def print_codegen(self, regalloc):
         res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(1)}\n")
     else:
         res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(0)}\n")
-    if self.print_type == TYPENAMES['char']:
+    if self.print_type.is_string():
         res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
     elif self.print_type == TYPENAMES['boolean']:
         res += ii(f"{red('bl')} {magenta('__pl0_print_boolean')}\n")

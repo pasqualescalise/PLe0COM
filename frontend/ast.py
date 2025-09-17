@@ -62,7 +62,7 @@ class ASTNode:  # abstract
         except AttributeError:
             label = ''
 
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values', 'type'} & set(dir(self))
 
         res = f"{cyan(f'{self.type_repr()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -122,7 +122,7 @@ class ASTNode:  # abstract
 
         # XXX: shitty solution
         try:
-            action(self, *args)
+            action(self, *args, quiet=quiet)
         except TypeError:
             action(self)
 
@@ -260,7 +260,7 @@ class String(ASTNode):
 
     def lower(self):
         # put the string in the data SymbolTable
-        data_variable = ir.DataSymbolTable.add_data_symbol(ir.ArrayType(None, [len(self.value) + 1], ir.TYPENAMES['char']), value=self.value)
+        data_variable = ir.DataSymbolTable.add_data_symbol(self.type, value=self.value)
 
         # load the fixed data string address
         ptrreg_data = ir.new_temporary(self.symtab, ir.PointerType(data_variable.stype.basetype))
@@ -288,14 +288,14 @@ class StaticArray(ASTNode):
             self.values_type = ir.ArrayType(None, size, type)
         self.size = size  # we need this for the deepcopy
 
+        self.type_checking()  # call this manually since this node will not survive until regular type checking
+
     def __deepcopy__(self, memo):
         new_values = []
         for value in self.values:
             new_values.append(deepcopy(value, memo))
 
         return StaticArray(parent=self.parent, values=new_values, type=self.values_type, size=self.size, symtab=self.symtab)
-
-    # TODO: definitely needs type checking, also stuff like String length
 
 
 # EXPRESSIONS
@@ -316,24 +316,11 @@ class BinExpr(Expr):
         srca = self.children[1].destination()
         srcb = self.children[2].destination()
 
-        # type checking
-        if srca.stype.name == srcb.stype.name:
-            desttype = ir.TYPENAMES[srca.stype.name]
-        elif srca.stype.is_numeric() and srcb.stype.is_numeric():  # apply a mask to the smallest operand
+        if self.mask:  # set during type checking
             smallest_operand = srca if srca.stype.size < srcb.stype.size else srcb
-            biggest_operand = srca if srca.stype.size > srcb.stype.size else srcb
             instrs += mask_numeric(smallest_operand, self.symtab)
-            desttype = ir.Type(biggest_operand.stype.name, biggest_operand.stype.size, 'Int')
-        else:
-            raise RuntimeError(f"Trying to operate on two factors of different types ({srca.stype.name} and {srcb.stype.name})")
 
-        if ('unsigned' in srca.stype.qualifiers) and ('unsigned' in srcb.stype.qualifiers):
-            desttype.qualifiers += ['unsigned']
-
-        if self.children[0] in BINARY_CONDITIONALS:
-            dest = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-        else:
-            dest = ir.new_temporary(self.symtab, desttype)
+        dest = ir.new_temporary(self.symtab, self.type)
 
         if self.children[0] not in ["slash", "mod"]:
             expression = ir.BinaryInstruction(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
@@ -427,10 +414,7 @@ class UnExpr(Expr):
 
     def lower(self):
         src = self.children[1].destination()
-        if self.children[0] in UNARY_CONDITIONALS:
-            dest = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-        else:
-            dest = ir.new_temporary(self.symtab, src.stype)
+        dest = ir.new_temporary(self.symtab, self.type)
         expression = ir.UnaryInstruction(dest=dest, op=self.children[0], src=src, symtab=self.symtab)
         instrs = [self.children[1], expression]
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -467,25 +451,9 @@ class CallStat(Stat):
         self.function_symbol = function_symbol
         self.returns = returns
 
-    # raises RuntimeError if the number of parameters or of returns is wrong
-    # TODO: add type checking
-    def check_parameters_and_returns(self, function_definition):
-        if len(function_definition.parameters) > len(self.children):
-            raise RuntimeError(f"Passing too few parameters calling function {self.function_symbol.name}")
-        if len(function_definition.parameters) < len(self.children):
-            raise RuntimeError(f"Passing too many parameters calling function {self.function_symbol.name}")
-
-        if len(function_definition.returns) > len(self.returns):
-            raise RuntimeError(f"Too few values are being returned from function {function_definition.symbol.name}")
-        elif len(function_definition.returns) < len(self.returns):
-            raise RuntimeError(f"Too many values are being returned from function {function_definition.symbol.name}")
-
     def lower(self):
-        # TODO: these need to be moved before the node expansion
         function_definition = FunctionTree.get_function_definition(self.function_symbol)
         function_definition.called_by_counter += 1
-
-        self.check_parameters_and_returns(function_definition)
 
         parameters = [x.destination() for x in self.children]
 
@@ -517,9 +485,9 @@ class CallStat(Stat):
 
 
 class IfStat(Stat):
-    def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elsepart=None, symtab=None):
+    def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elifs_conditions=[], elsepart=None, symtab=None):
         log_indentation(bold(f"New IfStat Node (id: {id(self)})"))
-        super().__init__(parent, [], symtab)
+        super().__init__(parent, elifs_conditions, symtab)
         self.cond = cond
         self.thenpart = thenpart
         self.elifspart = elifspart
@@ -552,11 +520,11 @@ class IfStat(Stat):
         instrs = [self.cond, branch_to_then]
 
         # elifs branches
-        for i in range(0, len(self.elifspart.children), 2):
+        for i in range(0, len(self.elifspart.children)):
             elif_label = ir.TYPENAMES['label']()
-            self.elifspart.children[i + 1].set_label(elif_label)
-            branch_to_elif = ir.BranchInstruction(cond=self.elifspart.children[i].destination(), target=elif_label, symtab=self.symtab)
-            instrs += [self.elifspart.children[i], branch_to_elif]
+            self.elifspart.children[i].set_label(elif_label)
+            branch_to_elif = ir.BranchInstruction(cond=self.children[i].destination(), target=elif_label, symtab=self.symtab)
+            instrs += [self.children[i], branch_to_elif]
 
         # NOTE: in general, avoid putting an exit label and a branch to it if the
         #       last instruction is a return
@@ -575,8 +543,8 @@ class IfStat(Stat):
                 instrs += [branch_to_exit]
 
         # elifs statements
-        for i in range(0, len(self.elifspart.children), 2):
-            elifspart = self.elifspart.children[i + 1]
+        for i in range(0, len(self.elifspart.children)):
+            elifspart = self.elifspart.children[i]
             last_elif_instruction = elifspart.children[0].children[-1]
 
             if isinstance(last_elif_instruction, ir.BranchInstruction) and last_elif_instruction.is_return():
@@ -672,10 +640,11 @@ class ForStat(Stat):
 
 
 class AssignStat(Stat):
-    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, symtab=None):
+    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, num_of_accesses=0, symtab=None):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
         self.symbol = target
+        self.num_of_accesses = num_of_accesses
 
         # TODO: why do this?
         try:
@@ -822,20 +791,7 @@ class PrintStat(Stat):
             instrs = self.children
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
-        print_type = ir.TYPENAMES['int']
-
-        if self.children[0] and self.children[0].destination().is_string():
-            print_type = ir.TYPENAMES['char']
-        elif self.children[0] and self.children[0].destination().is_boolean():
-            print_type = ir.TYPENAMES['boolean']
-        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 16 and 'unsigned' in self.children[0].destination().stype.qualifiers:
-            print_type = ir.TYPENAMES['ushort']
-        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 8 and 'unsigned' in self.children[0].destination().stype.qualifiers:
-            print_type = ir.TYPENAMES['ubyte']
-        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 16:
-            print_type = ir.TYPENAMES['short']
-        elif self.children[0] and self.children[0].destination().is_numeric() and self.children[0].destination().stype.size == 8:
-            print_type = ir.TYPENAMES['byte']
+        print_type = self.print_type  # set during type checking
 
         pc = ir.PrintInstruction(src=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[self.children[0], pc], symtab=self.symtab))
@@ -869,26 +825,10 @@ class ReturnStat(Stat):
         for child in self.children:
             child.parent = self
 
-    def type_checking(self, returns, function_returns):
+    def apply_masks(self, returns):
         masks = []
-
-        for i in range(len(returns)):
-            if returns[i].stype.name == function_returns[i].stype.name:
-                continue
-
-            if returns[i].stype.is_numeric() and function_returns[i].stype.is_numeric():
-                if returns[i].stype.size > function_returns[i].stype.size:
-                    continue  # we can return, for example, a byte as an int
-
-                masks += mask_numeric(returns[i], self.symtab)
-                continue
-
-            # check if we're returning a pointer when we were expecting an array, it's good since we only return references
-            # TODO: check that we are not returning local references
-            if returns[i].is_pointer() and function_returns[i].is_array() and (returns[i].stype.pointstotype.name == function_returns[i].stype.basetype.name):
-                continue
-
-            raise RuntimeError(f"Trying to return a value of type {returns[i].stype.name} instead of {function_returns[i].stype.name}")
+        for index in self.masks:  # set during type checking
+            masks += mask_numeric(returns[index], self.symtab)
 
         return masks
 
@@ -899,14 +839,8 @@ class ReturnStat(Stat):
         if function_definition.parent is None:
             raise RuntimeError("The main function should not have return statements")
 
-        # check that the function returns as many values as the defined ones
-        if len(function_definition.returns) > len(self.children):
-            raise RuntimeError(f"Too few values are being returned in function {function_definition.symbol.name}")
-        elif len(function_definition.returns) < len(self.children):
-            raise RuntimeError(f"Too many values are being returned in function {function_definition.symbol.name}")
-
         returns = [x.destination() for x in self.children]
-        instrs += self.type_checking(returns, function_definition.returns)
+        instrs += self.apply_masks(returns)
 
         return_branch = ir.BranchInstruction(parent=self, target=None, parameters=function_definition.parameters, returns=returns, symtab=self.symtab)
         instrs += [return_branch]

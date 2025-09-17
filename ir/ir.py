@@ -51,23 +51,44 @@ def replace_temporary_attributes(node, attributes, mapping, create_new=True):
 # TYPES
 
 class Type:
-    def __init__(self, name, size, basetype, qualifiers=None):
+    def __init__(self, name, size, basetype, qualifiers=None, printable=False):
         if qualifiers is None:
             qualifiers = []
         self.size = size
         self.basetype = basetype
         self.qualifiers = qualifiers
-        self.name = name if name else self.default_name()
+        self.name = name
+        self.printable = printable
 
-    def default_name(self):
-        n = ''
+    def __repr__(self):
+        name = self.name
         if 'unsigned' in self.qualifiers:
-            n += 'u'
-        n += 'int'  # no float types exist at the moment
-        return n
+            name = f"u{name}"
+        return name
+
+    def __eq__(self, other):  # strict equivalence
+        if not isinstance(other, Type):
+            return False
+
+        elif self.qualifiers != other.qualifiers:
+            return False
+
+        elif self.basetype != other.basetype:
+            return False
+
+        elif self.size != other.size:
+            return False
+
+        elif self.name != other.name:
+            return False
+
+        return True
 
     def is_numeric(self):
         return self.basetype == "Int"
+
+    def is_string(self):
+        return (isinstance(self, ArrayType) and self.basetype.basetype == "Char" and len(self.dims) == 1) or (isinstance(self, PointerType) and self.pointstotype.basetype == "Char")
 
 
 class ArrayType(Type):
@@ -78,24 +99,21 @@ class ArrayType(Type):
         if basetype is not None:
             super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
             self.name = name if name else self.default_name()
+            self.printable = self.is_printable()
 
     def default_name(self):
         return self.basetype.name + repr(self.dims)
 
+    def is_printable(self):
+        return self.is_string()
 
-class StructType(Type):  # currently unused
-    def __init__(self, name, size, fields):
-        self.fields = fields
-        realsize = sum([f.size for f in self.fields])
-        super().__init__(name, realsize, 'Struct', [])
-
-    def get_size(self):
-        return sum([f.size for f in self.fields])
+    def __repr__(self):
+        return self.name
 
 
 class LabelType(Type):
     def __init__(self):
-        super().__init__('label', 0, 'Label', [])
+        super().__init__('label', 0, 'Label', [], printable=False)
         self.ids = 0
 
     def __call__(self, target=None):
@@ -105,7 +123,7 @@ class LabelType(Type):
 
 class FunctionType(Type):
     def __init__(self):
-        super().__init__('function', 0, 'Function', [])
+        super().__init__('function', 0, 'Function', [], printable=False)
 
 
 class PointerType(Type):  # can't define a variable as type PointerType, it's used for arrays
@@ -113,28 +131,29 @@ class PointerType(Type):  # can't define a variable as type PointerType, it's us
         """ptrto is the type of the object that this pointer points to."""
         super().__init__('&' + ptrto.name, REGISTER_SIZE, 'Int', ['unsigned'])
         self.pointstotype = ptrto
+        self.printable = self.is_printable()
 
-
-class BooleanType(Type):
-    def __init__(self):
-        super().__init__('boolean', 8, 'Boolean', [])
+    def is_printable(self):
+        return self.is_string()
 
 
 TYPENAMES = {
-    'int': Type('int', 32, 'Int'),
-    'short': Type('short', 16, 'Int'),
-    'byte': Type('byte', 8, 'Int'),
+    'int': Type('int', 32, 'Int', printable=True),
+    'short': Type('short', 16, 'Int', printable=True),
+    'byte': Type('byte', 8, 'Int', printable=True),
 
-    'uint': Type('uint', 32, 'Int', ['unsigned']),
-    'ushort': Type('ushort', 16, 'Int', ['unsigned']),
-    'ubyte': Type('ubyte', 8, 'Int', ['unsigned']),
+    'uint': Type('int', 32, 'Int', ['unsigned'], printable=True),
+    'ushort': Type('short', 16, 'Int', ['unsigned'], printable=True),
+    'ubyte': Type('byte', 8, 'Int', ['unsigned'], printable=True),
 
-    'char': Type('char', 8, 'Char', ['unsigned']),
+    'char': Type('char', 8, 'Char', ['unsigned'], printable=False),
 
     'label': LabelType(),
     'function': FunctionType(),
 
-    'boolean': BooleanType(),
+    'boolean': Type('boolean', 8, 'Boolean', [], printable=True),
+
+    'statement': Type('statement', 0, 'Statement', printable=False)
 }
 
 
@@ -158,6 +177,7 @@ class Symbol:
     def __init__(self, name, stype, value=None, alloct='auto', function_symbol=None, used_in_nested_procedure=False, is_temporary=False):
         self.name = name
         self.stype = stype
+        self.type = self.stype  # TODO: this is needed for type checking, but will probably substitute stype
         self.value = value  # if not None, it is a constant
         self.alloct = alloct
         self.allocinfo = None
@@ -191,13 +211,13 @@ class Symbol:
         return (self.is_array() and self.stype.basetype.name == "char") or (isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char")
 
     def is_boolean(self):
-        return isinstance(self.stype, BooleanType) or (self.is_array() and isinstance(self.stype.basetype, BooleanType))
+        return (self.stype == TYPENAMES['boolean']) or (self.is_array() and self.stype.basetype == TYPENAMES['boolean'])
 
     def is_label(self):
         return isinstance(self.stype, LabelType)
 
     def __repr__(self):
-        res = f"{self.alloct} {self.stype.name}"
+        res = f"{self.alloct} {self.stype}"
 
         if isinstance(self.stype, (FunctionType, LabelType)):
             res += f" {magenta(f'{self.name}')}"

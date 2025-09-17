@@ -35,8 +35,7 @@ class Parser:
 
     def error(self, msg):
         line = self.lexer.line_number
-        log_indentation(red(f"Line {line} - {msg} - Current symbol: {self.new_sym} {self.new_value}"))
-        raise RuntimeError("Raised error during parsing")
+        raise RuntimeError(red(f"Parsing error at line {line} - {msg} - Current symbol: {self.new_sym} {self.new_value}"))
 
     def accept(self, s):
         accepted_color = red(f"{self.new_sym} == {s}")
@@ -376,10 +375,11 @@ class Parser:
             then = self.statement(symtab)
 
             elifs = ast.StatList(symtab=symtab)
+            elifs_conditions = []  # this can't go in the StatList since they are not Stats
             while self.new_sym == "elifsym":
                 self.accept("elifsym")
                 elif_cond = self.logic_expression(symtab)
-                elifs.append(elif_cond)
+                elifs_conditions.append(elif_cond)
 
                 self.expect('thensym')
                 elif_then = self.statement(symtab)
@@ -388,7 +388,7 @@ class Parser:
             els = None
             if self.accept('elsesym'):
                 els = self.statement(symtab)
-            return ast.IfStat(cond=cond, thenpart=then, elifspart=elifs, elsepart=els, symtab=symtab)
+            return ast.IfStat(cond=cond, thenpart=then, elifspart=elifs, elifs_conditions=elifs_conditions, elsepart=els, symtab=symtab)
 
         elif self.accept('whilesym'):
             cond = self.logic_expression(symtab)
