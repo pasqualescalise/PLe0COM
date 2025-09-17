@@ -5,7 +5,7 @@ leaves (e.g. Vars) and Expressions have their own type, while Statements have
 the 'statement' type; for statements, check that types are respected (e.g. only
 print printable stuff, call with the right arguments, ...)"""
 
-from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinExpr, UnExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList, BINARY_CONDITIONALS, UNARY_CONDITIONALS
+from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList, BINARY_CONDITIONALS, UNARY_CONDITIONALS
 from ir.function_tree import FunctionTree
 from ir.ir import ArrayType, TYPENAMES
 from logger import log_indentation, green, underline
@@ -118,7 +118,7 @@ def bin_expr_type_checking(self):
         self.type = TYPENAMES['boolean']
 
 
-BinExpr.type_checking = bin_expr_type_checking
+BinaryExpr.type_checking = bin_expr_type_checking
 
 
 def un_expr_type_checking(self):
@@ -128,7 +128,7 @@ def un_expr_type_checking(self):
         self.type = TYPENAMES['boolean']
 
 
-UnExpr.type_checking = un_expr_type_checking
+UnaryExpr.type_checking = un_expr_type_checking
 
 
 def call_stat_type_checking(self):

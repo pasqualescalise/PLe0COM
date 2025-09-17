@@ -45,7 +45,7 @@ For now, the LOOP_UNROLLING_FACTOR can only be a power of 2
 from copy import deepcopy
 from math import log
 
-from frontend.ast import ForStat, Const, BinExpr, UnExpr, IfStat, AssignStat, Var, StatList
+from frontend.ast import ForStat, Const, BinaryExpr, UnaryExpr, IfStat, AssignStat, Var, StatList
 from ir.function_tree import FunctionTree
 from logger import red, green, yellow, magenta, cyan
 
@@ -64,7 +64,7 @@ def unroll(self):
     # subtract one to the actual loop condition
     loop_end = self.cond.children[-1]
     loop_unrolling_factor_minus_one = Const(value=LOOP_UNROLLING_FACTOR - 1, symtab=self.symtab)
-    sub = BinExpr(parent=self.cond, children=['minus', loop_end, loop_unrolling_factor_minus_one], symtab=self.symtab)
+    sub = BinaryExpr(parent=self.cond, children=['minus', loop_end, loop_unrolling_factor_minus_one], symtab=self.symtab)
 
     loop_unrolling_factor_minus_one.parent = sub
     loop_end.parent = sub
@@ -82,7 +82,7 @@ def unroll(self):
     if LOOP_UNROLLING_FACTOR == 2:
         # just check if the loop condition is odd or not; if it is, execute the remaining loop body
         loop_end_copy = deepcopy(loop_end)
-        odd_cond = UnExpr(children=['odd', loop_end_copy], symtab=self.symtab)
+        odd_cond = UnaryExpr(children=['odd', loop_end_copy], symtab=self.symtab)
         then = deepcopy(original_body_copy)
         check = IfStat(cond=odd_cond, thenpart=then, elifspart=StatList(), elsepart=None, symtab=self.symtab)
         check.parent = self
@@ -99,9 +99,9 @@ def unroll(self):
         loop = ForStat(parent=None, init=init, cond=loop_cond, step=step, body=loop_body, symtab=self.symtab)
 
         loop_unrolling_factor = Const(value=LOOP_UNROLLING_FACTOR, symtab=self.symtab)
-        modulus = BinExpr(children=['mod', loop_end_copy, loop_unrolling_factor], symtab=self.symtab)
+        modulus = BinaryExpr(children=['mod', loop_end_copy, loop_unrolling_factor], symtab=self.symtab)
         zero = Const(value=0, symtab=self.symtab)
-        if_cond = BinExpr(children=['neq', modulus, zero], symtab=self.symtab)
+        if_cond = BinaryExpr(children=['neq', modulus, zero], symtab=self.symtab)
         check = IfStat(cond=if_cond, thenpart=loop, elifspart=StatList(), elsepart=None, symtab=self.symtab)
 
         loop.parent = check
@@ -143,7 +143,7 @@ def check_if_for_loop_is_normalized(for_loop):
     elif for_loop.init.expr.value != 0:
         return False
 
-    elif not isinstance(for_loop.step.expr, BinExpr):
+    elif not isinstance(for_loop.step.expr, BinaryExpr):
         return False
     elif for_loop.step.expr.children[0] != "plus":
         return False
@@ -156,7 +156,7 @@ def check_if_for_loop_is_normalized(for_loop):
     elif for_loop.step.expr.children[2].value != 1:
         return False
 
-    elif not isinstance(for_loop.cond, BinExpr):
+    elif not isinstance(for_loop.cond, BinaryExpr):
         return False
     elif for_loop.cond.children[0] != "lss":
         return False

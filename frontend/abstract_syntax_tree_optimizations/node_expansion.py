@@ -8,7 +8,7 @@ expand high-level nodes using other high-level nodes"""
 from functools import reduce
 from copy import deepcopy
 
-from frontend.ast import CallStat, AssignStat, StaticArray, Var, Const, PrintStat, ArrayElement, BinExpr, String
+from frontend.ast import CallStat, AssignStat, StaticArray, Var, Const, PrintStat, ArrayElement, BinaryExpr, String
 from ir.function_tree import FunctionTree
 from ir.ir import PointerType, new_temporary
 from ir.support import get_node_list
@@ -71,7 +71,7 @@ def array_assign(self):
     for i in range(len(self.expr.values)):
         offset = Const(value=(i * stride), symtab=self.symtab)
         if self.offset:
-            offset = BinExpr(children=['plus', offset, deepcopy(self.offset)], symtab=self.symtab)
+            offset = BinaryExpr(children=['plus', offset, deepcopy(self.offset)], symtab=self.symtab)
         assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=offset, symtab=self.symtab)
         stats += [assign_stat]
 
@@ -144,7 +144,7 @@ def array_print(self):
         for i in range(size):
             offset = Const(value=(i * stride), symtab=self.symtab)
             if expr.offset:
-                offset = BinExpr(children=['plus', offset, deepcopy(expr.offset)], symtab=self.symtab)
+                offset = BinaryExpr(children=['plus', offset, deepcopy(expr.offset)], symtab=self.symtab)
             array_access = ArrayElement(var=expr.symbol, offset=offset, symtab=self.symtab)
             print_stat = PrintStat(expr=array_access, newline=False, symtab=self.symtab)
             stats += [print_stat]

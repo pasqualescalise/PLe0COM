@@ -75,11 +75,11 @@ class Parser:
                 planedisp = 1
             idx = explist[i]
             esize = (target.stype.basetype.size // 8) * planedisp
-            planed = ast.BinExpr(children=['times', idx, ast.Const(value=esize, symtab=symtab)], symtab=symtab)
+            planed = ast.BinaryExpr(children=['times', idx, ast.Const(value=esize, symtab=symtab)], symtab=symtab)
             if offset is None:
                 offset = planed
             else:
-                offset = ast.BinExpr(children=['plus', offset, planed], symtab=symtab)
+                offset = ast.BinaryExpr(children=['plus', offset, planed], symtab=symtab)
         return offset
 
     @logger
@@ -112,7 +112,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.factor(symtab)
-            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     # XXX: shifts have more precedence than plus/minus, which is maybe wrong, but it's easier to parse negative numbers this way
@@ -123,7 +123,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.term(symtab)
-            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     # XXX: weird precedence
@@ -134,7 +134,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.shift(symtab)
-            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
         return expr
 
     @logger
@@ -145,16 +145,16 @@ class Parser:
             op = self.sym
         expr = self.modulus(symtab)
         if op:
-            expr = ast.UnExpr(children=[op, expr], symtab=symtab)
+            expr = ast.UnaryExpr(children=[op, expr], symtab=symtab)
         while self.new_sym in ['plus', 'minus']:
             self.getsym()
             op = self.sym
             expr2 = self.modulus(symtab)
-            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
 
         # expr++/expr-- becomes expr + 1/expr - 1
         if self.accept('incsym') or self.accept('decsym'):
-            expr = ast.BinExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+            expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
         return expr
 
     @logger
@@ -164,9 +164,9 @@ class Parser:
         elif self.accept('falsesym'):
             return ast.Const(value="False", symtab=symtab)
         elif self.accept('not'):
-            return ast.UnExpr(children=['not', self.logic_value(symtab)], symtab=symtab)
+            return ast.UnaryExpr(children=['not', self.logic_value(symtab)], symtab=symtab)
         elif self.accept('oddsym'):
-            return ast.UnExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
+            return ast.UnaryExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
         elif self.accept('lparen'):
             expr = self.logic_expression(symtab=symtab)
             self.expect('rparen')
@@ -184,7 +184,7 @@ class Parser:
         expr = self.algebraic_expression(symtab)
 
         # expr is already a condition
-        if isinstance(expr, ast.BinExpr) and expr.children[0] in ast.BINARY_CONDITIONALS:
+        if isinstance(expr, ast.BinaryExpr) and expr.children[0] in ast.BINARY_CONDITIONALS:
             return expr
 
         # if expr is not a condition, it must be a condition
@@ -201,7 +201,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.logic_value(symtab)
-            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
         try:
             expr = self.condition(expr, symtab)
         except RuntimeError:
@@ -215,7 +215,7 @@ class Parser:
             self.getsym()
             op = self.sym
             expr2 = self.algebraic_expression(symtab)
-            expr = ast.BinExpr(children=[op, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
             return expr
         self.error("Condition: invalid operator")
 
@@ -318,7 +318,7 @@ class Parser:
                     dest = ast.Var(var=target, symtab=symtab)
                 else:
                     dest = ast.ArrayElement(var=target, offset=deepcopy(offset), num_of_accesses=num_of_accesses, symtab=symtab)
-                expr = ast.BinExpr(children=['plus' if self.sym == 'incsym' else 'minus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+                expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
             else:
                 self.expect('becomes')
                 expr = self.expression(symtab)

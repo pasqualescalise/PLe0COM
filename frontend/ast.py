@@ -305,9 +305,9 @@ class Expr(ASTNode):  # abstract
         return self.children[0]
 
 
-class BinExpr(Expr):
+class BinaryExpr(Expr):
     def __init__(self, parent=None, children=None, symtab=None):
-        log_indentation(bold(f"New BinExpr Node (id: {id(self)})"))
+        log_indentation(bold(f"New BinaryExpr Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
 
     def lower(self):
@@ -404,12 +404,12 @@ class BinExpr(Expr):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return BinExpr(parent=self.parent, children=new_children, symtab=self.symtab)
+        return BinaryExpr(parent=self.parent, children=new_children, symtab=self.symtab)
 
 
-class UnExpr(Expr):
+class UnaryExpr(Expr):
     def __init__(self, parent=None, children=None, symtab=None):
-        log_indentation(bold(f"New UnExpr Node (id: {id(self)})"))
+        log_indentation(bold(f"New UnaryExpr Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
 
     def lower(self):
@@ -424,7 +424,7 @@ class UnExpr(Expr):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return UnExpr(parent=self.parent, children=new_children, symtab=self.symtab)
+        return UnaryExpr(parent=self.parent, children=new_children, symtab=self.symtab)
 
 
 # STATEMENTS
