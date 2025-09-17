@@ -55,13 +55,13 @@ def perform_data_layout_of_function(funcroot):
 
     # local variables
     for var in funcroot.body.symtab.exclude_alloct(['reg', 'global', 'param', 'return', 'data']):
-        if var.stype.size == 0:
+        if var.type.size == 0:
             continue
 
         if var.allocinfo is not None:  # nested functions
             continue
 
-        bsize = var.stype.size // 8
+        bsize = var.type.size // 8
         padding = 4 - bsize
 
         name = f"_l_{fname}_{var.name}"
@@ -79,9 +79,9 @@ def perform_data_layout_of_function(funcroot):
     for i in range(len(funcroot.parameters) - 1, -1, -1):
         parameter = funcroot.parameters[i]
         name = f"_p_{fname}_{parameter.name}"
-        bsize = parameter.stype.size // 8  # in byte
+        bsize = parameter.type.size // 8  # in byte
 
-        if isinstance(parameter.stype, ArrayType):  # pass by reference
+        if isinstance(parameter.type, ArrayType):  # pass by reference
             bsize = REGISTER_SIZE // 8
 
         padding = 4 - bsize
@@ -101,10 +101,10 @@ def perform_data_layout_of_function(funcroot):
 # Calculate the size of all the global variables
 def perform_data_layout_of_program(root):
     for var in root.body.symtab.exclude_alloct(['reg', 'data']):
-        if var.stype.size == 0:
+        if var.type.size == 0:
             continue
 
-        bsize = var.stype.size // 8  # in byte
+        bsize = var.type.size // 8  # in byte
 
         name = f"_g_main_{var.name}"
         var.set_alloc_info(GlobalSymbolLayout(name, bsize))
@@ -114,4 +114,4 @@ def perform_data_layout_of_program(root):
 
 def perform_data_layout_of_data_variables():
     for symbol in DataSymbolTable.get_data_symtab():
-        symbol.set_alloc_info(GlobalSymbolLayout(symbol.name, symbol.stype.size // 8))
+        symbol.set_alloc_info(GlobalSymbolLayout(symbol.name, symbol.type.size // 8))

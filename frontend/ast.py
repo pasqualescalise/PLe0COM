@@ -27,7 +27,7 @@ BINARY_CONDITIONALS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
 
 # Returns instructions that mask shorts and bytes, to eliminate sign extension
 def mask_numeric(operand, symtab):
-    mask = [int(0x000000ff), int(0x0000ffff)][operand.stype.size // 8 - 1]  # either byte or short
+    mask = [int(0x000000ff), int(0x0000ffff)][operand.type.size // 8 - 1]  # either byte or short
     mask_temp = ir.new_temporary(symtab, ir.TYPENAMES['int'])
     load_mask = ir.LoadImmInstruction(dest=mask_temp, val=mask, symtab=symtab)
     apply_mask = ir.BinaryInstruction(dest=operand, op="and", srca=operand, srcb=load_mask.destination(), symtab=symtab)
@@ -168,7 +168,7 @@ class Const(ASTNode):
             new = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
             loadst = ir.LoadImmInstruction(dest=new, val=self.value, symtab=self.symtab)
         else:
-            new = ir.new_temporary(self.symtab, self.symbol.stype)
+            new = ir.new_temporary(self.symtab, self.symbol.type)
             loadst = ir.LoadInstruction(dest=new, symbol=self.symbol, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
@@ -186,16 +186,16 @@ class Var(ASTNode):
 
     def lower(self):
         if self.symbol.is_string() and self.symbol.alloct != 'param':  # load strings as char pointers
-            ptrreg = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.stype.basetype))
+            ptrreg = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
             loadptr = ir.LoadPointerInstruction(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
             return self.parent.replace(self, ir.InstructionList(children=[loadptr], symtab=self.symtab))
 
         elif self.symbol.is_array() and self.symbol.alloct != 'param':  # load arrays as pointers
-            ptrreg = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.stype.basetype)))
+            ptrreg = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
             loadptr = ir.LoadPointerInstruction(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
             return self.parent.replace(self, ir.InstructionList(children=[loadptr], symtab=self.symtab))
 
-        new = ir.new_temporary(self.symtab, self.symbol.stype)
+        new = ir.new_temporary(self.symtab, self.symbol.type)
         loadst = ir.LoadInstruction(dest=new, symbol=self.symbol, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
@@ -217,22 +217,22 @@ class ArrayElement(ASTNode):
         self.num_of_accesses = num_of_accesses
 
     def lower(self):
-        src = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.stype.basetype))
-        dest = ir.new_temporary(self.symtab, self.symbol.stype.basetype)
+        src = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
+        dest = ir.new_temporary(self.symtab, self.symbol.type.basetype)
         off = self.offset.destination()
 
         instrs = [self.offset]
 
         if self.symbol.alloct == 'param':
             # pass by reference, we have to deallocate the pointer twice
-            parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.stype.basetype)))
+            parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
             loadparameter = ir.LoadPointerInstruction(dest=parameter, symbol=self.symbol, symtab=self.symtab)
 
-            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.stype.basetype))
+            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
             loadptr = ir.LoadInstruction(dest=array_pointer, symbol=parameter, symtab=self.symtab)
             instrs += [loadparameter, loadptr]
         else:
-            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.stype.basetype))
+            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
             loadptr = ir.LoadPointerInstruction(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
 
             instrs += [loadptr]
@@ -263,7 +263,7 @@ class String(ASTNode):
         data_variable = ir.DataSymbolTable.add_data_symbol(self.type, value=self.value)
 
         # load the fixed data string address
-        ptrreg_data = ir.new_temporary(self.symtab, ir.PointerType(data_variable.stype.basetype))
+        ptrreg_data = ir.new_temporary(self.symtab, ir.PointerType(data_variable.type.basetype))
         access_string = ir.LoadPointerInstruction(dest=ptrreg_data, symbol=data_variable, symtab=self.symtab)
 
         return self.parent.replace(self, ir.InstructionList(children=[access_string], symtab=self.symtab))
@@ -317,7 +317,7 @@ class BinaryExpr(Expr):
         srcb = self.children[2].destination()
 
         if self.mask:  # set during type checking
-            smallest_operand = srca if srca.stype.size < srcb.stype.size else srcb
+            smallest_operand = srca if srca.type.size < srcb.type.size else srcb
             instrs += mask_numeric(smallest_operand, self.symtab)
 
         dest = ir.new_temporary(self.symtab, self.type)
@@ -683,20 +683,20 @@ class AssignStat(Stat):
                 instrs += [self.offset]
 
                 off = self.offset.destination()
-                desttype = dst.stype
+                desttype = dst.type
                 if isinstance(desttype, ir.ArrayType):  # this is always true at the moment
                     desttype = desttype.basetype
 
                 if self.symbol.alloct == 'param' or self.symbol.is_string():
                     # pass by reference, we have to deallocate the pointer twice
-                    parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.stype.basetype)))
+                    parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
                     loadparameter = ir.LoadPointerInstruction(dest=parameter, symbol=self.symbol, symtab=self.symtab)
 
                     array_pointer = ir.new_temporary(self.symtab, ir.PointerType(desttype))
                     loadptr = ir.LoadInstruction(dest=array_pointer, symbol=parameter, symtab=self.symtab)
                     instrs += [loadparameter, loadptr]
                 else:
-                    array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.stype.basetype))
+                    array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
                     loadptr = ir.LoadPointerInstruction(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
 
                     instrs += [loadptr]
@@ -719,7 +719,7 @@ class AssignStat(Stat):
         ptrreg_data = src
 
         # load the variable data string address
-        ptrreg_var = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.stype.basetype))
+        ptrreg_var = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
         access_var = ir.LoadPointerInstruction(dest=ptrreg_var, symbol=self.symbol, symtab=self.symtab)
 
         if self.offset:

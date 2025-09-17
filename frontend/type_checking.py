@@ -27,7 +27,7 @@ def non_strict_type_equivalence(type_a, type_b):
 
 def const_type_checking(self):
     if self.symbol is not None:
-        self.type = self.symbol.stype
+        self.type = self.symbol.type
 
     match self.value:
         case "True" | "False":
@@ -45,7 +45,7 @@ def var_type_checking(self):
     if self.symbol is None:
         raise TypeError(f"Can't compute type of Var {self.id} since it doesn't have a symbol")
 
-    self.type = self.symbol.stype
+    self.type = self.symbol.type
 
 
 Var.type_checking = var_type_checking
@@ -55,11 +55,11 @@ def array_element_type_checking(self):
     if self.symbol is None:
         raise TypeError(f"Can't compute type of ArrayElement {self.id} since it doesn't have a symbol")
 
-    dims = self.symbol.stype.dims[self.num_of_accesses:]  # e.g. if we access one time, arr[2][2] becomes arr[2]
+    dims = self.symbol.type.dims[self.num_of_accesses:]  # e.g. if we access one time, arr[2][2] becomes arr[2]
     if dims != []:
-        self.type = ArrayType(None, dims, self.symbol.stype.basetype)
+        self.type = ArrayType(None, dims, self.symbol.type.basetype)
     else:
-        self.type = self.symbol.stype.basetype
+        self.type = self.symbol.type.basetype
 
 
 ArrayElement.type_checking = array_element_type_checking
@@ -137,7 +137,7 @@ def call_stat_type_checking(self):
     function_definition = FunctionTree.get_function_definition(self.function_symbol)
 
     call_parameters_types = [x.type for x in self.children]
-    function_parameters_types = [x.stype for x in function_definition.parameters]
+    function_parameters_types = [x.type for x in function_definition.parameters]
 
     if len(function_parameters_types) > len(call_parameters_types):
         raise TypeError(f"Not passing enough parameters to function {self.function_symbol.name}")
@@ -150,8 +150,8 @@ def call_stat_type_checking(self):
 
         raise TypeError(f"Calling function {function_definition.symbol.name} with parameters of type {call_parameters_types} while it expects {function_parameters_types}")
 
-    call_returns_types = [x[0].stype if x[0] != '_' else '_' for x in self.returns]
-    function_returns_types = [x.stype for x in function_definition.returns]
+    call_returns_types = [x[0].type if x[0] != '_' else '_' for x in self.returns]
+    function_returns_types = [x.type for x in function_definition.returns]
 
     if len(function_returns_types) > len(call_returns_types):
         raise TypeError(f"Not returning enough values from function {self.function_symbol.name}")
@@ -209,7 +209,7 @@ def assign_stat_type_checking(self):
     if len(self.children) > 0:  # node expanded
         return
 
-    left_hand_type = self.symbol.stype
+    left_hand_type = self.symbol.type
     right_hand_type = self.expr.type
 
     if self.offset is not None and not isinstance(left_hand_type, ArrayType):
@@ -250,7 +250,7 @@ ReadStat.type_checking = read_stat_type_checking
 def return_stat_type_checking(self):
     self.type = TYPENAMES['statement']
 
-    function_returns_types = [x.stype for x in self.get_function().returns]
+    function_returns_types = [x.type for x in self.get_function().returns]
     returns_types = [x.type for x in self.children]
     self.masks = []  # wheter to apply a mask to one operand
 
@@ -274,7 +274,7 @@ def return_stat_type_checking(self):
         # TODO:
         # # check if we're returning a pointer when we were expecting an array, it's good since we only return references
         # # TODO: check that we are not returning local references
-        # if returns[i].is_pointer() and function_returns[i].is_array() and (returns[i].stype.pointstotype.name == function_returns[i].stype.basetype.name):
+        # if returns[i].is_pointer() and function_returns[i].is_array() and (returns[i].type.pointstotype.name == function_returns[i].type.basetype.name):
         #     continue
 
         raise TypeError(f"Trying to return a value of type {returns_types[i]} instead of {function_returns_types[i]}")

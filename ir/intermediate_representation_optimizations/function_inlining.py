@@ -92,7 +92,7 @@ def change_loads(instructions, destinations):
         if isinstance(instruction, LoadInstruction) and instruction.symbol in destinations:
             if instruction.symbol.is_array() and destinations[instruction.symbol].is_pointer():
                 # fix pass-by-reference, instead this becomes a move of the array address
-                destinations[instruction.symbol].stype = instruction.symbol.stype
+                destinations[instruction.symbol].type = instruction.symbol.type
             instruction.symbol = destinations[instruction.symbol]
 
     return instructions

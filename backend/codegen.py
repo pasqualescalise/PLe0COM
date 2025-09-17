@@ -441,11 +441,11 @@ def store_codegen(self, regalloc):
 
     # XXX: not entirely sure about this
     if self.dest.is_array():
-        desttype = PointerType(self.dest.stype.basetype)
+        desttype = PointerType(self.dest.type.basetype)
     elif self.dest.is_pointer():
-        desttype = self.dest.stype.pointstotype
+        desttype = self.dest.type.pointstotype
     else:
-        desttype = self.dest.stype
+        desttype = self.dest.type
 
     typeid = ['b', 'h', None, ''][desttype.size // 8 - 1]
 
@@ -489,11 +489,11 @@ def load_codegen(self, regalloc):
 
     # XXX: not entirely sure about this
     if self.symbol.is_array():
-        desttype = PointerType(self.symbol.stype.basetype)
+        desttype = PointerType(self.symbol.type.basetype)
     elif self.symbol.is_pointer():
-        desttype = self.symbol.stype.pointstotype
+        desttype = self.symbol.type.pointstotype
     else:
-        desttype = self.symbol.stype
+        desttype = self.symbol.type
 
     typeid = ['b', 'h', None, ''][desttype.size // 8 - 1]
     if typeid != '' and 'unsigned' not in desttype.qualifiers:

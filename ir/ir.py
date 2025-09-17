@@ -26,7 +26,7 @@ temporary_count = 0
 
 def new_temporary(symtab, type):
     global temporary_count
-    temp = Symbol(name=f"t{temporary_count}", stype=type, alloct='reg', is_temporary=True)
+    temp = Symbol(name=f"t{temporary_count}", type=type, alloct='reg', is_temporary=True)
     temporary_count += 1
     return temp
 
@@ -43,7 +43,7 @@ def replace_temporary_attributes(node, attributes, mapping, create_new=True):
                 setattr(node, attribute, mapping[temp])
             else:
                 if create_new:
-                    new_temp = new_temporary(node.symtab, temp.stype)
+                    new_temp = new_temporary(node.symtab, temp.type)
                     mapping[temp] = new_temp
                     setattr(node, attribute, new_temp)
 
@@ -118,7 +118,7 @@ class LabelType(Type):
 
     def __call__(self, target=None):
         self.ids += 1
-        return Symbol(name=f"label{self.ids}", stype=self, value=target, is_temporary=True)
+        return Symbol(name=f"label{self.ids}", type=self, value=target, is_temporary=True)
 
 
 class FunctionType(Type):
@@ -174,10 +174,9 @@ class Symbol:
       because they can't be referenced, but are needed to know where on the stack
       to put return values"""
 
-    def __init__(self, name, stype, value=None, alloct='auto', function_symbol=None, used_in_nested_procedure=False, is_temporary=False):
+    def __init__(self, name, type, value=None, alloct='auto', function_symbol=None, used_in_nested_procedure=False, is_temporary=False):
         self.name = name
-        self.stype = stype
-        self.type = self.stype  # TODO: this is needed for type checking, but will probably substitute stype
+        self.type = type
         self.value = value  # if not None, it is a constant
         self.alloct = alloct
         self.allocinfo = None
@@ -192,34 +191,34 @@ class Symbol:
         self.allocinfo = allocinfo  # in byte
 
     def is_array(self):
-        return isinstance(self.stype, ArrayType)
+        return isinstance(self.type, ArrayType)
 
     def is_monodimensional_array(self):
-        return self.is_array() and len(self.stype.dims) == 1
+        return self.is_array() and len(self.type.dims) == 1
 
     def is_pointer(self):
-        return isinstance(self.stype, PointerType)
+        return isinstance(self.type, PointerType)
 
     def is_scalar(self):
         return not self.is_pointer() and not self.is_array()
 
     def is_numeric(self):
-        return (self.stype.is_numeric()) or (self.is_array() and self.stype.basetype.is_numeric())
+        return (self.type.is_numeric()) or (self.is_array() and self.type.basetype.is_numeric())
 
     def is_string(self):
         """A Symbol references a string if it's of type char[] or &char"""
-        return (self.is_array() and self.stype.basetype.name == "char") or (isinstance(self.stype, PointerType) and self.stype.pointstotype.name == "char")
+        return (self.is_array() and self.type.basetype.name == "char") or (isinstance(self.type, PointerType) and self.stype.pointstotype.name == "char")
 
     def is_boolean(self):
-        return (self.stype == TYPENAMES['boolean']) or (self.is_array() and self.stype.basetype == TYPENAMES['boolean'])
+        return (self.type == TYPENAMES['boolean']) or (self.is_array() and self.type.basetype == TYPENAMES['boolean'])
 
     def is_label(self):
-        return isinstance(self.stype, LabelType)
+        return isinstance(self.type, LabelType)
 
     def __repr__(self):
-        res = f"{self.alloct} {self.stype}"
+        res = f"{self.alloct} {self.type}"
 
-        if isinstance(self.stype, (FunctionType, LabelType)):
+        if isinstance(self.type, (FunctionType, LabelType)):
             res += f" {magenta(f'{self.name}')}"
         elif self.alloct != "reg":
             res += f" {green(f'{self.name}')}"
@@ -232,7 +231,7 @@ class Symbol:
         return res
 
     def __deepcopy__(self, memo):
-        return Symbol(self.name, self.stype, value=self.value, alloct=self.alloct, function_symbol=self.function_symbol, used_in_nested_procedure=self.used_in_nested_procedure, is_temporary=self.is_temporary)
+        return Symbol(self.name, self.type, value=self.value, alloct=self.alloct, function_symbol=self.function_symbol, used_in_nested_procedure=self.used_in_nested_procedure, is_temporary=self.is_temporary)
 
 
 class SymbolTable(list):
@@ -268,7 +267,7 @@ class SymbolTable(list):
         return res
 
     def exclude(self, barred_types):
-        return [symb for symb in self if symb.stype not in barred_types]
+        return [symb for symb in self if symb.type not in barred_types]
 
     def exclude_alloct(self, allocts):
         return [symb for symb in self if symb.alloct not in allocts]
@@ -282,7 +281,7 @@ class DataSymbolTable():
     def new_data_symbol(type, value):
         name = f"data{DataSymbolTable.data_variables_count}"
         DataSymbolTable.data_variables_count += 1
-        data_variable = Symbol(name=name, stype=type, value=value, alloct='data')
+        data_variable = Symbol(name=name, type=type, value=value, alloct='data')
         return data_variable
 
     @staticmethod
@@ -298,7 +297,7 @@ class DataSymbolTable():
     @staticmethod
     def find_by_type_and_value(type, value):
         for symbol in DataSymbolTable.data_symtab:
-            if symbol.stype.name == type.name and symbol.value == value:
+            if symbol.type.name == type.name and symbol.value == value:
                 return symbol
 
         return None
@@ -477,7 +476,7 @@ class BranchInstruction(IRInstruction):
         return False
 
     def is_call(self):
-        if isinstance(self.target, Symbol) and isinstance(self.target.stype, FunctionType):
+        if isinstance(self.target, Symbol) and isinstance(self.target.type, FunctionType):
             return True
         return False
 
@@ -513,7 +512,7 @@ class BranchInstruction(IRInstruction):
                 self.cond = mapping[self.cond]
             else:
                 if create_new:
-                    new_temp = new_temporary(self.symtab, self.cond.stype)
+                    new_temp = new_temporary(self.symtab, self.cond.type)
                     mapping[self.cond] = new_temp
                     self.cond = new_temp
 
@@ -529,7 +528,7 @@ class BranchInstruction(IRInstruction):
                 if parameter in mapping:
                     new_parameters.append(mapping[parameter])
                 elif create_new:
-                    new_parameter = new_temporary(self.symtab, parameter.stype)
+                    new_parameter = new_temporary(self.symtab, parameter.type)
                     mapping[parameter] = new_parameter
                     new_parameters.append(new_parameter)
                 else:
@@ -544,7 +543,7 @@ class BranchInstruction(IRInstruction):
                 if ret in mapping:
                     new_returns.append(mapping[ret])
                 elif create_new:
-                    new_return = new_temporary(self.symtab, ret.stype)
+                    new_return = new_temporary(self.symtab, ret.type)
                     mapping[ret] = new_return
                     new_returns.append(new_return)
                 else:
@@ -635,7 +634,7 @@ class StoreInstruction(IRInstruction):
         self.killhint = killhint
 
     def used_variables(self):
-        if self.dest.alloct == 'reg' and isinstance(self.dest.stype, PointerType):
+        if self.dest.alloct == 'reg' and isinstance(self.dest.type, PointerType):
             return [self.symbol, self.dest]
         return [self.symbol]
 
@@ -651,7 +650,7 @@ class StoreInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        if isinstance(self.dest.stype, PointerType):
+        if isinstance(self.dest.type, PointerType):
             return f"[{self.dest}] {bold('<-')} {self.symbol}"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
@@ -691,7 +690,7 @@ class LoadInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        if isinstance(self.symbol.stype, PointerType):
+        if isinstance(self.symbol.type, PointerType):
             return f"{self.dest} {bold('<-')} [{self.symbol}]"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 

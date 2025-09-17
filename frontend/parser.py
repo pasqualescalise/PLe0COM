@@ -55,7 +55,7 @@ class Parser:
         offset = None
         idxes = []
         if target.is_array() and self.new_sym == 'lspar':
-            for i in range(0, len(target.stype.dims)):
+            for i in range(0, len(target.type.dims)):
                 if self.new_sym != 'lspar':  # we are referencing a subarray
                     break
 
@@ -69,12 +69,12 @@ class Parser:
     def linearize_multid_vector(explist, target, symtab):
         offset = None
         for i in range(0, len(explist)):
-            if i + 1 < len(target.stype.dims):
-                planedisp = reduce(lambda x, y: x * y, target.stype.dims[i + 1:])
+            if i + 1 < len(target.type.dims):
+                planedisp = reduce(lambda x, y: x * y, target.type.dims[i + 1:])
             else:
                 planedisp = 1
             idx = explist[i]
-            esize = (target.stype.basetype.size // 8) * planedisp
+            esize = (target.type.basetype.size // 8) * planedisp
             planed = ast.BinaryExpr(children=['times', idx, ast.Const(value=esize, symtab=symtab)], symtab=symtab)
             if offset is None:
                 offset = planed
@@ -475,11 +475,11 @@ class Parser:
 
                 # set the types for the new symbols and add them to the symtab
                 for new_symbol in new_symbols:
-                    if new_symbol.stype is None:
-                        new_symbol.stype = type
-                    elif isinstance(new_symbol.stype, ir.ArrayType):
-                        size = new_symbol.stype.dims
-                        new_symbol.stype = ir.ArrayType(None, size, type)
+                    if new_symbol.type is None:
+                        new_symbol.type = type
+                    elif isinstance(new_symbol.type, ir.ArrayType):
+                        size = new_symbol.type.dims
+                        new_symbol.type = ir.ArrayType(None, size, type)
                     local_symtab.push(new_symbol)
                     log_indentation(f"{green('Parsed variable:')} {str(new_symbol)}")
 
@@ -524,11 +524,11 @@ class Parser:
 
                 # set the types for the new parameters and add them to the rest of the parameters
                 for new_parameter in new_parameters:
-                    if new_parameter.stype is None:
-                        new_parameter.stype = type
-                    elif isinstance(new_parameter.stype, ir.ArrayType):
-                        size = new_parameter.stype.dims
-                        new_parameter.stype = ir.ArrayType(None, size, type)
+                    if new_parameter.type is None:
+                        new_parameter.type = type
+                    elif isinstance(new_parameter.type, ir.ArrayType):
+                        size = new_parameter.type.dims
+                        new_parameter.type = ir.ArrayType(None, size, type)
 
                 parameters += new_parameters
 

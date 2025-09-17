@@ -32,7 +32,7 @@ def add_return_assignments(self):
             continue
 
         # return by reference, change arrays into pointers
-        type = function_returns[i].stype
+        type = function_returns[i].type
         if function_returns[i].is_array():
             type = PointerType(type.basetype)
 
@@ -73,6 +73,7 @@ def array_assign(self):
         if self.offset:
             offset = BinaryExpr(children=['plus', offset, deepcopy(self.offset)], symtab=self.symtab)
         assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=offset, symtab=self.symtab)
+        # assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=offset, num_of_accesses=self.num_of_accesses + 1, symtab=self.symtab)
         stats += [assign_stat]
 
     self.children = stats
@@ -106,13 +107,13 @@ def array_print(self):
     # printing a variable referencing an array
     elif isinstance(expr, Var) and ((expr.symbol.is_array() and not expr.symbol.is_string()) or (expr.symbol.is_string() and not expr.symbol.is_monodimensional_array())):
         newline = True
-        type = expr.symbol.stype.basetype
+        type = expr.symbol.type.basetype
         if expr.symbol.is_monodimensional_array():
             stride = type.size // 8
-            size = expr.symbol.stype.size // type.size
+            size = expr.symbol.type.size // type.size
         else:
-            stride = reduce(lambda x, y: x * y, expr.symbol.stype.dims[1:]) * (type.size // 8)
-            size = expr.symbol.stype.dims[0]
+            stride = reduce(lambda x, y: x * y, expr.symbol.type.dims[1:]) * (type.size // 8)
+            size = expr.symbol.type.dims[0]
 
         for i in range(size):
             array_access = ArrayElement(var=expr.symbol, offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
@@ -130,22 +131,23 @@ def array_print(self):
             self.visited = expr.num_of_accesses + 1
             newline = True
 
-        if self.visited > len(expr.symbol.stype.dims):
+        if self.visited > len(expr.symbol.type.dims):
             return
 
-        type = expr.symbol.stype.basetype
-        if self.visited == len(expr.symbol.stype.dims):
+        type = expr.symbol.type.basetype
+        if self.visited == len(expr.symbol.type.dims):
             stride = type.size // 8
-            size = expr.symbol.stype.dims[self.visited - 1]
+            size = expr.symbol.type.dims[self.visited - 1]
         else:
-            stride = reduce(lambda x, y: x * y, expr.symbol.stype.dims[self.visited:]) * (type.size // 8)
-            size = expr.symbol.stype.dims[self.visited - 1]
+            stride = reduce(lambda x, y: x * y, expr.symbol.type.dims[self.visited:]) * (type.size // 8)
+            size = expr.symbol.type.dims[self.visited - 1]
 
         for i in range(size):
             offset = Const(value=(i * stride), symtab=self.symtab)
             if expr.offset:
                 offset = BinaryExpr(children=['plus', offset, deepcopy(expr.offset)], symtab=self.symtab)
             array_access = ArrayElement(var=expr.symbol, offset=offset, symtab=self.symtab)
+            # array_access = ArrayElement(var=expr.symbol, offset=offset, num_of_accesses=expr.num_of_accesses, symtab=self.symtab)
             print_stat = PrintStat(expr=array_access, newline=False, symtab=self.symtab)
             stats += [print_stat]
             print_stat.visited = self.visited + 1

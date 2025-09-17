@@ -28,7 +28,7 @@ def memory_to_register_promotion(root):
     to_promote = []
 
     for symbol in root.body.symtab:
-        if symbol.stype.size <= 0:
+        if symbol.type.size <= 0:
             continue
 
         if symbol.alloct not in ['auto', 'global']:
@@ -50,7 +50,7 @@ def memory_to_register_promotion(root):
             print(red("Can't promote because the symbol is used in a nested procedure\n"))
             continue
 
-        if symbol.stype.size != REGISTER_SIZE:
+        if symbol.type.size != REGISTER_SIZE:
             print(red("Can't promote because the symbol is not the same size as the registers\n"))
             continue
 
