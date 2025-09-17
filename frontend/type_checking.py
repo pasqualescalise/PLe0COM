@@ -112,7 +112,10 @@ def bin_expr_type_checking(self):
     if ('unsigned' in type_a.qualifiers) and ('unsigned' in type_b.qualifiers):
         self.type.qualifiers += ['unsigned']
     else:
-        self.type.qualifiers = []
+        try:  # signed and unsigned operation, the result must be signed
+            self.type.qualifiers.remove('unsigned')
+        except ValueError:
+            pass
 
     if self.children[0] in BINARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
@@ -231,7 +234,7 @@ def print_stat_type_checking(self):
     self.type = TYPENAMES['statement']
 
     expr = self.children[0]
-    if not expr.type.printable:
+    if 'printable' not in expr.type.qualifiers:
         raise TypeError(f"Can't print value of type {expr.type}")
 
     self.print_type = expr.type

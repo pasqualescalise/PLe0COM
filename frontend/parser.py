@@ -276,7 +276,7 @@ class Parser:
             size.append(int(self.value))
             self.expect('rspar')
 
-        if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
+        if type not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[type].qualifiers:
             self.error(f"The type {type} is not valid for an array")
 
         return ast.StaticArray(values=values, type=ir.TYPENAMES[type], size=size, symtab=symtab)
@@ -468,7 +468,7 @@ class Parser:
 
                 self.accept('ident')
 
-                if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
+                if self.value not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[self.value].qualifiers:
                     self.error(f"The type {self.value} is not valid for a variable")
 
                 type = ir.TYPENAMES[self.value]
@@ -517,7 +517,7 @@ class Parser:
 
                 self.accept('ident')
 
-                if self.value not in list(ir.TYPENAMES.keys()) or self.value in ['label', 'function']:
+                if self.value not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[self.value].qualifiers:
                     self.error(f"Type {self.value} is not valid")
 
                 type = ir.TYPENAMES[self.value]
@@ -559,7 +559,7 @@ class Parser:
                         size.append(int(self.value))
                         self.expect('rspar')
 
-                    if type not in list(ir.TYPENAMES.keys()) or type in ['label', 'function']:
+                    if type not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[type].qualifiers:
                         self.error(f"Type {type} is not valid")
 
                     # XXX: this symbols are only used for their type and size, they are

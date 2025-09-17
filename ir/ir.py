@@ -52,6 +52,7 @@ def replace_temporary_attributes(node, attributes, mapping, create_new=True):
 
 class Type:
     def __init__(self, name, size, basetype, qualifiers=None, printable=False):
+        # can contain 'unsigned', 'printable', 'assignable'
         if qualifiers is None:
             qualifiers = []
         self.size = size
@@ -100,7 +101,8 @@ class ArrayType(Type):
         if basetype is not None:
             super().__init__(name, reduce(lambda a, b: a * b, dims) * basetype.size, basetype)
             self.name = name if name else self.default_name()
-            self.printable = self.is_printable()
+            if self.is_printable():
+                self.qualifiers += ['printable']
 
     def default_name(self):
         return self.basetype.name + repr(self.dims)
@@ -114,7 +116,7 @@ class ArrayType(Type):
 
 class LabelType(Type):
     def __init__(self):
-        super().__init__('label', 0, 'Label', [], printable=False)
+        super().__init__('label', 0, 'Label', [])
         self.ids = 0
 
     def __call__(self, target=None):
@@ -124,7 +126,7 @@ class LabelType(Type):
 
 class FunctionType(Type):
     def __init__(self):
-        super().__init__('function', 0, 'Function', [], printable=False)
+        super().__init__('function', 0, 'Function', [])
 
 
 class PointerType(Type):  # can't define a variable as type PointerType, it's used for arrays
@@ -132,29 +134,30 @@ class PointerType(Type):  # can't define a variable as type PointerType, it's us
         """ptrto is the type of the object that this pointer points to."""
         super().__init__('&' + ptrto.name, REGISTER_SIZE, 'Int', ['unsigned'])
         self.pointstotype = ptrto
-        self.printable = self.is_printable()
+        if self.is_printable():
+            self.qualifiers += ['printable']
 
     def is_printable(self):
         return self.is_string()
 
 
 TYPENAMES = {
-    'int': Type('int', 32, 'Int', printable=True),
-    'short': Type('short', 16, 'Int', printable=True),
-    'byte': Type('byte', 8, 'Int', printable=True),
+    'int': Type('int', 32, 'Int', ['printable', 'assignable']),
+    'short': Type('short', 16, 'Int', ['printable', 'assignable']),
+    'byte': Type('byte', 8, 'Int', ['printable', 'assignable']),
 
-    'uint': Type('int', 32, 'Int', ['unsigned'], printable=True),
-    'ushort': Type('short', 16, 'Int', ['unsigned'], printable=True),
-    'ubyte': Type('byte', 8, 'Int', ['unsigned'], printable=True),
+    'uint': Type('int', 32, 'Int', ['unsigned', 'printable', 'assignable']),
+    'ushort': Type('short', 16, 'Int', ['unsigned', 'printable', 'assignable']),
+    'ubyte': Type('byte', 8, 'Int', ['unsigned', 'printable', 'assignable']),
 
-    'char': Type('char', 8, 'Char', ['unsigned'], printable=False),
+    'char': Type('char', 8, 'Char', ['unsigned', 'assignable']),  # TODO: should char be assignable?
 
     'label': LabelType(),
     'function': FunctionType(),
 
-    'boolean': Type('boolean', 8, 'Boolean', [], printable=True),
+    'boolean': Type('boolean', 8, 'Boolean', ['printable', 'assignable']),
 
-    'statement': Type('statement', 0, 'Statement', printable=False)
+    'statement': Type('statement', 0, 'Statement', [])
 }
 
 
@@ -266,8 +269,8 @@ class SymbolTable(list):
         res += "}"
         return res
 
-    def exclude(self, barred_types):
-        return [symb for symb in self if symb.type not in barred_types]
+    def exclude_without_qualifier(self, qualifier):
+        return [symb for symb in self if qualifier in symb.type.qualifiers]
 
     def exclude_alloct(self, allocts):
         return [symb for symb in self if symb.alloct not in allocts]
@@ -901,7 +904,7 @@ class FunctionDef(IRInstruction):
         self.called_by_counter = called_by_counter
 
     def get_global_symbols(self):
-        return self.body.global_symtab.exclude([TYPENAMES['function'], TYPENAMES['label']])
+        return self.body.global_symtab.exclude_without_qualifier('assignable')
 
     def __deepcopy__(self, memo):
         new_body = deepcopy(self.body, memo)
