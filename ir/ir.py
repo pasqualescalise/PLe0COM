@@ -51,21 +51,20 @@ def replace_temporary_attributes(node, attributes, mapping, create_new=True):
 # TYPES
 
 class Type:
-    def __init__(self, name, size, basetype, qualifiers=None, printable=False):
+    def __init__(self, name, size, basetype, qualifiers=None):
         # can contain 'unsigned', 'printable', 'assignable'
         if qualifiers is None:
             qualifiers = []
         self.size = size
         self.basetype = basetype
         self.qualifiers = qualifiers
-        self.name = name
-        self.printable = printable
 
-    def __repr__(self):
-        name = self.name
         if 'unsigned' in self.qualifiers:
             name = f"u{name}"
-        return name
+        self.name = name
+
+    def __repr__(self):
+        return self.name
 
     def __eq__(self, other):  # strict equivalence
         if not isinstance(other, Type):
@@ -136,6 +135,9 @@ class PointerType(Type):  # can't define a variable as type PointerType, it's us
         self.pointstotype = ptrto
         if self.is_printable():
             self.qualifiers += ['printable']
+
+    def __repr__(self):
+        return f"&{self.pointstotype.name}"
 
     def is_printable(self):
         return self.is_string()

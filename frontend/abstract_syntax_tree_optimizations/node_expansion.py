@@ -3,14 +3,15 @@
 """Sometimes, during parsing, we can't exactly create the high-level nodes
 structure that we want, but at the same time, we can't always relay on low-
 level nodes; in this stage, we traverse the IR tree multiple times and we
-expand high-level nodes using other high-level nodes"""
+expand high-level nodes using other high-level nodes; expanded nodes are
+replaced with their expansion"""
 
 from functools import reduce
 from copy import deepcopy
 
 from frontend.ast import CallStat, AssignStat, StaticArray, Var, Const, PrintStat, ArrayElement, BinaryExpr, String
 from ir.function_tree import FunctionTree
-from ir.ir import PointerType, new_temporary
+from ir.ir import PointerType, TYPENAMES, new_temporary
 from ir.support import get_node_list
 
 
@@ -65,21 +66,22 @@ def array_assign(self):
     if not isinstance(self.expr, StaticArray):
         return
 
-    stats = []
+    assign_stats = []
 
     stride = self.expr.values_type.size // 8
     for i in range(len(self.expr.values)):
         offset = Const(value=(i * stride), symtab=self.symtab)
         if self.offset:
             offset = BinaryExpr(children=['plus', offset, deepcopy(self.offset)], symtab=self.symtab)
-        assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=offset, symtab=self.symtab)
-        # assign_stat = AssignStat(target=self.symbol, expr=self.expr.values[i], offset=offset, num_of_accesses=self.num_of_accesses + 1, symtab=self.symtab)
-        stats += [assign_stat]
+        assign_stat = AssignStat(parent=self.parent, target=self.symbol, expr=self.expr.values[i], offset=offset, num_of_accesses=self.num_of_accesses + 1, symtab=self.symtab)
+        assign_stats += [assign_stat]
 
-    self.children = stats
-
-    for child in self.children:
-        child.parent = self
+    # add the new assign statements instead of this one
+    index = self.parent.children.index(self)
+    self.parent.children.remove(self)
+    for assign_stat in assign_stats:
+        self.parent.children.insert(index, assign_stat)
+        index += 1
 
 
 AssignStat.expand = array_assign
@@ -116,7 +118,7 @@ def array_print(self):
             size = expr.symbol.type.dims[0]
 
         for i in range(size):
-            array_access = ArrayElement(var=expr.symbol, offset=Const(value=(i * stride), symtab=self.symtab), symtab=self.symtab)
+            array_access = ArrayElement(var=expr.symbol, offset=Const(value=(i * stride), symtab=self.symtab), num_of_accesses=1, symtab=self.symtab)
             print_stat = PrintStat(expr=array_access, newline=False, symtab=self.symtab)
             stats += [print_stat]
             print_stat.visited = 2
@@ -125,13 +127,17 @@ def array_print(self):
                 stats += [PrintStat(expr=String(value=", "), newline=False, symtab=self.symtab)]
 
     # printing an array of arrays
-    elif isinstance(expr, ArrayElement) and not expr.symbol.is_monodimensional_array() and not expr.symbol.is_string():
+    elif isinstance(expr, ArrayElement) and not expr.symbol.is_monodimensional_array():
         newline = False
         if not hasattr(self, "visited"):  # trying to print a subarray
             self.visited = expr.num_of_accesses + 1
             newline = True
 
         if self.visited > len(expr.symbol.type.dims):
+            return
+
+        # a string is an array but we need to print it entirely
+        if self.visited == len(expr.symbol.type.dims) and expr.symbol.type.basetype == TYPENAMES['char']:
             return
 
         type = expr.symbol.type.basetype
@@ -146,8 +152,7 @@ def array_print(self):
             offset = Const(value=(i * stride), symtab=self.symtab)
             if expr.offset:
                 offset = BinaryExpr(children=['plus', offset, deepcopy(expr.offset)], symtab=self.symtab)
-            array_access = ArrayElement(var=expr.symbol, offset=offset, symtab=self.symtab)
-            # array_access = ArrayElement(var=expr.symbol, offset=offset, num_of_accesses=expr.num_of_accesses, symtab=self.symtab)
+            array_access = ArrayElement(var=expr.symbol, offset=offset, num_of_accesses=expr.num_of_accesses + 1, symtab=self.symtab)
             print_stat = PrintStat(expr=array_access, newline=False, symtab=self.symtab)
             stats += [print_stat]
             print_stat.visited = self.visited + 1
@@ -160,10 +165,12 @@ def array_print(self):
 
     stats += [PrintStat(expr=String(value="]"), newline=newline, symtab=self.symtab)]
 
-    self.children = stats
-
-    for child in self.children:
-        child.parent = self
+    index = self.parent.children.index(self)
+    self.parent.children.remove(self)
+    for stat in stats:
+        stat.parent = self.parent
+        self.parent.children.insert(index, stat)
+        index += 1
 
 
 PrintStat.expand = array_print

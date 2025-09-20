@@ -9,6 +9,13 @@ import frontend.ast as ast
 import ir.ir as ir
 from logger import logger, log_indentation, red, green, yellow, magenta, cyan, bold
 
+LOGICAL_OPERATORS = ['and', 'or']
+CONDITION_OPERATORS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
+ADDITIVE_OPERATORS = ['plus', 'minus']
+MULTIPLICATIVE_OPERATORS = ['times', 'slash', 'mod', 'shl', 'shr']
+
+UNARY_OPERATORS = ['plus', 'minus', 'not', 'odd']  # XXX: no increment/decrement
+
 
 class Parser:
     def __init__(self, lexer):
@@ -60,7 +67,7 @@ class Parser:
                     break
 
                 self.expect('lspar')
-                idxes.append(self.numeric_expression(symtab))
+                idxes.append(self.expression(symtab))
                 self.expect('rspar')
             offset = self.linearize_multid_vector(idxes, target, symtab)
         return (offset, len(idxes))
@@ -83,176 +90,6 @@ class Parser:
         return offset
 
     @logger
-    def factor(self, symtab):
-        if self.new_sym == 'ident':
-            var = symtab.find(self, self.new_value)
-            if not var.is_numeric():
-                raise RuntimeError(f"Trying to parse var {var} as numeric when it isn't")
-
-            self.accept('ident')
-
-            offset, num_of_accesses = self.array_offset(var, symtab)
-            if offset is None:
-                return ast.Var(var=var, symtab=symtab)
-            else:
-                return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
-        elif self.accept('number'):
-            return ast.Const(value=int(self.value), symtab=symtab)
-        elif self.accept('lparen'):
-            expr = self.algebraic_expression(symtab=symtab)
-            self.expect('rparen')
-            return expr
-
-        self.error("Factor: syntax error")
-
-    @logger
-    def term(self, symtab):
-        expr = self.factor(symtab)
-        while self.new_sym in ['times', 'slash']:
-            self.getsym()
-            op = self.sym
-            expr2 = self.factor(symtab)
-            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
-        return expr
-
-    # XXX: shifts have more precedence than plus/minus, which is maybe wrong, but it's easier to parse negative numbers this way
-    @logger
-    def shift(self, symtab):
-        expr = self.term(symtab)
-        while self.new_sym in ['shl', 'shr']:
-            self.getsym()
-            op = self.sym
-            expr2 = self.term(symtab)
-            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
-        return expr
-
-    # XXX: weird precedence
-    @logger
-    def modulus(self, symtab):
-        expr = self.shift(symtab)
-        if self.new_sym == 'mod':
-            self.getsym()
-            op = self.sym
-            expr2 = self.shift(symtab)
-            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
-        return expr
-
-    @logger
-    def numeric_expression(self, symtab):
-        op = None
-        if self.new_sym in ['plus', 'minus']:
-            self.getsym()
-            op = self.sym
-        expr = self.modulus(symtab)
-        if op:
-            expr = ast.UnaryExpr(children=[op, expr], symtab=symtab)
-        while self.new_sym in ['plus', 'minus']:
-            self.getsym()
-            op = self.sym
-            expr2 = self.modulus(symtab)
-            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
-
-        # expr++/expr-- becomes expr + 1/expr - 1
-        if self.accept('incsym') or self.accept('decsym'):
-            expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
-        return expr
-
-    @logger
-    def logic_value(self, symtab):
-        if self.accept('truesym'):
-            return ast.Const(value="True", symtab=symtab)
-        elif self.accept('falsesym'):
-            return ast.Const(value="False", symtab=symtab)
-        elif self.accept('not'):
-            return ast.UnaryExpr(children=['not', self.logic_value(symtab)], symtab=symtab)
-        elif self.accept('oddsym'):
-            return ast.UnaryExpr(children=['odd', self.numeric_expression(symtab)], symtab=symtab)
-        elif self.accept('lparen'):
-            expr = self.logic_expression(symtab=symtab)
-            self.expect('rparen')
-            return expr
-        elif self.new_sym == 'ident':
-            var = symtab.find(self, self.new_value)
-            if var.is_boolean():
-                self.accept('ident')
-                offset, num_of_accesses = self.array_offset(var, symtab)
-                if offset is None:
-                    return ast.Var(var=var, symtab=symtab)
-                else:
-                    return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
-
-        expr = self.algebraic_expression(symtab)
-
-        # expr is already a condition
-        if isinstance(expr, ast.BinaryExpr) and expr.children[0] in ast.BINARY_CONDITIONALS:
-            return expr
-
-        # if expr is not a condition, it must be a condition
-        # otherwise logic_expression == algebraic_expression
-        expr = self.condition(expr, symtab)
-        return expr
-
-        self.error("Logic value: invalid operator")
-
-    @logger
-    def logic_expression(self, symtab):
-        expr = self.logic_value(symtab)
-        while self.new_sym in ['and', 'or']:
-            self.getsym()
-            op = self.sym
-            expr2 = self.logic_value(symtab)
-            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
-        try:
-            expr = self.condition(expr, symtab)
-        except RuntimeError:
-            pass
-
-        return expr
-
-    @logger
-    def condition(self, expr, symtab):
-        if self.new_sym in ast.BINARY_CONDITIONALS:
-            self.getsym()
-            op = self.sym
-            expr2 = self.algebraic_expression(symtab)
-            expr = ast.BinaryExpr(children=[op, expr, expr2], symtab=symtab)
-            return expr
-        self.error("Condition: invalid operator")
-
-    @logger
-    def algebraic_expression(self, symtab):
-        try:
-            expr = self.numeric_expression(symtab)
-        except RuntimeError:
-            expr = self.logic_expression(symtab)
-
-        try:
-            expr = self.condition(expr, symtab)
-        except RuntimeError:
-            pass
-
-        return expr
-
-    @logger
-    def string_expression(self, symtab):
-        if self.accept('quote'):
-            self.accept('string')
-            new_string = self.value
-            self.accept('quote')
-            return ast.String(value=new_string, symtab=symtab)
-        elif self.new_sym == 'ident':
-            var = symtab.find(self, self.new_value)
-            if var.is_string():
-                self.accept('ident')
-                offset, num_of_accesses = self.array_offset(var, symtab)
-                if offset is None:
-                    return ast.Var(var=var, symtab=symtab)
-                else:
-                    return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
-
-        self.error("Can't parse string expression")
-
-    @logger
     def static_array(self, symtab):
         values = []
         while self.new_sym != 'rspar':
@@ -262,7 +99,7 @@ class Parser:
                 self.accept('comma')
                 # handle dangling commas e.g. (x, y, )
                 if self.new_sym == "rparen":
-                    self.error("Wrongly defined arguments for call to function")
+                    self.error("Wrongly defined arguments for call to function")  # COOOOOOOSA
 
         self.accept('rspar')
 
@@ -281,17 +118,115 @@ class Parser:
 
         return ast.StaticArray(values=values, type=ir.TYPENAMES[type], size=size, symtab=symtab)
 
+    # EXPRESSIONS
+
     @logger
     def expression(self, symtab):
-        if self.accept('lspar'):
-            return self.static_array(symtab)
+        return self.logical(symtab)
 
-        try:
-            return self.string_expression(symtab)
-        except RuntimeError:
-            pass
+    @logger
+    def logical(self, symtab):
+        expr = self.condition(symtab)
 
-        return self.algebraic_expression(symtab)
+        while self.new_sym in LOGICAL_OPERATORS:
+            self.getsym()
+            operator = self.sym
+            expr2 = self.condition(symtab)
+            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+
+        return expr
+
+    @logger
+    def condition(self, symtab):
+        expr = self.additive(symtab)
+
+        while self.new_sym in CONDITION_OPERATORS:
+            self.getsym()
+            operator = self.sym
+            expr2 = self.additive(symtab)
+            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+
+        return expr
+
+    @logger
+    def additive(self, symtab):
+        expr = self.multiplicative(symtab)
+
+        while self.new_sym in ADDITIVE_OPERATORS:
+            self.getsym()
+            operator = self.sym
+            expr2 = self.multiplicative(symtab)
+            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+
+        return expr
+
+    @logger
+    def multiplicative(self, symtab):
+        expr = self.unary_expression(symtab)
+
+        while self.new_sym in MULTIPLICATIVE_OPERATORS:
+            self.getsym()
+            operator = self.sym
+            expr2 = self.unary_expression(symtab)
+            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+
+        return expr
+
+    @logger
+    def unary_expression(self, symtab):
+        unary_operators = []
+        while self.new_sym in UNARY_OPERATORS:
+            self.getsym()
+            unary_operators += [self.sym]
+
+        expr = self.primary(symtab)
+
+        for operator in list(reversed(unary_operators)):
+            expr = ast.UnaryExpr(children=[operator, expr], symtab=symtab)
+
+        while self.accept('incsym') or self.accept('decsym'):
+            expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+
+        return expr
+
+    @logger
+    def primary(self, symtab):
+        if self.accept('ident'):
+            var = symtab.find(self, self.value)
+
+            offset, num_of_accesses = self.array_offset(var, symtab)
+            if offset is None:
+                return ast.Var(var=var, symtab=symtab)
+            else:
+                return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
+
+        elif self.accept('number'):
+            return ast.Const(value=int(self.value), symtab=symtab)
+
+        elif self.accept('quote'):
+            self.accept('string')
+            new_string = self.value
+            self.accept('quote')
+            return ast.String(value=new_string, symtab=symtab)
+
+        elif self.accept('truesym'):
+            return ast.Const(value="True", symtab=symtab)
+        elif self.accept('falsesym'):
+            return ast.Const(value="False", symtab=symtab)
+
+        elif self.accept('lspar'):
+            static_array = self.static_array(symtab)
+            # TODO: add a way to directly index the static array
+            return static_array
+
+        elif self.accept('lparen'):
+            expr = self.expression(symtab=symtab)
+            self.expect('rparen')
+            return expr
+
+        self.error("Can't accept {self.sym} as primary symbol")
+
+    # STATEMENTS
 
     @logger
     def statement(self, symtab):
@@ -311,9 +246,6 @@ class Parser:
             offset, num_of_accesses = self.array_offset(target, symtab)
 
             if self.accept('incsym') or self.accept('decsym'):
-                if not target.is_numeric():
-                    self.error(f"Trying to {'increment' if self.sym == 'incsym' else 'decrement'} a non numeric variable")
-
                 if offset is None:
                     dest = ast.Var(var=target, symtab=symtab)
                 else:
@@ -370,7 +302,7 @@ class Parser:
             return ast.CallStat(function_symbol=function_symbol, parameters=parameters, returns=returns, symtab=symtab)
 
         elif self.accept('ifsym'):
-            cond = self.logic_expression(symtab)
+            cond = self.expression(symtab)
             self.expect('thensym')
             then = self.statement(symtab)
 
@@ -378,7 +310,7 @@ class Parser:
             elifs_conditions = []  # this can't go in the StatList since they are not Stats
             while self.new_sym == "elifsym":
                 self.accept("elifsym")
-                elif_cond = self.logic_expression(symtab)
+                elif_cond = self.expression(symtab)
                 elifs_conditions.append(elif_cond)
 
                 self.expect('thensym')
@@ -391,7 +323,7 @@ class Parser:
             return ast.IfStat(cond=cond, thenpart=then, elifspart=elifs, elifs_conditions=elifs_conditions, elsepart=els, symtab=symtab)
 
         elif self.accept('whilesym'):
-            cond = self.logic_expression(symtab)
+            cond = self.expression(symtab)
             self.expect('dosym')
             body = self.statement(symtab)
             return ast.WhileStat(cond=cond, body=body, symtab=symtab)
@@ -406,7 +338,7 @@ class Parser:
             self.expect('semicolon')
 
             log_indentation(yellow("Second part of for statement"))
-            cond = self.logic_expression(symtab)
+            cond = self.expression(symtab)
 
             self.expect('semicolon')
 

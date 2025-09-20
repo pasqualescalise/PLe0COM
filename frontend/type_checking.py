@@ -180,7 +180,9 @@ def if_stat_type_checking(self):
     if self.cond.type != TYPENAMES['boolean']:
         raise TypeError("If condition must be a boolean expression")
 
-    # TODO: elifs?
+    for child in self.children:
+        if child.type != TYPENAMES['boolean']:
+            raise TypeError("Elifs conditions must be boolean expression")
 
 
 IfStat.type_checking = if_stat_type_checking

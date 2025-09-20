@@ -49,6 +49,8 @@ def compile_program(text, optimization_level):
     print(h2("TYPE CHECKING"))
     perform_type_checking(program)
 
+    print(f"\n{green('Typed Abstract Syntax Tree:')}\n{program}")
+
     print(h2("NODE LIST"))
     node_list = get_node_list(program, quiet=True)
     for node in node_list:

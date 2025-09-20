@@ -240,7 +240,7 @@ class ArrayElement(ASTNode):
         add = ir.BinaryInstruction(dest=src, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
         instrs += [add]
 
-        if self.symbol.is_monodimensional_array() or (not self.symbol.is_monodimensional_array() and not self.symbol.is_string()):
+        if self.symbol.is_monodimensional_array() or (not self.symbol.is_monodimensional_array() and not self.type.is_string()):
             instrs += [ir.LoadInstruction(dest=dest, symbol=src, symtab=self.symtab)]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -661,10 +661,6 @@ class AssignStat(Stat):
             self.offset.parent = self
 
     def lower(self):
-        if self.children != []:  # if it has children, it means it has been expanded
-            instrs = self.children
-            return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
-
         dst = self.symbol
 
         # XXX: self.expr coud be a temporary
@@ -678,7 +674,7 @@ class AssignStat(Stat):
             else:
                 raise e
 
-        if not dst.is_string():
+        if not dst.is_string() and not (self.offset is not None and self.expr.destination().is_string()):
             if self.offset:  # TODO: this is the same as ArrayElement, but with a store instead of a load, merge the two
                 instrs += [self.offset]
 
@@ -787,10 +783,6 @@ class PrintStat(Stat):
         self.newline = newline
 
     def lower(self):
-        if len(self.children) > 1:
-            instrs = self.children
-            return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
-
         print_type = self.print_type  # set during type checking
 
         pc = ir.PrintInstruction(src=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
