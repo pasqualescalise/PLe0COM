@@ -1,4 +1,4 @@
-VAR str[100] : char;
+VAR str : char[100];
 
 BEGIN
 	str = "Hello World!";

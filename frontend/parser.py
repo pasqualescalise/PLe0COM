@@ -58,6 +58,27 @@ class Parser:
         self.error("Expect: unexpected symbol")
         return 0
 
+    def type(self):
+        self.expect('ident')
+
+        assignable_types = [x for x in ir.TYPENAMES if 'assignable' in ir.TYPENAMES[x].qualifiers]
+
+        if self.value in assignable_types or self.value == "char":
+            basetype = ir.TYPENAMES[self.value]
+
+        dims = []
+        while self.accept('lspar'):
+            self.expect('number')
+            dims.append(int(self.value))
+            self.expect('rspar')
+
+        if dims == []:
+            if basetype == ir.TYPENAMES['char']:
+                self.error("Can't use a variable of type char, only type char[]")
+            return basetype
+
+        return ir.ArrayType(None, dims, basetype)
+
     def array_offset(self, target, symtab):
         offset = None
         idxes = []
@@ -99,24 +120,13 @@ class Parser:
                 self.accept('comma')
                 # handle dangling commas e.g. (x, y, )
                 if self.new_sym == "rparen":
-                    self.error("Wrongly defined arguments for call to function")  # COOOOOOOSA
+                    self.error("Wrongly defined values of static array")
 
         self.accept('rspar')
 
-        self.accept('ident')
-        type = self.value
-        size = []
+        values_type = self.type()
 
-        # array of arrays
-        while self.accept('lspar'):
-            self.expect('number')
-            size.append(int(self.value))
-            self.expect('rspar')
-
-        if type not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[type].qualifiers:
-            self.error(f"The type {type} is not valid for an array")
-
-        return ast.StaticArray(values=values, type=ir.TYPENAMES[type], size=size, symtab=symtab)
+        return ast.StaticArray(values=values, values_type=values_type, symtab=symtab)
 
     # EXPRESSIONS
 
@@ -388,30 +398,11 @@ class Parser:
                 while self.accept('comma'):
                     self.constdef(local_symtab, alloct)
             else:
-                # get all the newly defined symbols
-                new_symbols = []
-                new_symbols.append(self.vardef(alloct))
-                while self.accept('comma'):
-                    new_symbols.append(self.vardef(alloct))
+                # get all the newly defined variables and add them to the symtab
 
-                # get the type of the new symbols
-                if not self.accept('colon'):
-                    self.error("Some variables were defined without explicit types")
+                new_symbols = self.varsdef(alloct)
 
-                self.accept('ident')
-
-                if self.value not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[self.value].qualifiers:
-                    self.error(f"The type {self.value} is not valid for a variable")
-
-                type = ir.TYPENAMES[self.value]
-
-                # set the types for the new symbols and add them to the symtab
                 for new_symbol in new_symbols:
-                    if new_symbol.type is None:
-                        new_symbol.type = type
-                    elif new_symbol.is_array():
-                        size = new_symbol.type.dims
-                        new_symbol.type = ir.ArrayType(None, size, type)
                     local_symtab.push(new_symbol)
                     log_indentation(f"{green('Parsed variable:')} {str(new_symbol)}")
 
@@ -438,31 +429,7 @@ class Parser:
             # parameters
             parameters = []
             while self.new_sym != "rparen":
-                new_parameters = []
-                new_parameters.append(self.vardef('param'))
-                while self.accept('comma'):
-                    new_parameters.append(self.vardef('param'))
-
-                # get the type of the parameters
-                if not self.accept('colon'):
-                    self.error("Some parameters were defined without explicit types")
-
-                self.accept('ident')
-
-                if self.value not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[self.value].qualifiers:
-                    self.error(f"Type {self.value} is not valid")
-
-                type = ir.TYPENAMES[self.value]
-
-                # set the types for the new parameters and add them to the rest of the parameters
-                for new_parameter in new_parameters:
-                    if new_parameter.type is None:
-                        new_parameter.type = type
-                    elif new_parameter.is_array():
-                        size = new_parameter.type.dims
-                        new_parameter.type = ir.ArrayType(None, size, type)
-
-                parameters += new_parameters
+                parameters += self.varsdef('param')
 
                 # next batch of parameters with the same type
                 if self.new_sym == 'comma':
@@ -481,25 +448,11 @@ class Parser:
                 self.expect('lparen')
 
                 while self.new_sym != "rparen":
-                    self.expect('ident')
-                    type = self.value
-                    size = []
-
-                    # array
-                    while self.accept('lspar'):
-                        self.expect('number')
-                        size.append(int(self.value))
-                        self.expect('rspar')
-
-                    if type not in list(ir.TYPENAMES.keys()) or 'assignable' not in ir.TYPENAMES[type].qualifiers:
-                        self.error(f"Type {type} is not valid")
+                    type = self.type()
 
                     # XXX: this symbols are only used for their type and size, they are
                     #      not in any SymbolTable and cannot be referenced in the program
-                    if len(size) > 0:
-                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.ArrayType(None, size, ir.TYPENAMES[type]), alloct='return', function_symbol=function_symbol)
-                    else:
-                        ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", ir.TYPENAMES[type], alloct='return', function_symbol=function_symbol)
+                    ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", type, alloct='return', function_symbol=function_symbol)
                     returns.append(ret)
 
                     if self.new_sym == "comma":
@@ -528,7 +481,7 @@ class Parser:
         return ir.Block(gl_sym=parent_symtab, lc_sym=local_symtab, defs=function_defs, body=statements)
 
     @logger
-    def constdef(self, local_vars, alloct='auto'):
+    def constdef(self, local_vars, alloct='auto'):  # TODO: unused at the moment
         self.expect('ident')
         name = self.value
         self.expect('eql')
@@ -542,26 +495,28 @@ class Parser:
             local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
 
     @logger
-    def vardef(self, alloct='auto'):
+    def varsdef(self, alloct='auto'):
+        new_vars = []
+
         self.expect('ident')
-        name = self.value
-        size = []
+        new_vars.append(self.value)
+        while self.accept('comma'):
+            self.expect('ident')
+            new_vars.append(self.value)
 
-        # array
-        while self.accept('lspar'):
-            self.expect('number')
-            size.append(int(self.value))
-            self.expect('rspar')
+        # get the type of the new symbols
+        if not self.accept('colon'):
+            self.error("Some variables were defined without explicit types")
 
-        new_var = ''
+        type = self.type()
 
-        # XXX: do not assign the types yet
-        if len(size) > 0:
-            new_var = ir.Symbol(name, ir.ArrayType(None, size, None), alloct=alloct, function_symbol=self.current_function)
-        else:
-            new_var = ir.Symbol(name, None, alloct=alloct, function_symbol=self.current_function)
+        new_symbols = []
 
-        return new_var
+        # set the types for the new symbols
+        for new_var in new_vars:
+            new_symbols.append(ir.Symbol(new_var, type, alloct=alloct, function_symbol=self.current_function))
+
+        return new_symbols
 
     @logger
     def program(self):

@@ -95,10 +95,10 @@ String.type_checking = string_type_checking
 # XXX: this gets called not during normal type checking but during parsing,
 #      since StaticArrays don't exist after node expansion
 def static_array_type_checking(self):
-    if self.size == []:
-        self.type = ArrayType(None, [len(self.values)], self.values_type)
+    if isinstance(self.values_type, ArrayType):
+        self.type = ArrayType(None, [len(self.values)] + self.values_type.dims, self.values_type.basetype)
     else:
-        self.type = ArrayType(None, [len(self.values)] + self.size, self.values_type.basetype)
+        self.type = ArrayType(None, [len(self.values)], self.values_type)
 
     for value in self.values:
         value.navigate(type_checking, quiet=True)  # need to manually do this
@@ -112,7 +112,7 @@ def static_array_type_checking(self):
 StaticArray.type_checking = static_array_type_checking
 
 
-def bin_expr_type_checking(self):
+def binary_expr_type_checking(self):
     type_a = self.children[1].type
     type_b = self.children[2].type
 
@@ -141,17 +141,17 @@ def bin_expr_type_checking(self):
         self.type = TYPENAMES['boolean']
 
 
-BinaryExpr.type_checking = bin_expr_type_checking
+BinaryExpr.type_checking = binary_expr_type_checking
 
 
-def un_expr_type_checking(self):
+def unary_expr_type_checking(self):
     self.type = self.children[1].type
 
     if self.children[0] in UNARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
 
 
-UnaryExpr.type_checking = un_expr_type_checking
+UnaryExpr.type_checking = unary_expr_type_checking
 
 
 def call_stat_type_checking(self):

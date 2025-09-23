@@ -1,7 +1,7 @@
-VAR char_array[10][2] : char;
-VAR array_array[5][2] : int;
-VAR three_d_array[2][2][2] : int;
-VAR array_of_array_of_array[2][3][4] : int;
+VAR char_array : char[10][2];
+VAR array_array : int[5][2];
+VAR three_d_array : int[2][2][2];
+VAR array_of_array_of_array : int[2][3][4];
 VAR one, i, j : int;
 
 BEGIN

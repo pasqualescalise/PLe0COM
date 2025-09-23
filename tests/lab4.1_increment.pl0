@@ -1,6 +1,6 @@
 VAR i : ubyte;
 var x, y : int;
-VAR arr[2] : int;
+VAR arr : int[2];
 
 BEGIN
 	i = 255;

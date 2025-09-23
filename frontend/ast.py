@@ -277,17 +277,13 @@ class StaticArray(ASTNode):
     # XXX: this doesn't get lowered, other nodes expand themselves and
     #      access the array values one by one
 
-    def __init__(self, parent=None, values=[], type=None, size=[], symtab=None):
+    def __init__(self, parent=None, values=[], values_type=None, symtab=None):
         log_indentation(bold(f"New StaticArray Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
-        self.values_type = type
+        self.values_type = values_type
         self.values = values
         for value in self.values:
             value.parent = self
-
-        if size != []:
-            self.values_type = ir.ArrayType(None, size, type)
-        self.size = size  # we need this for the deepcopy
 
         self.type_checking()  # call this manually since this node will not survive until regular type checking
 
@@ -296,7 +292,7 @@ class StaticArray(ASTNode):
         for value in self.values:
             new_values.append(deepcopy(value, memo))
 
-        return StaticArray(parent=self.parent, values=new_values, type=self.values_type, size=self.size, symtab=self.symtab)
+        return StaticArray(parent=self.parent, values=new_values, type=self.values_type, symtab=self.symtab)
 
 
 # EXPRESSIONS

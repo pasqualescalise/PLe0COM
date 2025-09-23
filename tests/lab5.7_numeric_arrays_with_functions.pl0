@@ -1,8 +1,9 @@
-VAR i, array[10] : int;
-VAR byte_array[10] : byte;
-VAR ubyte_array[10] : ubyte;
+VAR i : int;
+VAR array : int[10];
+VAR byte_array : byte[10];
+VAR ubyte_array : ubyte[10];
 
-PROCEDURE for_in_print(arr[10], len : int);
+PROCEDURE for_in_print(arr : int[10], len : int);
 	VAR i : int;
 
 	BEGIN
@@ -11,7 +12,7 @@ PROCEDURE for_in_print(arr[10], len : int);
 		end
 	END;
 
-PROCEDURE for_in_square_and_print(arr[10], len : int);
+PROCEDURE for_in_square_and_print(arr : int[10], len : int);
 	VAR elem, i : int;
 	BEGIN
 		for i = 0; i < len; i = i + 1 do begin
@@ -22,7 +23,7 @@ PROCEDURE for_in_square_and_print(arr[10], len : int);
 		CALL for_in_print(arr, len)
 	END;
 
-PROCEDURE for_in_print_byte(arr[20] : byte, len : int);
+PROCEDURE for_in_print_byte(arr : byte[20], len : int);
 	VAR i : int;
 
 	BEGIN
@@ -31,7 +32,7 @@ PROCEDURE for_in_print_byte(arr[20] : byte, len : int);
 		end
 	END;
 
-PROCEDURE for_in_cube_and_print_byte(arr[10] : byte, len : int);
+PROCEDURE for_in_cube_and_print_byte(arr : byte[10], len : int);
 	VAR elem, i : int;
 	BEGIN
 		for i = 0; i < len; i = i + 1 do begin
@@ -42,7 +43,7 @@ PROCEDURE for_in_cube_and_print_byte(arr[10] : byte, len : int);
 		CALL for_in_print_byte(arr, len)
 	END;
 
-PROCEDURE for_in_print_ubyte(arr[20] : ubyte, len : int);
+PROCEDURE for_in_print_ubyte(arr : ubyte[20], len : int);
 	VAR i : int;
 
 	BEGIN
@@ -51,7 +52,7 @@ PROCEDURE for_in_print_ubyte(arr[20] : ubyte, len : int);
 		end
 	END;
 
-PROCEDURE for_in_cube_and_print_ubyte(arr[10] : ubyte, len : int);
+PROCEDURE for_in_cube_and_print_ubyte(arr : ubyte[10], len : int);
 	VAR elem, i : int;
 	BEGIN
 		for i = 0; i < len; i = i + 1 do begin
@@ -62,8 +63,9 @@ PROCEDURE for_in_cube_and_print_ubyte(arr[10] : ubyte, len : int);
 		CALL for_in_print_ubyte(arr, len)
 	END;
 
-PROCEDURE square_and_return_elements(arr[7], len : int) -> (int, int, int, int, int, int, int);
-	VAR i, squared[7] : int;
+PROCEDURE square_and_return_elements(arr : int[7], len : int) -> (int, int, int, int, int, int, int);
+	VAR i : int;
+	VAR squared : int[7];
 	BEGIN
 		for i = 0; i < len; i = i + 1 do begin
 			squared[i] = arr[i] * arr[i]
@@ -71,9 +73,9 @@ PROCEDURE square_and_return_elements(arr[7], len : int) -> (int, int, int, int, 
 		return (squared[0], squared[1], squared[2], squared[3], squared[4], squared[5], squared[6])
 	END;
 
-PROCEDURE square_and_return_elements_byte(arr[7] : byte, len : int) -> (byte, byte, byte, byte, byte, byte, byte);
+PROCEDURE square_and_return_elements_byte(arr : byte[7], len : int) -> (byte, byte, byte, byte, byte, byte, byte);
 	VAR i : int;
-	VAR squared[7] : byte;
+	VAR squared : byte[7];
 	BEGIN
 		for i = 0; i < len; i = i + 1 do begin
 			squared[i] = arr[i] * arr[i]

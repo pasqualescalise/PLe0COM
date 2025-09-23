@@ -152,7 +152,7 @@ TYPENAMES = {
     'ushort': Type('short', 16, 'Int', ['unsigned', 'printable', 'assignable']),
     'ubyte': Type('byte', 8, 'Int', ['unsigned', 'printable', 'assignable']),
 
-    'char': Type('char', 8, 'Char', ['unsigned', 'assignable']),  # TODO: should char be assignable?
+    'char': Type('char', 8, 'Char', ['unsigned']),
 
     'label': LabelType(),
     'function': FunctionType(),

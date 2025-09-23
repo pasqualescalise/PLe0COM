@@ -1,5 +1,6 @@
 VAR x, y, result : int;
-VAR arr[5][10], arr2[10] : int;
+VAR arr : int[5][10];
+VAR arr2 : int[10];
 
 BEGIN
 	x = 10;

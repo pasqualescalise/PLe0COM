@@ -1,5 +1,5 @@
 VAR result : boolean;
-VAR result_string[30] : char;
+VAR result_string : char[30];
 
 PROCEDURE is_true(condition : boolean) -> (boolean);
 	BEGIN
@@ -9,7 +9,7 @@ PROCEDURE is_true(condition : boolean) -> (boolean);
 		return (False)
 	END;
 
-PROCEDURE print_string(string[100] : char);
+PROCEDURE print_string(string : char[100]);
 	BEGIN
 		print string
 	END;

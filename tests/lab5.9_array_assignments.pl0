@@ -1,7 +1,7 @@
-VAR int_array[10] : int;
-VAR short_array[10] : short;
-VAR ubyte_array[10] : ubyte;
-VAR boolean_array[10] : boolean;
+VAR int_array : int[10];
+VAR short_array : short[10];
+VAR ubyte_array : ubyte[10];
+VAR boolean_array : boolean[10];
 
 BEGIN
 	int_array = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]int;
