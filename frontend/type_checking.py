@@ -22,7 +22,28 @@ def non_strict_type_equivalence(type_a, type_b):
         if type_a.size > type_b.size:  # we can always put a smaller string in a bigger one
             return True
 
+    elif isinstance(type_a, ArrayType) and isinstance(type_b, ArrayType):
+        if type_a.basetype != type_b.basetype:
+            return False
+
+        return True  # we don't care about their size
+
     return False
+
+
+# Returns the type of the symbol:
+#  * if it's scalar (offset is None) -> symbol type
+#  * if it's an array -> consider how many times we are accessing it
+#    e.g. if we access one time, arr[2][2] becomes arr[2]
+def symbol_with_offset_type(symbol, offset, num_of_accesses):
+    if offset is None:
+        return symbol.type
+
+    dims = symbol.type.dims[num_of_accesses:]
+    if dims != []:
+        return ArrayType(None, dims, symbol.type.basetype)
+    else:
+        return symbol.type.basetype
 
 
 def const_type_checking(self):
@@ -55,11 +76,10 @@ def array_element_type_checking(self):
     if self.symbol is None:
         raise TypeError(f"Can't compute type of ArrayElement {self.id} since it doesn't have a symbol")
 
-    dims = self.symbol.type.dims[self.num_of_accesses:]  # e.g. if we access one time, arr[2][2] becomes arr[2]
-    if dims != []:
-        self.type = ArrayType(None, dims, self.symbol.type.basetype)
-    else:
-        self.type = self.symbol.type.basetype
+    elif self.offset is None or not self.symbol.is_array():
+        raise TypeError("Can only index array variables")
+
+    self.type = symbol_with_offset_type(self.symbol, self.offset, self.num_of_accesses)
 
 
 ArrayElement.type_checking = array_element_type_checking
@@ -153,7 +173,7 @@ def call_stat_type_checking(self):
 
         raise TypeError(f"Calling function {function_definition.symbol.name} with parameters of type {call_parameters_types} while it expects {function_parameters_types}")
 
-    call_returns_types = [x[0].type if x[0] != '_' else '_' for x in self.returns]
+    call_returns_types = [symbol_with_offset_type(x[0], x[1], x[2]) if x[0] != '_' else '_' for x in self.returns]
     function_returns_types = [x.type for x in function_definition.returns]
 
     if len(function_returns_types) > len(call_returns_types):
@@ -211,17 +231,11 @@ ForStat.type_checking = for_stat_type_checking
 def assign_stat_type_checking(self):
     self.type = TYPENAMES['statement']
 
-    if len(self.children) > 0:  # node expanded
-        return
-
-    left_hand_type = self.symbol.type
-    right_hand_type = self.expr.type
-
-    if self.offset is not None and not isinstance(left_hand_type, ArrayType):
+    if self.offset is not None and not self.symbol.is_array():
         raise TypeError("Trying to access a non-array variable with an offset")
-    elif self.offset is not None:
-        # TODO
-        raise NotImplementedError("Assignment of arrays")
+
+    left_hand_type = symbol_with_offset_type(self.symbol, self.offset, self.num_of_accesses)
+    right_hand_type = self.expr.type
 
     if non_strict_type_equivalence(left_hand_type, right_hand_type):
         return

@@ -216,7 +216,7 @@ class ArrayElement(ASTNode):
         # for a multidimensional array, how deep is this element
         self.num_of_accesses = num_of_accesses
 
-    def lower(self):
+    def lower(self):  # TODO: add code to check at runtime if we went over the array size
         src = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
         dest = ir.new_temporary(self.symtab, self.symbol.type.basetype)
         off = self.offset.destination()
@@ -247,7 +247,7 @@ class ArrayElement(ASTNode):
 
     def __deepcopy__(self, memo):
         new_offset = deepcopy(self.offset, memo)
-        return ArrayElement(parent=self.parent, var=self.symbol, offset=new_offset, symtab=self.symtab)
+        return ArrayElement(parent=self.parent, var=self.symbol, offset=new_offset, num_of_accesses=self.num_of_accesses, symtab=self.symtab)
 
 
 class String(ASTNode):
@@ -674,7 +674,7 @@ class AssignStat(Stat):
             else:
                 raise e
 
-        if not dst.is_string() and not (self.offset is not None and self.expr.destination().is_string()):
+        if not dst.is_string() and not (self.offset is not None and src.is_string()):
             if self.offset:  # TODO: this is the same as ArrayElement, but with a store instead of a load, merge the two
                 instrs += [self.offset]
 
@@ -765,12 +765,7 @@ class AssignStat(Stat):
     def __deepcopy__(self, memo):
         new_expr = deepcopy(self.expr, memo)
         new_offset = deepcopy(self.offset, memo)
-
-        new_children = []
-        for child in self.children:
-            new_children.append(deepcopy(child, memo))
-
-        return AssignStat(parent=self.parent, children=new_children, target=self.symbol, offset=new_offset, expr=new_expr, symtab=self.symtab)
+        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, num_of_accesses=self.num_of_accesses, symtab=self.symtab)
 
 
 class PrintStat(Stat):

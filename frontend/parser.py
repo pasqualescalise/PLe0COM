@@ -255,7 +255,7 @@ class Parser:
                 self.expect('becomes')
                 expr = self.expression(symtab)
 
-            return ast.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
+            return ast.AssignStat(target=target, offset=offset, expr=expr, num_of_accesses=num_of_accesses, symtab=symtab)
 
         elif self.accept('callsym'):
             self.expect('ident')
@@ -289,7 +289,7 @@ class Parser:
                         self.accept('ident')
                         var = symtab.find(self, self.value)
                         offset, num_of_accesses = self.array_offset(var, symtab)
-                        returns.append((var, offset))
+                        returns.append((var, offset, num_of_accesses))
 
                     if self.new_sym == "comma":
                         self.accept('comma')
@@ -360,7 +360,7 @@ class Parser:
             self.expect('ident')
             target = symtab.find(self, self.value)
             offset, num_of_accesses = self.array_offset(var, symtab)
-            return ast.AssignStat(target=target, offset=offset, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
+            return ast.AssignStat(target=target, offset=offset, num_of_accesses=num_of_accesses, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
 
         elif self.accept('returnsym'):
             self.expect('lparen')

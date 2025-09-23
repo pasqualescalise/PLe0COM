@@ -38,7 +38,7 @@ def add_return_assignments(self):
             type = PointerType(type.basetype)
 
         temp = new_temporary(self.symtab, type)
-        assign_stat = AssignStat(parent=self.parent, target=self.returns[i][0], offset=self.returns[i][1], expr=temp, symtab=self.symtab)
+        assign_stat = AssignStat(parent=self.parent, target=self.returns[i][0], offset=self.returns[i][1], expr=temp, num_of_accesses=self.returns[i][2], symtab=self.symtab)
         assign_stats.append(assign_stat)
 
     # add the assign statements after the call
