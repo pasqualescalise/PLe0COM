@@ -616,7 +616,7 @@ class LoadPointerInstruction(IRInstruction):
 
 
 class StoreInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, symbol=None, killhint=None, symtab=None):
+    def __init__(self, parent=None, dest=None, symbol=None, symtab=None):
         """Stores the value in the 'symbol' temporary (register) to 'dest' which
         can be a symbol allocated in memory, or a temporary (symbol allocated to a
         register). In the first case, the store is done to the symbol itself; in
@@ -629,8 +629,6 @@ class StoreInstruction(IRInstruction):
         if self.symbol.alloct != 'reg':
             raise RuntimeError('Trying to store a value not from a register')
         self.dest = dest
-        # set only for stores from register to register (mov instructions), tells which symbol this specific mov kills
-        self.killhint = killhint
 
     def used_variables(self):
         if self.dest.alloct == 'reg' and self.dest.is_pointer():
@@ -638,12 +636,13 @@ class StoreInstruction(IRInstruction):
         return [self.symbol]
 
     def killed_variables(self):
-        if self.dest.alloct == 'reg':
-            if self.killhint:  # TODO: remove this and just make it automatic
-                return [self.killhint]
-            else:
-                return []
-        return [self.dest]
+        if self.dest.alloct != 'reg':  # putting a value in a symbol
+            return [self.dest]
+
+        if self.symbol.alloct == 'reg' and not self.dest.is_pointer():  # mov between registers
+            return [self.dest]
+        else:
+            return []
 
     def destination(self):
         return self.dest
@@ -655,15 +654,13 @@ class StoreInstruction(IRInstruction):
 
     def replace_temporaries(self, mapping, create_new=True):
         replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
-        if self.killhint is not None and self.killhint.is_temporary and self.killhint in mapping:
-            self.killhint = mapping[self.killhint]
 
     def __deepcopy__(self, memo):
-        return StoreInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, killhint=self.killhint, symtab=self.symtab)
+        return StoreInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
 
 
 class LoadInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, symbol=None, usehint=None, symtab=None):
+    def __init__(self, parent=None, dest=None, symbol=None, symtab=None):
         """Loads the value in symbol to dest, which must be a temporary. 'symbol'
         can be a symbol allocated in memory, or a temporary (symbol allocated to a
         register). In the first case, the value contained in the symbol itself is
@@ -673,13 +670,10 @@ class LoadInstruction(IRInstruction):
         super().__init__(parent, symtab)
         self.symbol = symbol
         self.dest = dest
-        self.usehint = usehint
         if self.dest.alloct != 'reg':
             raise RuntimeError('Trying to load a value not to a register')
 
     def used_variables(self):
-        if self.usehint:
-            return [self.symbol, self.usehint]
         return [self.symbol]
 
     def killed_variables(self):
@@ -695,11 +689,9 @@ class LoadInstruction(IRInstruction):
 
     def replace_temporaries(self, mapping, create_new=True):
         replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
-        if self.usehint is not None and self.usehint.is_temporary and self.usehint in mapping:
-            self.usehint = mapping[self.usehint]
 
     def __deepcopy__(self, memo):
-        return LoadInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, usehint=self.usehint, symtab=self.symtab)
+        return LoadInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
 
 
 class LoadImmInstruction(IRInstruction):

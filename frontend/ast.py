@@ -351,7 +351,7 @@ class BinaryExpr(Expr):
             while_loop.lower()
             instrs += while_statements.children
 
-            result_store = ir.StoreInstruction(dest=dest, symbol=srca, killhint=dest, symtab=self.symtab)
+            result_store = ir.StoreInstruction(dest=dest, symbol=srca, symtab=self.symtab)
             instrs += [result_store]
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -682,10 +682,7 @@ class AssignStat(Stat):
                 add = ir.BinaryInstruction(dest=dst, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
                 instrs += [add]
 
-            if dst.is_temporary and dst.is_scalar():
-                instrs += [ir.StoreInstruction(dest=dst, symbol=src, killhint=dst, symtab=self.symtab)]
-            else:
-                instrs += [ir.StoreInstruction(dest=dst, symbol=src, symtab=self.symtab)]
+            instrs += [ir.StoreInstruction(dest=dst, symbol=src, symtab=self.symtab)]
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 

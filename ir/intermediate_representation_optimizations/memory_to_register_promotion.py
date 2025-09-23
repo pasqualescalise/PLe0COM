@@ -3,21 +3,14 @@
 """It's faster to access the registers than the stack: move allowed
 variables in registers instead of the stack"""
 
-from ir.ir import StoreInstruction
 from backend.codegenhelp import REGISTER_SIZE
 from logger import red, green, blue
 
 
 # Remove the symbol from the symbol table and convert it to a register
 def promote_symbol(symbol, root):
-    instructions = root.body.body.children
-
     root.body.symtab.remove(symbol)
     symbol.alloct = 'reg'
-
-    for i in range(0, len(instructions)):
-        if isinstance(instructions[i], StoreInstruction) and instructions[i].dest == symbol:
-            instructions[i].killhint = symbol
 
 
 # A variable can be promoted from being stored in memory to being stored in a register if

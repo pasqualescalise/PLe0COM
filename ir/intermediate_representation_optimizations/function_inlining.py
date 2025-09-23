@@ -62,7 +62,7 @@ def add_returns_stores(instructions, returns):
             new_stores = []
             for j in range(len(returns)):
                 if returns[j] != "_":  # skip dontcares
-                    new_store = StoreInstruction(parent=instruction.parent, dest=returns[j], symbol=instruction.returns[j], killhint=returns[j], symtab=instruction.symtab)
+                    new_store = StoreInstruction(parent=instruction.parent, dest=returns[j], symbol=instruction.returns[j], symtab=instruction.symtab)
                     new_stores.append(new_store)
             stores_indices.append((i, new_stores))
 
