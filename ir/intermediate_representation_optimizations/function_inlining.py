@@ -6,7 +6,7 @@ when possible, directly replace the function call with its code"""
 from copy import deepcopy
 
 from ir.function_tree import FunctionTree
-from ir.ir import BranchInstruction, StoreInstruction, LoadInstruction, EmptyInstruction, TYPENAMES
+from ir.ir import BranchInstruction, StoreInstruction, LoadInstruction, LabelInstruction, TYPENAMES
 from logger import green, magenta
 
 
@@ -26,8 +26,7 @@ def replace_temporaries(instructions):
 # an exit label to simulate a return
 def remove_returns(instructions, returns):
     exit_label = TYPENAMES['label']()
-    exit_instr = EmptyInstruction(instructions[0].parent, symtab=instructions[0].symtab)
-    exit_instr.set_label(exit_label)
+    exit_instr = LabelInstruction(instructions[0].parent, label=exit_label, symtab=instructions[0].symtab)
     exit_instr.marked_for_removal = False
     no_exit_label = True  # decides whether or not to put the label at the end
 

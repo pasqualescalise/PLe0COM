@@ -4,7 +4,7 @@
 Codegen functions return a string, consisting of the assembly code they
 correspond to"""
 
-from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, EmptyInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
+from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, LabelInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
 from backend.codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
@@ -38,11 +38,6 @@ def instruction_list_codegen(self, regalloc):
     if len(self.children) > 0:
         for child in self.children:
             try:
-                try:
-                    label = child.get_label()
-                    res += hi(magenta(f"{label.name}:\n"))
-                except AttributeError:
-                    pass
                 res += child.codegen(regalloc)
             except RuntimeError as e:
                 raise RuntimeError(f"Child {child.type_repr()}, {id(child)} did not generate any code; error: {e}")
@@ -394,11 +389,11 @@ def branch_codegen(self, regalloc):
 BranchInstruction.codegen = branch_codegen
 
 
-def empty_codegen(self, regalloc):
-    return ""
+def label_codegen(self, regalloc):
+    return hi(magenta(f"{self.label.name}:\n"))
 
 
-EmptyInstruction.codegen = empty_codegen
+LabelInstruction.codegen = label_codegen
 
 
 def loadpointer_codegen(self, regalloc):

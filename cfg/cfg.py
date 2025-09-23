@@ -4,7 +4,7 @@
 ControlFlowGraph of all the BasicBlocks that allows further
 analyses and optimizations"""
 
-from ir.ir import BranchInstruction, InstructionList, FunctionDef
+from ir.ir import BranchInstruction, InstructionList, LabelInstruction, FunctionDef
 from ir.support import get_node_list
 from logger import ii, di, remove_formatting, yellow, blue
 
@@ -126,23 +126,20 @@ def instruction_list_to_bb(instruction_list):
     labels = []
 
     for instruction in instruction_list.children:
-        try:
-            label = instruction.get_label()
-            if label:
-                if len(instructions) > 0:
-                    bb = BasicBlock(instrs=instructions, labels=labels)
-                    instructions = []
+        if isinstance(instruction, LabelInstruction):
+            label = instruction.label
+            if len(instructions) > 0:
+                bb = BasicBlock(instrs=instructions, labels=labels)
+                instructions = []
 
-                    if len(bbs) > 0:
-                        bbs[-1].next = bb
-                    bbs.append(bb)
+                if len(bbs) > 0:
+                    bbs[-1].next = bb
+                bbs.append(bb)
 
-                    labels = [label]
-                else:
-                    # empty instruction, keep just the label
-                    labels.append(label)
-        except Exception:
-            pass  # instruction doesn't have a label
+                labels = [label]
+            else:
+                # empty instruction, keep just the label
+                labels.append(label)
 
         instructions.append(instruction)
 

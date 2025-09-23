@@ -342,7 +342,7 @@ class IRInstruction():  # abstract
             res += ii("children: {\n")
             for i in range(len(self.children)):
                 rep = repr(self.children[i]).split("\n")
-                if isinstance(self.children[i], EmptyInstruction):
+                if isinstance(self.children[i], LabelInstruction):
                     res += li(f"{self.children[i]}")  # label
                 elif isinstance(self, InstructionList) and self.flat:
                     res += "\n".join([f"{' ' * 8}{i}: {s}" for s in rep])
@@ -371,13 +371,6 @@ class IRInstruction():  # abstract
             return self.parent
         else:
             return self.parent.get_function()
-
-    def set_label(self, label):
-        self.label = label
-        label.value = self  # set target
-
-    def get_label(self):
-        return self.label
 
     # for liveness analysis
     def used_variables(self):
@@ -561,31 +554,32 @@ class BranchInstruction(IRInstruction):
         return BranchInstruction(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, parameters=self.parameters, returns=self.returns, symtab=self.symtab)
 
 
-class EmptyInstruction(IRInstruction):
-    pass
+class LabelInstruction(IRInstruction):
+    def __init__(self, parent=None, label=None, symtab=None):
+        log_indentation(bold(f"New LabelInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.label = label
+
+        if label is None:
+            raise RuntimeError("Can't create a LabelInstruction without a label")
 
     def __repr__(self):
-        if self.get_label() != '':
-            return magenta(f"{self.get_label().name}: ")
-        return 'empty instruction'
+        return magenta(f"{self.label.name}: ")
 
     def used_variables(self):
         return []
 
     def replace_temporaries(self, mapping, create_new=True):
-        if self.get_label() != '':
-            if self.get_label() in mapping:
-                self.set_label(mapping[self.get_label()])
-            else:
-                if create_new:
-                    new_label = TYPENAMES['label']()
-                    mapping[self.get_label()] = new_label
-                    self.set_label(new_label)
+        if self.label in mapping:
+            self.label = mapping[self.label]
+        else:
+            if create_new:
+                new_label = TYPENAMES['label']()
+                mapping[self.label] = new_label
+                self.label = new_label
 
     def __deepcopy__(self, memo):
-        new = EmptyInstruction(parent=self.parent, symtab=self.symtab)
-        new.set_label(self.get_label())
-        return new
+        return LabelInstruction(parent=self.parent, label=self.label, symtab=self.symtab)
 
 
 class LoadPointerInstruction(IRInstruction):
@@ -842,10 +836,6 @@ class InstructionList(IRInstruction):
 
         if isinstance(self.parent, InstructionList):
             log_indentation(green(f"Flattened {self.type_repr()}, {id(self)} into parent {self.parent.type_repr()}, {id(self.parent)}"))
-            if self.get_label():
-                empty = EmptyInstruction(self, symtab=self.symtab)
-                self.children.insert(0, empty)
-                empty.set_label(self.get_label())
             for c in self.children:
                 c.parent = self.parent
             try:

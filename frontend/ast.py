@@ -15,7 +15,7 @@ from math import log
 
 from ir.function_tree import FunctionTree
 import ir.ir as ir
-from logger import log_indentation, ii, magenta, cyan, bold
+from logger import log_indentation, ii, cyan, bold
 import logger
 
 
@@ -56,12 +56,6 @@ class ASTNode:  # abstract
         return ".".join(str(type(self)).split("'")[1].split(".")[-2:])
 
     def __repr__(self):
-        try:
-            # TODO: print this better (a statement with a label)
-            label = f"{magenta(f'{self.get_label().name}')}: "
-        except AttributeError:
-            label = ''
-
         attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values', 'type'} & set(dir(self))
 
         res = f"{cyan(f'{self.type_repr()}')}, {id(self)}" + " {"
@@ -69,7 +63,7 @@ class ASTNode:  # abstract
             # res += f"\nparent: {id(self.parent)};\n"
             res += "\n"
 
-        res = f"{label}{res}"
+        res = f"{res}"
 
         if "children" in dir(self) and len(self.children):
             res += ii("children: {\n")
@@ -429,14 +423,6 @@ class UnaryExpr(Expr):
 class Stat(ASTNode):  # abstract
     def __init__(self, parent=None, children=None, symtab=None):
         super().__init__(parent, children, symtab)
-        self.label = None
-
-    def set_label(self, label):
-        self.label = label
-        label.value = self  # set target
-
-    def get_label(self):
-        return self.label
 
 
 class CallStat(Stat):
@@ -500,8 +486,7 @@ class IfStat(Stat):
 
     def lower(self):
         exit_label = ir.TYPENAMES['label']()
-        exit_instr = ir.EmptyInstruction(self.parent, symtab=self.symtab)
-        exit_instr.set_label(exit_label)
+        exit_instr = ir.LabelInstruction(self.parent, label=exit_label, symtab=self.symtab)
 
         # no elifs and no else
         if len(self.elifspart.children) == 0 and not self.elsepart:
@@ -509,7 +494,7 @@ class IfStat(Stat):
             return self.parent.replace(self, ir.InstructionList(self.parent, [self.cond, branch_to_exit, self.thenpart, exit_instr], self.symtab))
 
         then_label = ir.TYPENAMES['label']()
-        self.thenpart.set_label(then_label)
+        then_label_instr = ir.LabelInstruction(self.parent, label=then_label, symtab=self.symtab)
         branch_to_then = ir.BranchInstruction(cond=self.cond.destination(), target=then_label, symtab=self.symtab)
         branch_to_exit = ir.BranchInstruction(target=exit_label, symtab=self.symtab)
         no_exit_label = False  # decides whether or not to put the label at the end
@@ -517,9 +502,10 @@ class IfStat(Stat):
         instrs = [self.cond, branch_to_then]
 
         # elifs branches
+        elifs_label_insts = []
         for i in range(0, len(self.elifspart.children)):
             elif_label = ir.TYPENAMES['label']()
-            self.elifspart.children[i].set_label(elif_label)
+            elifs_label_insts.append(ir.LabelInstruction(self.parent, label=elif_label, symtab=self.symtab))
             branch_to_elif = ir.BranchInstruction(cond=self.children[i].destination(), target=elif_label, symtab=self.symtab)
             instrs += [self.children[i], branch_to_elif]
 
@@ -545,13 +531,13 @@ class IfStat(Stat):
             last_elif_instruction = elifspart.children[0].children[-1]
 
             if isinstance(last_elif_instruction, ir.BranchInstruction) and last_elif_instruction.is_return():
-                instrs += [elifspart]
+                instrs += [elifs_label_insts[i], elifspart]
                 no_exit_label &= True
             else:
-                instrs += [elifspart, branch_to_exit]
+                instrs += [elifs_label_insts[i], elifspart, branch_to_exit]
                 no_exit_label &= False  # if a single elif needs the exit label, put it there
 
-        instrs += [self.thenpart]
+        instrs += [then_label_instr, self.thenpart]
         last_then_instruction = self.thenpart.children[0].children[-1]
         if not (isinstance(last_then_instruction, ir.BranchInstruction) and last_then_instruction.is_return()) and not no_exit_label:
             instrs += [branch_to_exit]
@@ -580,13 +566,12 @@ class WhileStat(Stat):
 
     def lower(self):
         entry_label = ir.TYPENAMES['label']()
+        entry_instr = ir.LabelInstruction(self.parent, label=entry_label, symtab=self.symtab)
         exit_label = ir.TYPENAMES['label']()
-        exit_instr = ir.EmptyInstruction(self.parent, symtab=self.symtab)
-        exit_instr.set_label(exit_label)
-        self.cond.set_label(entry_label)
+        exit_instr = ir.LabelInstruction(self.parent, label=exit_label, symtab=self.symtab)
         branch = ir.BranchInstruction(cond=self.cond.destination(), target=exit_label, negcond=True, symtab=self.symtab)
         loop = ir.BranchInstruction(target=entry_label, symtab=self.symtab)
-        return self.parent.replace(self, ir.InstructionList(self.parent, [self.cond, branch, self.body, loop, exit_instr], self.symtab))
+        return self.parent.replace(self, ir.InstructionList(self.parent, [entry_instr, self.cond, branch, self.body, loop, exit_instr], self.symtab))
 
     def __deepcopy__(self, memo):
         new_cond = deepcopy(self.cond, memo)
@@ -613,14 +598,13 @@ class ForStat(Stat):
 
     def lower(self):
         entry_label = ir.TYPENAMES['label']()
+        entry_instr = ir.LabelInstruction(self.parent, label=entry_label, symtab=self.symtab)
         exit_label = ir.TYPENAMES['label']()
-        exit_instr = ir.EmptyInstruction(self.parent, symtab=self.symtab)
-        exit_instr.set_label(exit_label)
-        self.cond.set_label(entry_label)
+        exit_instr = ir.LabelInstruction(self.parent, label=exit_label, symtab=self.symtab)
         branch = ir.BranchInstruction(cond=self.cond.destination(), target=exit_label, negcond=True, symtab=self.symtab)
         loop = ir.BranchInstruction(target=entry_label, symtab=self.symtab)
 
-        instrs = [self.init, self.cond, branch, self.body, self.step, loop, exit_instr]
+        instrs = [self.init, entry_instr, self.cond, branch, self.body, self.step, loop, exit_instr]
 
         if self.epilogue is not None:
             instrs += [self.epilogue]
