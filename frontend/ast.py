@@ -210,9 +210,10 @@ class ArrayElement(ASTNode):
         """offset can NOT be a list of exps in case of multi-d arrays; it should
         have already been flattened beforehand"""
         log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
-        super().__init__(parent, [offset], symtab)
+        super().__init__(parent, [], symtab)
         self.symbol = var
         self.offset = offset
+        self.offset.parent = self
         # for a multidimensional array, how deep is this element
         self.num_of_accesses = num_of_accesses
 
