@@ -4,7 +4,7 @@
 Codegen functions return a string, consisting of the assembly code they
 correspond to"""
 
-from ir.ir import IRInstruction, Symbol, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, EmptyInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
+from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, EmptyInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
 from backend.codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
 from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
@@ -26,26 +26,34 @@ Symbol.codegen = symbol_codegen
 
 
 def irinstruction_codegen(self, regalloc):
-    res = ii(f"{comment(f'IRInstruction {self.type_repr()}, {id(self)}')}")  # TODO: remove this stuff
-    if "children" in dir(self) and len(self.children):
-        for node in self.children:
-            try:
-                try:
-                    label = node.get_label()
-                    res += hi(magenta(f"{label.name}:\n"))
-                except Exception:
-                    pass
-                res += node.codegen(regalloc)
-            except RuntimeError as e:
-                raise RuntimeError(f"Node {node.type_repr()}, {id(node)} did not generate any code; error: {e}")
-    return res
+    raise RuntimeError("Can't execute codegen of an abstract class")
 
 
 IRInstruction.codegen = irinstruction_codegen
 
 
+def instruction_list_codegen(self, regalloc):
+    res = ""
+
+    if len(self.children) > 0:
+        for child in self.children:
+            try:
+                try:
+                    label = child.get_label()
+                    res += hi(magenta(f"{label.name}:\n"))
+                except AttributeError:
+                    pass
+                res += child.codegen(regalloc)
+            except RuntimeError as e:
+                raise RuntimeError(f"Child {child.type_repr()}, {id(child)} did not generate any code; error: {e}")
+    return res
+
+
+InstructionList.codegen = instruction_list_codegen
+
+
 def block_codegen(self, regalloc):
-    res = ii(f"{comment('block')}")
+    res = ii(f"{comment('new function')}")
 
     parameters = []
 
@@ -89,7 +97,6 @@ def block_codegen(self, regalloc):
         res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
 
     # the place that the loads use to resolve labels (using `ldr rx, =address`)
-    # TODO: this still breaks if a function has more than 510 instructions
     res += ii(".ltorg")
     res += ii(f"{comment('constant pool')}")
 
@@ -357,9 +364,7 @@ def branch_codegen(self, regalloc):
             res += ii(f"{op} {target_label}\n")
             return res
 
-    elif self.target is None:
-        # this branch is a return
-
+    elif self.is_return():
         # save on the caller stack all return values after the first four
         for i in range(len(self.returns[4:]) - 1, -1, -1):
             ret = self.returns[4:][i]
@@ -390,7 +395,7 @@ BranchInstruction.codegen = branch_codegen
 
 
 def empty_codegen(self, regalloc):
-    return ii(f"{comment('Empty instruction')}")
+    return ""
 
 
 EmptyInstruction.codegen = empty_codegen
