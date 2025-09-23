@@ -2,6 +2,6 @@ VAR i : int;
 
 BEGIN
     for i = 0; i < 11; i = i + 1 do begin
-    	print i
-    end
+    	print i;
+    end;
 END

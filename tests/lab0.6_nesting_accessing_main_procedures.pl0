@@ -6,7 +6,7 @@ PROCEDURE grandgrandgrandparent();
 	PROCEDURE grandgrandauncle(x : int);
 		BEGIN
 			print local_var;
-			local_var = x
+			local_var = x;
 		END;
 
 	PROCEDURE grandgrandparent();
@@ -16,28 +16,28 @@ PROCEDURE grandgrandgrandparent();
 					BEGIN
 						global_var = 10;
 						local_var = 100;
-						CALL grandgrandauncle(20)
+						CALL grandgrandauncle(20);
 					END;
 
 				BEGIN
-					CALL child()
+					CALL child();
 				END;
 
 			BEGIN
-				CALL parent()
+				CALL parent();
 			END;
 
 		BEGIN
 			CALL grandparent();
-			CALL grandgrandauncle(30)
+			CALL grandgrandauncle(30);
 		END;
 
 	BEGIN
 		CALL grandgrandparent();
-		print local_var
+		print local_var;
 	END;
 
 BEGIN
 	CALL grandgrandgrandparent();
-	print global_var
+	print global_var;
 END

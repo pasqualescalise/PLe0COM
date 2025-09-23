@@ -3,30 +3,30 @@ VAR bool1, bool2 : boolean;
 
 BEGIN
 	if not false then begin
-		print True
+		print True;
 	end else begin
-		print False
+		print False;
 	end;
 	if not true then begin
-		print False
+		print False;
 	end else begin
-		print True
+		print True;
 	end;
 
 	for i = 0; i < 10; i = i + 1 do begin
 		if not odd i then begin
 			print i;
-			print "Even"
+			print "Even";
 		end else begin
 			print i;
-			print "Odd"
-		end
+			print "Odd";
+		end;
 	end;
 
 	bool1 = true;
 	while bool1 do begin
 		print bool1;
-		bool1 = false
+		bool1 = false;
 	end;
 	print bool1;
 
@@ -73,7 +73,7 @@ BEGIN
 	print (10 > 5) == (5 > 2);
 	print odd (2 + 2) == True;
 	print True == (True != False);
-	print (True == True) != (False == False)
+	print (True == True) != (False == False);
 
 	// XXX: even if True and False are internally represented
 	//		using numbers, these two fail the type checker

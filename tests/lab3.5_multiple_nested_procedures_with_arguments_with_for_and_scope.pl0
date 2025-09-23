@@ -7,7 +7,7 @@ PROCEDURE func1(x, y : int);
 		VAR ressquare : int;
 		BEGIN
 			ressquare = x * x;
-			print ressquare
+			print ressquare;
 			/* XXX: this fails like it would in C but maybe it doesn't have to
 			 * CALL powerWithFors(2, 2)
 			 */
@@ -21,25 +21,25 @@ PROCEDURE func1(x, y : int);
 			BEGIN
 				respow = 1;
 				for i = 0; i < y; i = i + 1 DO BEGIN
-					respow = respow * x
+					respow = respow * x;
 				END;
-				print respow
+				print respow;
 			END;
 
 		BEGIN
 			CALL func2(x, y);
-			CALL square(x)
+			CALL square(x);
 		END;
 
 	BEGIN
 		CALL square(x);
 		CALL square(y);
 		CALL powerWithFors(x, y);
-		CALL powerWithFors(y, x)
+		CALL powerWithFors(y, x);
 	END;
 
 BEGIN
 	base = 3;
 	exponent = 4;
-	CALL func1(base, exponent)
+	CALL func1(base, exponent);
 END

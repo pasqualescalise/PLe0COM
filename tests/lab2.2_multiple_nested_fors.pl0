@@ -6,16 +6,16 @@ BEGIN
     for i = 0; i < 10; i = i + 1 do begin
         print i;
     	for j = 0; j < 10; j = j + 1 do begin
-			print k
-    	end
+			print k;
+    	end;
     end;
     for i = 0; i < 10; i = i + 1 do begin
         print i;
     	for j = 0; j < 10; j = j + 1 do begin
-			print k
+			print k;
     	end;
     	for j = 0; j < 10; j = j + 1 do begin
-			print k
-    	end
-    end
+			print k;
+    	end;
+    end;
 END

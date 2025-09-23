@@ -2,9 +2,9 @@
 
 PROCEDURE inlined(x, y : int);
 	BEGIN
-		print x
+		print x;
 	END;
 
 BEGIN
-	CALL inlined(1, 2)
+	CALL inlined(1, 2);
 END

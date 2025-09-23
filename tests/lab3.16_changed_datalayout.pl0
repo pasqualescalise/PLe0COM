@@ -7,7 +7,7 @@ PROCEDURE add_4_params_no_returns(param0, param1, param2, param3 : int);
 		print param1;
 		print param2;
 		print param3;
-		print param0 + param1 + param2 + param3
+		print param0 + param1 + param2 + param3;
 	END;
 
 PROCEDURE add_6_params_no_returns(param0, param1, param2, param3, param4, param5 : int);
@@ -22,7 +22,7 @@ PROCEDURE add_6_params_no_returns(param0, param1, param2, param3, param4, param5
 		print param3;
 		print param4;
 		print param5;
-		print param0 + param1 + param2 + param3 + param4 + param5
+		print param0 + param1 + param2 + param3 + param4 + param5;
 	END;
 
 PROCEDURE add_4_params_2_returns(param0, param1, param2, param3 : int) -> (int, int);
@@ -30,7 +30,7 @@ PROCEDURE add_4_params_2_returns(param0, param1, param2, param3 : int) -> (int, 
 
 	BEGIN
 		local = 20;
-		return (param0 + param1 + param2 + param3, local)
+		return (param0 + param1 + param2 + param3, local);
 	END;
 
 PROCEDURE add_6_params_2_returns(param0, param1, param2, param3, param4, param5 : int) -> (int, int);
@@ -38,7 +38,7 @@ PROCEDURE add_6_params_2_returns(param0, param1, param2, param3, param4, param5 
 
 	BEGIN
 		local = 20;
-		return (param0 + param1 + param2 + param3 + param4 + param5, local)
+		return (param0 + param1 + param2 + param3 + param4 + param5, local);
 	END;
 
 PROCEDURE add_4_params_6_returns(param0, param1, param2, param3 : int) -> (int, int, int, int, int, int);
@@ -46,7 +46,7 @@ PROCEDURE add_4_params_6_returns(param0, param1, param2, param3 : int) -> (int, 
 
 	BEGIN
 		local = 20;
-		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, local, local + 1)
+		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, local, local + 1);
 	END;
 
 PROCEDURE add_6_params_6_returns(param0, param1, param2, param3, param4, param5 : int) -> (int, int, int, int, int, int);
@@ -54,7 +54,7 @@ PROCEDURE add_6_params_6_returns(param0, param1, param2, param3, param4, param5 
 
 	BEGIN
 		local = 20;
-		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, param4 + 1, param5 + local)
+		return (param0 + 1, param1 + 1, param2 + 1, param3 + 1, param4 + 1, param5 + local);
 	END;
 
 PROCEDURE squares_15_params_15_returns(param0, param1, param2, param3, param4, param5, param6, param7, param8, param9, param10, param11, param12, param13, param14 : int) -> (int, int, int, int, int, int, int, int, int, int, int, int, int, int, int);
@@ -62,7 +62,7 @@ PROCEDURE squares_15_params_15_returns(param0, param1, param2, param3, param4, p
 
 	PROCEDURE square(x : int) -> (int);
 		BEGIN
-			return (x * x)
+			return (x * x);
 		END;
 
 	BEGIN
@@ -81,7 +81,7 @@ PROCEDURE squares_15_params_15_returns(param0, param1, param2, param3, param4, p
 		CALL square(param12) -> (local12);
 		CALL square(param13) -> (local13);
 		CALL square(param14) -> (local14);
-		return (local0, local1, local2, local3, local4, local5, local6, local7, local8, local9, local10, local11, local12, local13, local14)
+		return (local0, local1, local2, local3, local4, local5, local6, local7, local8, local9, local10, local11, local12, local13, local14);
 	END;
 
 BEGIN
@@ -130,5 +130,5 @@ BEGIN
 	print global11;
 	print global12;
 	print global13;
-	print global14
+	print global14;
 END

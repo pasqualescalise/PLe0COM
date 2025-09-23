@@ -10,5 +10,5 @@ BEGIN
 	arr[0][0] = 2;
 	arr2[5] = 3;
 	result = arr[0][0] + arr2[5];
-	print result
+	print result;
 END

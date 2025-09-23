@@ -8,17 +8,17 @@ PROCEDURE loop() -> (int);
 			i = i + 1;
 
 			if i < 10 then begin
-				CALL increase()
-			end
+				CALL increase();
+			end;
 		END;
 
 	BEGIN
 		i = 0;
 		CALL increase();
-		return (i)
+		return (i);
 	END;
 
 BEGIN
 	CALL loop() -> (result);
-	print result
+	print result;
 END

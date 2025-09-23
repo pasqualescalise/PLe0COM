@@ -4,27 +4,27 @@ VAR result_string : char[30];
 PROCEDURE is_true(condition : boolean) -> (boolean);
 	BEGIN
 		if condition then begin
-			return (True)
+			return (True);
 		end;
-		return (False)
+		return (False);
 	END;
 
 PROCEDURE print_string(string : char[100]);
 	BEGIN
-		print string
+		print string;
 	END;
 
 PROCEDURE even_or_odd(number : short, invert : boolean) -> (char[5]);
 	BEGIN
 		if odd number and invert then begin
-			return ("Even")
+			return ("Even");
 		end elif odd number and not invert then begin
-			return ("Odd")
+			return ("Odd");
 		end elif not odd number and invert then begin
-			return ("Odd")
+			return ("Odd");
 		end else begin
-			return ("Even")
-		end
+			return ("Even");
+		end;
 	END;
 
 BEGIN
@@ -50,5 +50,5 @@ BEGIN
 	CALL even_or_odd(2, True) -> (result_string);
 	CALL print_string(result_string);
 	CALL even_or_odd(3, 3 > 2) -> (result_string);
-	CALL print_string(result_string)
+	CALL print_string(result_string);
 END

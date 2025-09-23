@@ -7,22 +7,22 @@ VAR uresult : uint;
 
 PROCEDURE sum_shorts(x, y : short) -> (short);
 	BEGIN
-		return (x + y)
+		return (x + y);
 	END;
 
 PROCEDURE sum_bytes(x, y : byte) -> (byte);
 	BEGIN
-		return (x + y)
+		return (x + y);
 	END;
 
 PROCEDURE sum_bytes_return_int(x, y : byte) -> (int);
 	BEGIN
-		return (x + y)
+		return (x + y);
 	END;
 
 PROCEDURE sum_int_short_return_byte(x : int, y : short) -> (byte);
 	BEGIN
-		return (x + y)
+		return (x + y);
 	END;
 
 PROCEDURE duplicate_byte_sum_int_return_short(x : byte, y : int) -> (short);
@@ -30,7 +30,7 @@ PROCEDURE duplicate_byte_sum_int_return_short(x : byte, y : int) -> (short);
 
 	BEGIN
 		CALL sum_bytes(x, x) -> (local_byte);
-		return (local_byte + y)
+		return (local_byte + y);
 	END;
 
 PROCEDURE big_function(b1, b2 : byte, sh1, sh2 : short, int1 : int, b3 : byte, sh3 : short) -> (byte, byte, short, short, int);
@@ -45,7 +45,7 @@ PROCEDURE big_function(b1, b2 : byte, sh1, sh2 : short, int1 : int, b3 : byte, s
 		CALL sum_bytes(local_byte1, local_byte2) -> (local_byte2);
 		CALL sum_bytes_return_int(local_byte1, b3) -> (local_int);
 
-		return (local_byte1, local_byte2, local_short, local_short, local_int)
+		return (local_byte1, local_byte2, local_short, local_short, local_int);
 	END;
 
 PROCEDURE big_unsigned_function(b1, b2 : ubyte, sh1, sh2 : ushort, int1 : uint, b3 : ubyte, sh3 : ushort) -> (ubyte, ubyte, ushort, ushort, uint);
@@ -59,7 +59,7 @@ PROCEDURE big_unsigned_function(b1, b2 : ubyte, sh1, sh2 : ushort, int1 : uint, 
 		local_short = sh1 + sh2 + b1;
 		local_int = sh2 + local_byte2;
 
-		return (local_byte1, local_byte2, local_short, local_short, local_int)
+		return (local_byte1, local_byte2, local_short, local_short, local_int);
 	END;
 
 BEGIN
@@ -110,5 +110,5 @@ BEGIN
 	print ubyte2;
 	print ushort1;
 	print ushort2;
-	print uresult
+	print uresult;
 END

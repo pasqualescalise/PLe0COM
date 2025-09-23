@@ -6,15 +6,15 @@ PROCEDURE choose(x, y : int) -> (int);
 	BEGIN
 		result = x * y;
 		if result > 0 then begin
-			return (0)
+			return (0);
 		end else begin
-			return (-1)
+			return (-1);
 		end;
 
-		return (-1)
+		return (-1);
 	END;
 
 BEGIN
 	CALL choose(-3, 4) -> (result);
-	print result
+	print result;
 END

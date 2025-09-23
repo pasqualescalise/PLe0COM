@@ -5,7 +5,7 @@ PROCEDURE power(base, exponent : int);
 		VAR ressquare : int;
 		BEGIN
 			ressquare = x * x;
-			print ressquare
+			print ressquare;
 		END;
 
 	PROCEDURE powerOfTwo(exponent : int);
@@ -13,7 +13,7 @@ PROCEDURE power(base, exponent : int);
 		BEGIN
 			// parentheses needed because shift has a higher precedence than -
 			resshift = 2 << (exponent - 1);
-			print resshift
+			print resshift;
 		END;
 
 	PROCEDURE powerWithFors(base, exponent : int);
@@ -21,23 +21,23 @@ PROCEDURE power(base, exponent : int);
 		BEGIN
 			respow = base;
 			for i = 0; i < (exponent - 1); i = i + 1 DO BEGIN
-				respow = respow * base
+				respow = respow * base;
 			END;
-			print respow
+			print respow;
 		END;
 
 	BEGIN
 		if exponent < 0 then begin
-			print -1
+			print -1;
 		end elif exponent == 0 then begin
-			print base
+			print base;
 		end elif exponent == 2 then begin
-			CALL square(base)
+			CALL square(base);
 		end elif base == 2 then begin
-			CALL powerOfTwo(exponent)
+			CALL powerOfTwo(exponent);
 		end else begin
-			CALL powerWithFors(base, exponent)
-		end
+			CALL powerWithFors(base, exponent);
+		end;
 	END;
 
 BEGIN
@@ -45,5 +45,5 @@ BEGIN
 	CALL power(4, 2);
 	CALL power(2, 5);
 	CALL power(43, 0);
-	CALL power(4, -1)
+	CALL power(4, -1);
 END

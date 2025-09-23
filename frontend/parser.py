@@ -55,7 +55,7 @@ class Parser:
         log_indentation(f"{cyan('Expecting:')} {s}")
         if self.accept(s):
             return 1
-        self.error("Expect: unexpected symbol")
+        self.error(f"Expecting {s}")
         return 0
 
     def type(self):
@@ -244,10 +244,12 @@ class Parser:
             statement_list = ast.StatList(symtab=symtab)
 
             statement_list.append(self.statement(symtab))
-            while self.accept('semicolon'):
-                statement_list.append(self.statement(symtab))
+            self.expect('semicolon')
 
-            self.expect('endsym')
+            while not self.accept('endsym'):
+                statement_list.append(self.statement(symtab))
+                self.expect('semicolon')
+
             log_indentation(f"{bold(statement_list.get_content())}")
             return statement_list
 
@@ -388,6 +390,8 @@ class Parser:
             self.expect('rparen')
 
             return ast.ReturnStat(children=returns, symtab=symtab)
+
+        self.error("Error while parsing statement")
 
     @logger
     def block(self, parent_symtab, local_symtab, alloct='auto'):

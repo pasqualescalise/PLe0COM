@@ -5,12 +5,12 @@ PROCEDURE performArithmetic(x, y : int) -> (int);
 
 	PROCEDURE sum(x, y : int) -> (int);
 		BEGIN
-			return (x + y)
+			return (x + y);
 		END;
 
 	PROCEDURE multiply(x, y : int) -> (int);
 		BEGIN
-			return (x * y)
+			return (x * y);
 		END;
 
 	PROCEDURE power(base, exponent : int) -> (int);
@@ -18,9 +18,9 @@ PROCEDURE performArithmetic(x, y : int) -> (int);
 		BEGIN
 			respow = base;
 			for i = 0; i < (exponent - 1); i = i + 1 DO BEGIN
-				respow = respow * base
+				respow = respow * base;
 			END;
-			return (respow)
+			return (respow);
 		END;
 
 	/* this computes (x + y) * (x ^ 2) */
@@ -30,16 +30,16 @@ PROCEDURE performArithmetic(x, y : int) -> (int);
 			CALL sum(x, y) -> (sum_res);
 			CALL power(x, 2) -> (power_res);
 			CALL multiply(sum_res, power_res) -> (res);
-			return (sum_res, power_res, res)
+			return (sum_res, power_res, res);
 		END;
 
 	BEGIN
 		CALL operation(x, y) -> (_, _, operation_res);
 
-		return (operation_res)
+		return (operation_res);
 	END;
 
 BEGIN
 	CALL performArithmetic(23, 32) -> (result);
-	print result
+	print result;
 END

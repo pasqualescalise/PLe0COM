@@ -3,31 +3,31 @@ VAR bool : boolean;
 
 BEGIN
 	if false then begin
-		print False
+		print False;
 	end else begin
-		print True
+		print True;
 	end;
 	if true then begin
-		print True
+		print True;
 	end else begin
-		print False
+		print False;
 	end;
 
 	for i = 0; i < 10; i = i + 1 do begin
 		if odd i then begin
 			print i;
-			print "Odd"
+			print "Odd";
 		end else begin
 			print i;
-			print "Even"
-		end
+			print "Even";
+		end;
 	end;
 
 	bool = true;
 	while bool == true do begin
 		print bool;
-		bool = false
+		bool = false;
 	end;
 
-	print bool
+	print bool;
 END

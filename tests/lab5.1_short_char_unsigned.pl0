@@ -33,5 +33,5 @@ BEGIN
 	ubyte = 127;
 	print ubyte;
 	ubyte = 128;
-	print ubyte
+	print ubyte;
 END

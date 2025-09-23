@@ -5,14 +5,14 @@ PROCEDURE power(x, y : int);
 	BEGIN
 		result = 1;
 		for i = 0; i < y; i = i + 1 DO BEGIN
-			result = result * x
+			result = result * x;
 		END;
-		print result
+		print result;
 	END;
 
 BEGIN
 	base = 3;
 	exponent = 4;
 	CALL power(base, exponent);
-	CALL power(exponent, base)
+	CALL power(exponent, base);
 END

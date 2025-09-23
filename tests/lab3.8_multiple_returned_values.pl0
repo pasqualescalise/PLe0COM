@@ -2,11 +2,11 @@ VAR sum, multiplication : int;
 
 PROCEDURE sumAndMultiply(x, y : int) -> (int, int);
 	BEGIN
-		return (x + y, x * y)
+		return (x + y, x * y);
 	END;
 
 BEGIN
 	CALL sumAndMultiply(23, 32) -> (sum, multiplication);
 	print sum;
-	print multiplication
+	print multiplication;
 END

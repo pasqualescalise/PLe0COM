@@ -2,70 +2,70 @@ VAR result1, result2 : int;
 
 PROCEDURE function_simple_return() -> (int);
 	BEGIN
-		return (10 + 20)
+		return (10 + 20);
 	END;
 
 PROCEDURE function_multiple_returns() -> (int, int);
 	BEGIN
-		return (10 + 20, 20)
+		return (10 + 20, 20);
 	END;
 
 PROCEDURE function_with_if_else(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
-			return (y)
+			return (y);
 		end else begin
-			return (100)
-		end
+			return (100);
+		end;
 	END;
 
 PROCEDURE function_with_if_elif_else(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
-			return (y)
+			return (y);
 		end elif x > 1000 then begin
-			print "Not reachable"
+			print "Not reachable";
 		end elif x > 1000 then begin
-			return (0)
+			return (0);
 		end elif x > 1000 then begin
-			print "Not reachable"
+			print "Not reachable";
 		end else begin
-			return (100)
+			return (100);
 		end;
 
-		return (-1)
+		return (-1);
 	END;
 
 PROCEDURE function_with_if_elif_no_else(x, y : int) -> (int);
 	BEGIN
 		if x == 1 then begin
-			return (1)
+			return (1);
 		end elif x == 2 then begin
-			return (2)
+			return (2);
 		end elif x == 3 then begin
-			return (3)
+			return (3);
 		end elif x == 4 then begin
-			return (4)
+			return (4);
 		end;
 
-		return (y)
+		return (y);
 	END;
 
 PROCEDURE function_with_if_and_dangling_return(x, y : int) -> (int);
 	BEGIN
 		if x > 1 then begin
-			return (y)
+			return (y);
 		end;
-		return (100)
+		return (100);
 	END;
 
 PROCEDURE function_that_just_returns(x, y : int);
 	BEGIN
 		if x > 10 then begin
-			print y
+			print y;
 		end else begin
-			return ()
-		end
+			return ();
+		end;
 	END;
 
 BEGIN
@@ -89,5 +89,5 @@ BEGIN
 	CALL function_with_if_and_dangling_return(1, 2) -> (result1);
 	print result1;
 	CALL function_that_just_returns(1, 2);
-	print result1
+	print result1;
 END

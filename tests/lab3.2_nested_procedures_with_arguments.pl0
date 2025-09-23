@@ -5,15 +5,15 @@ PROCEDURE multiply(x, y : int);
 		VAR respow : int;
 		BEGIN
 			respow = parameter * parameter;
-			print respow
+			print respow;
 		END;
 
 	BEGIN
 		result = x * y;
 		print result;
-		CALL power(result)
+		CALL power(result);
 	END;
 
 BEGIN
-	CALL multiply(4 + 1, 2)
+	CALL multiply(4 + 1, 2);
 END

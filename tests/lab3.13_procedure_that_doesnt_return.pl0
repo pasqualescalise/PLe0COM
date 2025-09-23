@@ -3,12 +3,12 @@ VAR result : int;
 PROCEDURE function(x, y : int) -> (int);
 	BEGIN
 		if x > 2 then begin
-			return (y)
-		end
+			return (y);
+		end;
 	END;
 
 BEGIN
 	result = 100;
 	CALL function(1, 2) -> (result);
-	print result
+	print result;
 END

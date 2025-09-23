@@ -1,8 +1,8 @@
 PROCEDURE inlined(x, y : int);
 	BEGIN
-		print x + y
+		print x + y;
 	END;
 
 BEGIN
-	CALL inlined(3, 4)
+	CALL inlined(3, 4);
 END

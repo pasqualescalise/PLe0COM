@@ -5,15 +5,15 @@ PROCEDURE f1(x, y : int);
 
 	PROCEDURE f2(x, y : int);
 		BEGIN
-			result = x * y
+			result = x * y;
 		END;
 
 	BEGIN
 		result = x + y;
 		CALL f2(x, y);
-		print result
+		print result;
 	END;
 
 BEGIN
-	CALL f1(3, 4)
+	CALL f1(3, 4);
 END

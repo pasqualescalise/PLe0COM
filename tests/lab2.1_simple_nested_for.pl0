@@ -4,7 +4,7 @@ BEGIN
     for i = 0; i < 10; i = i + 1 do begin
         print i;
     	for j = 0; j < 10; j = j + 1 do begin
-			print j
-    	end
-    end
+			print j;
+    	end;
+    end;
 END

@@ -4,26 +4,26 @@ BEGIN
 	i = 0;
 
     if i == 0 then begin
-		print 0
+		print 0;
 	end elif i == 1 then begin
-		print 1
+		print 1;
 	end elif i == 2 then begin
-		print 2
+		print 2;
 	end elif i == 3 then begin
-		print 3
+		print 3;
 	end elif i == 4 then begin
-		print 4
+		print 4;
 	end elif i == 5 then begin
-		print 5
+		print 5;
 	end elif i == 6 then begin
-		print 6
+		print 6;
 	end elif i == 7 then begin
-		print 7
+		print 7;
 	end elif i == 8 then begin
-		print 8
+		print 8;
 	end elif i == 9 then begin
-		print 9
+		print 9;
 	end else begin
-		print 100
-	end
+		print 100;
+	end;
 END

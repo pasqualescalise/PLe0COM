@@ -2,10 +2,10 @@ VAR result : int;
 
 PROCEDURE multiply(x, y : int) -> (int);
 	BEGIN
-		return (x * y)
+		return (x * y);
 	END;
 
 BEGIN
 	CALL multiply(4 + 1, 2) -> (result);
-	print result
+	print result;
 END

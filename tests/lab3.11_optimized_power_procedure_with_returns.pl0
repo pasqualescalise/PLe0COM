@@ -5,13 +5,13 @@ PROCEDURE power(base, exponent : int) -> (int);
 
 	PROCEDURE square(x : int) -> (int);
 		BEGIN
-			return (x * x)
+			return (x * x);
 		END;
 
 	PROCEDURE powerOfTwo(exponent : int) -> (int);
 		BEGIN
 			// parentheses needed because shift has a higher precedence than -
-			return (2 << (exponent - 1))
+			return (2 << (exponent - 1));
 		END;
 
 	PROCEDURE powerWithFors(base, exponent : int) -> (int);
@@ -19,25 +19,25 @@ PROCEDURE power(base, exponent : int) -> (int);
 		BEGIN
 			respow = base;
 			for i = 0; i < (exponent - 1); i = i + 1 DO BEGIN
-				respow = respow * base
+				respow = respow * base;
 			END;
-			return (respow)
+			return (respow);
 		END;
 
 	BEGIN
 		if exponent < 0 then begin
-			return (-1)
+			return (-1);
 		end elif exponent == 0 then begin
-			return (base)
+			return (base);
 		end elif exponent == 2 then begin
-			CALL square(base) -> (result)
+			CALL square(base) -> (result);
 		end elif base == 2 then begin
-			CALL powerOfTwo(exponent) -> (result)
+			CALL powerOfTwo(exponent) -> (result);
 		end else begin
-			CALL powerWithFors(base, exponent) -> (result)
+			CALL powerWithFors(base, exponent) -> (result);
 		end;
 		
-		return (result)
+		return (result);
 	END;
 
 BEGIN
@@ -50,5 +50,5 @@ BEGIN
 	CALL power(43, 0) -> (result);
 	print result;
 	CALL power(4, -1) -> (result);
-	print result
+	print result;
 END

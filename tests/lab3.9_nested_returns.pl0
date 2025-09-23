@@ -5,23 +5,23 @@ PROCEDURE sumAndMultiply(x, y : int) -> (int, int);
 
 	PROCEDURE sum(x, y : int) -> (int);
 		BEGIN
-			return (x + y)
+			return (x + y);
 		END;
 
 	PROCEDURE multiply(x, y : int) -> (int);
 		BEGIN
-			return (x * y)
+			return (x * y);
 		END;
 
 	BEGIN
 		CALL sum(x, y) -> (sum_res);
 		CALL multiply(x, y) -> (multiplication);
 
-		return (sum_res, multiplication)
+		return (sum_res, multiplication);
 	END;
 
 BEGIN
 	CALL sumAndMultiply(23, 32) -> (sum_res, multiplication);
 	print sum_res;
-	print multiplication
+	print multiplication;
 END
