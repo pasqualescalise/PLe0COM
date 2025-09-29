@@ -107,7 +107,12 @@ def perform_data_layout_of_program(root):
         bsize = var.type.size // 8  # in byte
 
         name = f"_g_main_{var.name}"
-        var.set_alloc_info(GlobalSymbolLayout(name, bsize))
+
+        if var.is_error():  # errors must not be allocated, but their number and error message pointer must
+            var.type.error_number.set_alloc_info(GlobalSymbolLayout(f"{name}_number", var.type.error_number.type.size // 8))
+            var.type.error_message.set_alloc_info(GlobalSymbolLayout(f"{name}_message", var.type.error_message.type.size // 8))
+        else:
+            var.set_alloc_info(GlobalSymbolLayout(name, bsize))
 
     print(f"{cyan('main')} {root.body.symtab}")
 

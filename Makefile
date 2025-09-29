@@ -38,11 +38,16 @@ execute:
 		fi;\
 		test_name=$$(basename "$(test)" .pl0);\
 		output_file=$(TESTS_OUT_DIR)/single_test.output;\
+		return_error_file=$(TESTS_OUT_DIR)/single_test.return_error;\
 		$(RUN_COMMAND) $(EXECUTABLE) > $$output_file;\
+		return_value=$$(echo $$?);\
+		printf "$$return_value" > $$return_error_file;\
 		cat $$output_file;\
-		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file;\
+		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file return_error_file=$$return_error_file;\
 	else\
 		$(RUN_COMMAND) $(EXECUTABLE);\
+		return_value=$$(echo $$?);\
+		echo $$return_value | tee $(return_error_file) > /dev/null;\
 	fi;
 
 testall:
@@ -54,25 +59,36 @@ testall:
 	for test_file in $(TESTS_SRC_DIR)/*.pl0; do\
 		test_name=$$(basename "$$test_file" .pl0);\
 		output_file=$(TESTS_OUT_DIR)/"$$test_name".output;\
+		return_error_file=$(TESTS_OUT_DIR)/"$$test_name".return_error;\
 		$(MAKE) compile test="$$test_file" > /dev/null 2> $$output_file;\
 		return_value=$$(echo $$?);\
 		if [ "$$return_value" -eq "0" ]; then\
-			$(MAKE) execute | sed -n -e "4,\$$p" > $$output_file;\
+			$(MAKE) execute return_error_file=$$return_error_file | sed -n -e "4,\$$p" > $$output_file;\
 		else\
 			sed -i -e "\$$d" $$output_file;\
 			sed -n -i -e "\$$p" $$output_file;\
 		fi;\
-		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file;\
+		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file return_error_file=$$return_error_file;\
 	done;
 
 check_output:
-	expected_file=$(TESTS_EXP_DIR)/"$(test_name)".expected;\
-	if [ ! -f $$expected_file ]; then\
+	expected_output_file=$(TESTS_EXP_DIR)/"$(test_name)".expected;\
+	expected_return_error_file=$(TESTS_EXP_DIR)/"$(test_name)".return_error;\
+	if [ -f $$expected_return_error_file ]; then\
+		expected_return_error=$$(< $$expected_return_error_file);\
+		return_error=$$(< $(return_error_file));\
+		if [ $$expected_return_error -ne $$return_error ]; then\
+			printf "\e[31mTest $(test_name) not passed (return number)\e[0m - ";\
+		else\
+			printf "\e[32mTest $(test_name) passed (return number)!\e[0m - ";\
+		fi;\
+	fi;\
+	if [ ! -f $$expected_output_file ]; then\
 		printf "\e[31mExpected output does not exist for test $(test_name)\e[0m\n";\
-	elif output=$$(diff -y -W 72 $(output_file) $$expected_file); then\
-		printf "\e[32mTest $(test_name) passed!\e[0m\n";\
+	elif output=$$(diff -y -W 72 $(output_file) $$expected_output_file); then\
+		printf "\e[32mTest $(test_name) passed (output)!\e[0m\n";\
 	else\
-		printf "\e[31mTest $(test_name) not passed\e[0m\n";\
+		printf "\e[31mTest $(test_name) not passed (output)\e[0m\n";\
 	fi;
 
 clean:

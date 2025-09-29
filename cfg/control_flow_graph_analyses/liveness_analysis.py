@@ -55,10 +55,9 @@ def liveness_iteration(self):
 
     if self.next or self.target_bb:
         self.live_out = reduce(lambda x, y: x.union(y), [s.live_in for s in self.succ()], set([]))
-    else:  # Consider live out all the global vars
+    else:  # consider live out all the global vars
         func = self.get_function()
-        if func.parent is not None:  # main
-            self.live_out = set(func.get_global_symbols())
+        self.live_out = set(func.get_global_symbols())
 
     self.live_in = self.gen.union(self.live_out - self.kill)
     return not (lin == len(self.live_in) and lout == len(self.live_out))

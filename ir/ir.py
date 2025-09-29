@@ -118,9 +118,11 @@ class LabelType(Type):
         super().__init__('label', 0, 'Label', [])
         self.ids = 0
 
-    def __call__(self, target=None):
-        self.ids += 1
-        return Symbol(name=f"label{self.ids}", type=self, value=target, is_temporary=True)
+    def __call__(self, target=None, name=''):
+        if len(name) == 0:
+            self.ids += 1
+            return Symbol(name=f"label{self.ids}", type=self, value=target, is_temporary=True)
+        return Symbol(name=name, type=self, value=target, is_temporary=False)
 
 
 class FunctionType(Type):
@@ -141,6 +143,13 @@ class PointerType(Type):  # can't define a variable as type PointerType, it's us
 
     def is_printable(self):
         return self.is_string()
+
+
+class ErrorType(Type):  # can't define an error, it's created automatically
+    def __init__(self, error_number, error_message):
+        super().__init__('error', TYPENAMES['int'].size + REGISTER_SIZE, 'Error', ['printable'])
+        self.error_number = error_number
+        self.error_message = error_message
 
 
 TYPENAMES = {
@@ -220,6 +229,9 @@ class Symbol:
     def is_label(self):
         return isinstance(self.type, LabelType)
 
+    def is_error(self):
+        return isinstance(self.type, ErrorType)
+
     def __repr__(self):
         res = f"{self.alloct} {self.type}"
 
@@ -261,7 +273,7 @@ class SymbolTable(list):
                 return s
         raise RuntimeError(f"Looking up for symbol {name} in function {magenta(f'{node.current_function.name}')} failed!")
 
-    def push(self, symbol):
+    def push(self, symbol):  # TODO: we need to check that the symbol doesn't already exist
         self.insert(0, symbol)
 
     def __repr__(self):
@@ -270,9 +282,6 @@ class SymbolTable(list):
             res += f"\t{symbol}\n"
         res += "}"
         return res
-
-    def exclude_without_qualifier(self, qualifier):
-        return [symb for symb in self if qualifier in symb.type.qualifiers]
 
     def exclude_alloct(self, allocts):
         return [symb for symb in self if symb.alloct not in allocts]
@@ -648,7 +657,7 @@ class StoreInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        if self.dest.is_pointer():
+        if self.dest.is_pointer() and not self.symbol.is_pointer():
             return f"[{self.dest}] {bold('<-')} {self.symbol}"
         return f"{self.dest} {bold('<-')} {self.symbol}"
 
@@ -888,7 +897,16 @@ class FunctionDef(IRInstruction):
         self.called_by_counter = called_by_counter
 
     def get_global_symbols(self):
-        return self.body.global_symtab.exclude_without_qualifier('assignable')
+        global_symbols = []
+        for symb in self.body.global_symtab:
+            if 'assignable' in symb.type.qualifiers:
+                global_symbols.append(symb)
+            elif symb.is_error():
+                global_symbols.append(symb)
+                global_symbols.append(symb.type.error_number)
+                global_symbols.append(symb.type.error_message)
+
+        return global_symbols
 
     def __deepcopy__(self, memo):
         new_body = deepcopy(self.body, memo)

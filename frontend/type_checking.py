@@ -5,7 +5,7 @@ leaves (e.g. Vars) and Expressions have their own type, while Statements have
 the 'statement' type; for statements, check that types are respected (e.g. only
 print printable stuff, call with the right arguments, ...)"""
 
-from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList, BINARY_CONDITIONALS, UNARY_CONDITIONALS
+from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, PanicStat, StatList, BINARY_CONDITIONALS, UNARY_CONDITIONALS
 from ir.function_tree import FunctionTree
 from ir.ir import ArrayType, TYPENAMES
 from logger import log_indentation, green, underline
@@ -300,6 +300,32 @@ def return_stat_type_checking(self):
 
 
 ReturnStat.type_checking = return_stat_type_checking
+
+
+def panic_stat_type_checking(self):
+    self.type = TYPENAMES['statement']
+
+    match len(self.children):
+        case 0:
+            return  # no error number, no error string
+
+        case 1:
+            if self.children[0].type != TYPENAMES['int'] and not self.children[0].type.is_string():
+                raise TypeError(f"Element of panic statement should be either int, char[] or both, not {self.children[0].type}")
+            return
+
+        case 2:
+            if self.children[0].type != TYPENAMES['int']:
+                raise TypeError(f"First element of panic statement should be int, not {self.children[0].type}")
+            elif not self.children[1].type.is_string():
+                raise TypeError(f"Second element of panic statement should be char[], not {self.children[1].type}")
+            return
+
+        case _:
+            raise TypeError(f"Panic statement should only have two elements, not {len(self.children)}")
+
+
+PanicStat.type_checking = panic_stat_type_checking
 
 
 def stat_list_type_checking(self):

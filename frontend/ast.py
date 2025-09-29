@@ -502,10 +502,10 @@ class IfStat(Stat):
         instrs = [self.cond, branch_to_then]
 
         # elifs branches
-        elifs_label_insts = []
+        elifs_label_instrs = []
         for i in range(0, len(self.elifspart.children)):
             elif_label = ir.TYPENAMES['label']()
-            elifs_label_insts.append(ir.LabelInstruction(self.parent, label=elif_label, symtab=self.symtab))
+            elifs_label_instrs.append(ir.LabelInstruction(self.parent, label=elif_label, symtab=self.symtab))
             branch_to_elif = ir.BranchInstruction(cond=self.children[i].destination(), target=elif_label, symtab=self.symtab)
             instrs += [self.children[i], branch_to_elif]
 
@@ -531,10 +531,10 @@ class IfStat(Stat):
             last_elif_instruction = elifspart.children[0].children[-1]
 
             if isinstance(last_elif_instruction, ir.BranchInstruction) and last_elif_instruction.is_return():
-                instrs += [elifs_label_insts[i], elifspart]
+                instrs += [elifs_label_instrs[i], elifspart]
                 no_exit_label &= True
             else:
-                instrs += [elifs_label_insts[i], elifspart, branch_to_exit]
+                instrs += [elifs_label_instrs[i], elifspart, branch_to_exit]
                 no_exit_label &= False  # if a single elif needs the exit label, put it there
 
         instrs += [then_label_instr, self.thenpart]
@@ -818,6 +818,86 @@ class ReturnStat(Stat):
             new_children.append(deepcopy(child, memo))
 
         return ReturnStat(parent=self.parent, children=new_children, symtab=self.symtab)
+
+
+class PanicStat(Stat):
+    def __init__(self, parent=None, children=[], symtab=None):
+        log_indentation(bold(f"New PanicStat Node (id: {id(self)})"))
+        super().__init__(parent, children, symtab)
+
+    def load_default_error_number(self):
+        one = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
+        load_error_number = ir.LoadImmInstruction(dest=one, val=1, symtab=self.symtab)
+
+        error_number_symbol = FunctionTree.get_global_symbol("main_error").type.error_number
+        store_error_number = ir.StoreInstruction(dest=error_number_symbol, symbol=one, symtab=self.symtab)
+
+        return load_error_number, store_error_number
+
+    def load_default_error_message(self):
+        error_message = "Runtime Error"
+        data_variable = ir.DataSymbolTable.add_data_symbol(ir.ArrayType(None, [len(error_message) + 1], ir.TYPENAMES['char']), value=error_message)
+
+        message_ptr = ir.new_temporary(self.symtab, ir.PointerType(data_variable.type.basetype))
+        load_error_message = ir.LoadPointerInstruction(dest=message_ptr, symbol=data_variable, symtab=self.symtab)
+
+        error_message_symbol = FunctionTree.get_global_symbol("main_error").type.error_message
+        store_error_message = ir.StoreInstruction(dest=error_message_symbol, symbol=message_ptr, symtab=self.symtab)
+
+        return load_error_message, store_error_message
+
+    def lower(self):
+        instrs = self.children
+
+        match len(self.children):
+            case 0:
+                load_error_number, store_error_number = self.load_default_error_number()
+                instrs += [load_error_number, store_error_number]
+
+                load_error_message, store_error_message = self.load_default_error_message()
+                instrs += [load_error_message, store_error_message]
+
+            case 1:
+                if self.children[0].destination().type == ir.TYPENAMES['int']:
+                    error_number_symbol = FunctionTree.get_global_symbol("main_error").type.error_number
+                    store_error_number = ir.StoreInstruction(dest=error_number_symbol, symbol=self.children[0].destination(), symtab=self.symtab)
+                    instrs += [store_error_number]
+
+                    load_error_message, store_error_message = self.load_default_error_message()
+                    instrs += [load_error_message, store_error_message]
+                elif self.children[0].destination().type.is_string():
+                    load_error_number, store_error_number = self.load_default_error_number()
+                    instrs += [load_error_number, store_error_number]
+
+                    error_message_symbol = FunctionTree.get_global_symbol("main_error").type.error_message
+                    store_error_message = ir.StoreInstruction(dest=error_message_symbol, symbol=self.children[0].destination(), symtab=self.symtab)
+                    instrs += [store_error_message]
+
+            case 2:
+                error_number_symbol = FunctionTree.get_global_symbol("main_error").type.error_number
+                store_error_number = ir.StoreInstruction(dest=error_number_symbol, symbol=self.children[0].destination(), symtab=self.symtab)
+                instrs += [store_error_number]
+
+                error_message_symbol = FunctionTree.get_global_symbol("main_error").type.error_message
+                store_error_message = ir.StoreInstruction(dest=error_message_symbol, symbol=self.children[1].destination(), symtab=self.symtab)
+                instrs += [store_error_message]
+
+            case _:
+                raise TypeError(f"Panic statement should only have two elements, not {len(self.children)}")
+
+        # jump to the main exit label
+        main_exit_label = FunctionTree.get_global_symbol("main_exit_label")
+        branch_to_exit = ir.BranchInstruction(target=main_exit_label, symtab=self.symtab)
+        instrs += [branch_to_exit]
+
+        return self.parent.replace(self, ir.InstructionList(self.parent, instrs, self.symtab))
+
+    def __deepcopy__(self, memo):
+        new_children = []
+        for child in self.children:
+            new_children.append(deepcopy(child, memo))
+
+        return PanicStat(parent=self.parent, children=new_children, symtab=self.symtab)
 
 
 class StatList(Stat):

@@ -1,0 +1,9 @@
+BEGIN
+	if 1 > 2 then begin
+		print "Okay";
+	end else begin
+		panic(34, "Panic: not expecting 1 <= 2");
+	end;
+
+	print "This should not print";
+END

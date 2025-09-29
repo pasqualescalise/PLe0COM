@@ -58,27 +58,6 @@ class Parser:
         self.error(f"Expecting {s}")
         return 0
 
-    def type(self):
-        self.expect('ident')
-
-        assignable_types = [x for x in ir.TYPENAMES if 'assignable' in ir.TYPENAMES[x].qualifiers]
-
-        if self.value in assignable_types or self.value == "char":
-            basetype = ir.TYPENAMES[self.value]
-
-        dims = []
-        while self.accept('lspar'):
-            self.expect('number')
-            dims.append(int(self.value))
-            self.expect('rspar')
-
-        if dims == []:
-            if basetype == ir.TYPENAMES['char']:
-                self.error("Can't use a variable of type char, only type char[]")
-            return basetype
-
-        return ir.ArrayType(None, dims, basetype)
-
     def array_offset(self, target, symtab):
         offset = None
         idxes = []
@@ -109,6 +88,28 @@ class Parser:
             else:
                 offset = ast.BinaryExpr(children=['plus', offset, planed], symtab=symtab)
         return offset
+
+    @logger
+    def type(self):
+        self.expect('ident')
+
+        assignable_types = [x for x in ir.TYPENAMES if 'assignable' in ir.TYPENAMES[x].qualifiers]
+
+        if self.value in assignable_types or self.value == "char":
+            basetype = ir.TYPENAMES[self.value]
+
+        dims = []
+        while self.accept('lspar'):
+            self.expect('number')
+            dims.append(int(self.value))
+            self.expect('rspar')
+
+        if dims == []:
+            if basetype == ir.TYPENAMES['char']:
+                self.error("Can't use a variable of type char, only type char[]")
+            return basetype
+
+        return ir.ArrayType(None, dims, basetype)
 
     @logger
     def static_array(self, symtab):
@@ -234,7 +235,7 @@ class Parser:
             self.expect('rparen')
             return expr
 
-        self.error("Can't accept {self.sym} as primary symbol")
+        self.error(f"Can't accept {self.sym} as primary symbol")
 
     # STATEMENTS
 
@@ -391,6 +392,24 @@ class Parser:
 
             return ast.ReturnStat(children=returns, symtab=symtab)
 
+        elif self.accept('panicsym'):
+            self.expect('lparen')
+
+            exprs = []
+
+            if self.new_sym != 'rparen':
+                exprs.append(self.expression(symtab))
+
+            if self.accept('comma'):
+                exprs.append(self.expression(symtab))
+            else:
+                if self.new_sym != 'rparen':
+                    exprs.append(self.expression(symtab))
+
+            self.expect('rparen')
+
+            return ast.PanicStat(children=exprs, symtab=symtab)
+
         self.error("Error while parsing statement")
 
     @logger
@@ -522,13 +541,28 @@ class Parser:
 
         return new_symbols
 
+    def initialize_global_symtab(self):
+        global_symtab = ir.SymbolTable()
+
+        main_exit_label = ir.LabelType()(name="main_exit_label")
+        global_symtab.append(main_exit_label)
+
+        main_error_number = ir.Symbol("main_error_number", ir.TYPENAMES['int'], alloct='global', function_symbol=self.current_function)
+        main_error_message = ir.Symbol("main_error_message", ir.PointerType(ir.TYPENAMES['char']), alloct='global', function_symbol=self.current_function)
+        main_error = ir.Symbol("main_error", ir.ErrorType(main_error_number, main_error_message), alloct='global', function_symbol=self.current_function)
+        global_symtab.append(main_error)
+
+        return global_symtab
+
     @logger
     def program(self):
         """Axiom"""
         # for the main, this acts also as the local_symtab
-        global_symtab = ir.SymbolTable()
+        global_symtab = self.initialize_global_symtab()
         self.getsym()
+
         main_body = self.block(global_symtab, global_symtab, alloct='global')
         main = ir.FunctionDef(symbol=self.current_function, parameters=[], body=main_body, returns=[], called_by_counter=1)
+
         self.expect('end of file')
         return main

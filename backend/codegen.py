@@ -4,6 +4,7 @@
 Codegen functions return a string, consisting of the assembly code they
 correspond to"""
 
+from ir.function_tree import FunctionTree
 from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, LabelInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
 from backend.codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
@@ -11,8 +12,12 @@ from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remo
 
 
 def symbol_codegen(self, regalloc):
+    if self.is_error():  # errors must not be allocated, but their number and error message pointer must
+        return self.type.error_number.codegen(regalloc) + self.type.error_message.codegen(regalloc)
+
     if self.allocinfo is None:
         return ""
+
     if not isinstance(self.allocinfo, LocalSymbolLayout):
         return ii(f".comm {green(f'{self.allocinfo.symname}')}, {self.allocinfo.bsize}\n")
     else:
@@ -87,8 +92,23 @@ def block_codegen(self, regalloc):
         res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
         res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
         if self.parent.parent is None:
-            res += ii(f"{blue('mov')} {get_register_string(0)}, #{italic('0')}")  # TODO: add a way to exit with not zero
-            res += ii(f"{comment('program ended successfully')}")
+            error_message_ptr = FunctionTree.get_global_symbol("main_error").type.error_message
+            res += ii(f"{comment('if present, print error message')}")
+            res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, ={green(f'{error_message_ptr.allocinfo.symname}')}\n")
+            res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, [{get_register_string(REG_SCRATCH)}]\n")
+            res += ii(f"{red('tst')} {get_register_string(REG_SCRATCH)}, {get_register_string(REG_SCRATCH)}\n")
+            res += ii(f"{red('beq')} {magenta('main_exit_number')}\n")
+            res += save_regs(REGS_CALLERSAVE + [REG_LR])
+            res += ii(f"{blue('mov')} {get_register_string(0)}, {get_register_string(REG_SCRATCH)}\n")
+            res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(1)}\n")
+            res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
+            res += restore_regs(REGS_CALLERSAVE + [REG_LR])
+
+            res += hi(magenta("main_exit_number:\n"))
+            error_number_symbol = FunctionTree.get_global_symbol("main_error").type.error_number
+            res += ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, ={green(f'{error_number_symbol.allocinfo.symname}')}\n")
+            res += ii(f"{blue('ldr')} {get_register_string(0)}, [{get_register_string(REG_SCRATCH)}]")
+            res += ii(f"{comment('exit code, 0 on success')}")
         res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
 
     # the place that the loads use to resolve labels (using `ldr rx, =address`)
@@ -442,6 +462,8 @@ def store_codegen(self, regalloc):
     # XXX: not entirely sure about this
     if self.dest.is_array():
         desttype = PointerType(self.dest.type.basetype)
+    elif self.dest.is_pointer() and self.symbol.is_pointer():  # move between pointers
+        desttype = self.dest.type
     elif self.dest.is_pointer():
         desttype = self.dest.type.pointstotype
     else:

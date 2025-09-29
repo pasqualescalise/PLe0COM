@@ -107,6 +107,10 @@ class FunctionTree:
         return function_definition
 
     @staticmethod
+    def get_global_symbol(symbol_name):
+        return FunctionTree.root.definition.body.symtab.find(FunctionTree.root.definition, symbol_name)
+
+    @staticmethod
     def navigate(action, *args, quiet=False):
         FunctionTree.__navigate(FunctionTree.root, action, *args, quiet=quiet)
 

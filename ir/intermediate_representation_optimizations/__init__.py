@@ -6,6 +6,7 @@ lowering, on IR instructions"""
 from ir.function_tree import FunctionTree
 from ir.intermediate_representation_optimizations.memory_to_register_promotion import memory_to_register_promotion
 from ir.intermediate_representation_optimizations.function_inlining import function_inlining
+from ir.ir import LabelInstruction
 from logger import h3
 
 
@@ -17,3 +18,8 @@ def perform_intermediate_representation_optimizations(program, optimization_leve
     if optimization_level > 1:
         print(h3("FUNCTION INLINING"))
         FunctionTree.navigate(function_inlining, quiet=True)
+
+    # TODO: move this to a separate file
+    main_exit_label = FunctionTree.get_global_symbol("main_exit_label")
+    main_exit = LabelInstruction(parent=program.body.body, label=main_exit_label)
+    program.body.body.children.append(main_exit)

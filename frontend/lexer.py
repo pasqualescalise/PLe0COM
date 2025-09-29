@@ -53,7 +53,8 @@ TOKEN_DEFS = {
     'or': ['or'],
     'print': ['!', 'print'],
     'read': ['?', 'read'],
-    'quote': ['"']
+    'quote': ['"'],
+    'panicsym': ['panic']
 }
 
 
