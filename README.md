@@ -23,6 +23,7 @@ I'm using it to experiment and have fun with compiler stuff
 + Fully working test suite
 + PEP8 compliant (except E501)
 + ARM ABI compliant (circa, since we can return multiple values)
++ An AST interpreter
 
 ## Dependencies
 
@@ -62,7 +63,7 @@ to generate an ARMv6 assembly file
 To compile to an actual binary, just use
 
 ```sh
-make compile test=<input_file> [EXECUTABLE=<executable> (default: out)]
+make compile test=<input_file> [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 ### Execute
@@ -70,7 +71,7 @@ make compile test=<input_file> [EXECUTABLE=<executable> (default: out)]
 To run the binary on a non-ARM Linux machine, then use
 
 ```sh
-make execute [EXECUTABLE=<executable> (default: out)]
+make execute [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 ### Compile and Execute
@@ -78,7 +79,7 @@ make execute [EXECUTABLE=<executable> (default: out)]
 Or just do both with
 
 ```sh
-make test=<input_file> [EXECUTABLE=<executable> (default: out)]
+make test=<input_file> [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 If the input file is present in the `tests` directory, it also checks if its output (in the `tests/expected`) directory is correct
@@ -88,7 +89,7 @@ If the input file is present in the `tests` directory, it also checks if its out
 To debug the executable on a non-ARM machine, use
 
 ```sh
-make test=<input_file> dbg=True [EXECUTABLE=<executable> (default: out)]
+make test=<input_file> dbg=True [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 and in another terminal
@@ -98,6 +99,16 @@ make dbg
 ```
 
 The debugger can be set in the Makefile or using the variable `$(DEBUGGER)`; I use [pwndbg](https://github.com/pwndbg/pwndbg/), if you want standard gdb on a non-ARM machine use gdb-multiarch
+
+### Interpreter
+
+You can run the Abstract Syntax Tree Intepreter with
+
+```sh
+make test=<input_file> interpret=True [OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+```
+
+If the input file is present in the `tests` directory, it also checks if its output (in the `tests/expected`) directory is correct
 
 ## Testing
 

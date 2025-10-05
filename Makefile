@@ -17,7 +17,17 @@ CFG_DOT_FILE := cfg/cfg.dot
 CFG_PDF_FILE := cfg/cfg.pdf
 CFG_PNG_FILE := cfg/cfg.png
 
-all: compile execute
+INTERPRET := $(interpret)
+
+all: test
+
+test:
+ifndef INTERPRET
+	$(MAKE) compile
+	$(MAKE) execute
+else
+	$(MAKE) interpret output_file=$(TESTS_OUT_DIR)/single_test.output
+endif
 
 compile:
 	if [ $(test) ]; then\
@@ -45,12 +55,34 @@ execute:
 		$(RUN_COMMAND) $(EXECUTABLE);\
 	fi;
 
+interpret:
+	if [ $(test) ]; then\
+		if [ ! -d $(TESTS_OUT_DIR) ]; then\
+			mkdir $(TESTS_OUT_DIR);\
+		fi;\
+		test_name=$$(basename "$(test)" .pl0);\
+		python3 main.py -i $(test) -o $(output_file) -O$(OPTIMIZATION_LEVEL) -I;\
+		if [ ! $$? -eq 0 ]; then\
+			printf "\n\e[31mThe program didn't interpret successfully\e[0m\n";\
+			exit 1;\
+		fi;\
+		if [ $(dontcheck) ]; then\
+			cat $(output_file);\
+		else\
+			cat $(output_file);\
+			$(MAKE) -s check_output test_name=$$test_name output_file=$(output_file);\
+		fi;\
+	else\
+		printf "\n\e[31mPlease specify input test\e[0m\n";\
+	fi;
+
 testall:
 	if [ ! -d $(TESTS_OUT_DIR) ]; then\
 		mkdir $(TESTS_OUT_DIR);\
 	else\
 		rm -f $(TESTS_OUT_DIR)/*;\
 	fi;
+ifndef INTERPRET
 	for test_file in $(TESTS_SRC_DIR)/*.pl0; do\
 		test_name=$$(basename "$$test_file" .pl0);\
 		output_file=$(TESTS_OUT_DIR)/"$$test_name".output;\
@@ -64,6 +96,19 @@ testall:
 		fi;\
 		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file;\
 	done;
+else
+	for test_file in $(TESTS_SRC_DIR)/*.pl0; do\
+		test_name=$$(basename "$$test_file" .pl0);\
+		output_file=$(TESTS_OUT_DIR)/"$$test_name".output;\
+		$(MAKE) interpret test="$$test_file" output_file="$$output_file" dontcheck=True &> /dev/null;\
+		return_value=$$(echo $$?);\
+		if [ ! "$$return_value" -eq "0" ]; then\
+			sed -i -e "\$$d" $$output_file;\
+			sed -n -i -e "\$$p" $$output_file;\
+		fi;\
+		$(MAKE) -s check_output test_name=$$test_name output_file=$$output_file;\
+	done;
+endif
 
 check_output:
 	expected_file=$(TESTS_EXP_DIR)/"$(test_name)".expected;\

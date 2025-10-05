@@ -8,6 +8,7 @@ from frontend.lexer import Lexer
 from frontend.parser import Parser
 from frontend.abstract_syntax_tree_optimizations import perform_abstract_syntax_tree_optimizations
 from frontend.type_checking import perform_type_checking
+from frontend.interpreter import perform_interpretation
 
 from ir.support import get_node_list, lowering, flattening
 from ir.intermediate_representation_optimizations import perform_intermediate_representation_optimizations
@@ -25,7 +26,7 @@ from backend.post_code_generation_optimizations import perform_post_code_generat
 from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, cyan, bold, italic, underline
 
 
-def compile_program(text, optimization_level):
+def compile_program(text, optimization_level, interpret, output_file):
     print(h1("FRONT-END"))
 
     print(h2("PARSING"))
@@ -66,6 +67,11 @@ def compile_program(text, optimization_level):
             print(f"{bold(node.get_content())}")
         except AttributeError:
             pass  # not a StatList
+
+    if interpret:
+        print(h2("INTERPRETER"))
+        perform_interpretation(program, output_file)
+        exit()
 
     ##############################################
 
@@ -136,8 +142,9 @@ def driver_main():
     parser = ArgumentParser(prog="Pl0COM", description="Optimizing compiler for the (modified) PL/0 language", epilog="")
 
     parser.add_argument('-i', '--input_file', required="True")
-    parser.add_argument('-o', '--output_file', default="out.s")
+    parser.add_argument('-o', '--output_file', default="out.s", help="Compilation: assembly output, Interpretation: output file")
     parser.add_argument('-O', '--optimization_level', default="2", choices=["0", "1", "2"])
+    parser.add_argument('-I', '--interpret', default=False, action='store_true')
 
     args = parser.parse_args()
 
@@ -145,7 +152,7 @@ def driver_main():
     with open(args.input_file, 'r') as inf:
         test_program = inf.read()
 
-    code = compile_program(test_program, int(args.optimization_level))
+    code = compile_program(test_program, int(args.optimization_level), args.interpret, args.output_file)
 
     # write the code in the file specifed in the arguments
     with open(args.output_file, 'w') as outf:
