@@ -128,14 +128,16 @@ def compile_program(text, optimization_level, interpret, output_file):
 
     print(h2("CODE GENERATION"))
     code = generate_code(program, register_allocation)
-    print(f"\n{green('Final compiled code: ')}\n\n{code}")
+    printable_code = '\n'.join([repr(x) for x in code]) + '\n'
+    print(f"\n{green('Final compiled code: ')}\n\n{printable_code}")
 
     # XXX: THE LAST OPTIMIZATIONS GO HERE
     print(h2("POST-CODE-GENERATION OPTIMIZATIONS"))
     code = perform_post_code_generation_optimizations(code, optimization_level)
-    print(f"\n{green('Final optimized code: ')}\n\n{code}")
+    printable_code = '\n'.join([repr(x) for x in code]) + '\n'
+    print(f"\n{green('Final optimized code: ')}\n\n{printable_code}")
 
-    return remove_formatting(code)
+    return remove_formatting(printable_code)
 
 
 def driver_main():

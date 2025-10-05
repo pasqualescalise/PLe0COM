@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 
 """Code generation methods for all low-level nodes in the IR.
-Codegen functions return a string, consisting of the assembly code they
-correspond to"""
+Codegen functions return an array of ASMInstructions"""
 
 from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, LabelInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
-from backend.codegenhelp import comment, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
+from backend.codegenhelp import ASMInstruction, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
-from logger import ii, hi, red, green, yellow, blue, magenta, cyan, italic, remove_formatting
+from logger import red, green, magenta, italic, remove_formatting
 
 
 def symbol_codegen(self, regalloc):
     if self.allocinfo is None:
-        return ""
+        return []
     if not isinstance(self.allocinfo, LocalSymbolLayout):
-        return ii(f".comm {green(f'{self.allocinfo.symname}')}, {self.allocinfo.bsize}\n")
+        return [ASMInstruction(".comm", args=[green(f'{self.allocinfo.symname}'), self.allocinfo.bsize])]
     else:
         if self.allocinfo.fpreloff > 0:
-            return ii(f".equ {green(f'{self.allocinfo.symname}')}, {self.allocinfo.fpreloff}\n")
+            return [ASMInstruction(".equ", args=[green(f'{self.allocinfo.symname}'), self.allocinfo.fpreloff])]
         else:
-            return ii(f".equ {green(f'{self.allocinfo.symname}')}, {self.allocinfo.fpreloff - regalloc.spill_room()}\n")
+            return [ASMInstruction(".equ", args=[green(f'{self.allocinfo.symname}'), self.allocinfo.fpreloff - regalloc.spill_room()])]
 
 
 Symbol.codegen = symbol_codegen
@@ -33,7 +32,7 @@ IRInstruction.codegen = irinstruction_codegen
 
 
 def instruction_list_codegen(self, regalloc):
-    res = ""
+    res = []
 
     if len(self.children) > 0:
         for child in self.children:
@@ -48,7 +47,7 @@ InstructionList.codegen = instruction_list_codegen
 
 
 def block_codegen(self, regalloc):
-    res = ii(f"{comment('new function')}")
+    res = [ASMInstruction("", comment="new function")]
 
     parameters = []
 
@@ -63,14 +62,14 @@ def block_codegen(self, regalloc):
 
     # prelude
     res += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res += ii(f"{blue('mov')} {get_register_string(REG_FP)}, {get_register_string(REG_SP)}\n")
-    res += ii(f"{cyan('push')} {{{get_register_string(REG_SCRATCH)}}}\n")  # push the static chain pointer
+    res += [ASMInstruction('mov', args=[get_register_string(REG_FP), get_register_string(REG_SP)])]
+    res += [ASMInstruction('push', args=[f"{{{get_register_string(REG_SCRATCH)}}}"])]  # push the static chain pointer
     stacksp = self.stackroom + regalloc.spill_room() - 4
-    res += ii(f"{yellow('sub')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{stacksp}')}\n")
+    res += [ASMInstruction('sub', args=[get_register_string(REG_SP), get_register_string(REG_SP), f"#{italic(f'{stacksp}')}"])]
 
     # save the first 4 parameters, in reverse order, on the stack
     for i in range(len(parameters[:4]) - 1, -1, -1):
-        res += ii(f"{cyan('push')} {{{get_register_string(i)}}}\n")
+        res += [ASMInstruction('push', args=[f"{{{get_register_string(i)}}}"])]
 
     regalloc.enter_function_body(self)
     try:
@@ -84,16 +83,14 @@ def block_codegen(self, regalloc):
         # optmization: if the last instruction is a return this instructions are useless
         pass
     else:
-        res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
+        res += [ASMInstruction('mov', args=[get_register_string(REG_SP), get_register_string(REG_FP)])]
         res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
         if self.parent.parent is None:
-            res += ii(f"{blue('mov')} {get_register_string(0)}, #{italic('0')}")  # TODO: add a way to exit with not zero
-            res += ii(f"{comment('program ended successfully')}")
-        res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
+            res += [ASMInstruction('mov', args=[get_register_string(0), f"#{italic('0')}"], comment="program ended successfully")]  # TODO: add a way to exit with not zero
+        res += [ASMInstruction('bx', args=[get_register_string(REG_LR)])]
 
     # the place that the loads use to resolve labels (using `ldr rx, =address`)
-    res += ii(".ltorg")
-    res += ii(f"{comment('constant pool')}")
+    res += [ASMInstruction('.ltorg', comment="constant pool")]
 
     try:
         res += self.defs.codegen(regalloc)
@@ -108,7 +105,11 @@ Block.codegen = block_codegen
 
 
 def definitionlist_codegen(self, regalloc):
-    return ''.join([child.codegen(regalloc) for child in self.children])
+    res = []
+    for child in self.children:
+        res += child.codegen(regalloc)
+
+    return res
 
 
 DefinitionList.codegen = definitionlist_codegen
@@ -116,10 +117,10 @@ DefinitionList.codegen = definitionlist_codegen
 
 def functiondef_codegen(self, regalloc):
     if self.parent is None:
-        res = ii(f".global {magenta('main')}\n\n")
-        res += magenta("main:\n")
+        res = [ASMInstruction('.global', args=[magenta('main')], additional_newlines=1)]
+        res += [ASMInstruction(magenta("main:"), indentation=0)]
     else:
-        res = magenta(f"\n{self.symbol.name}:\n")
+        res = [ASMInstruction(magenta(f"\n{self.symbol.name}:"), indentation=0)]
     res += self.body.codegen(regalloc)
     return res
 
@@ -138,59 +139,60 @@ def binary_codegen(self, regalloc):
 
     # algebric operations
     if self.op == "plus":
-        res += ii(f"{yellow('add')} {rd}, {param}\n")
+        res += [ASMInstruction('add', args=[rd, param])]
     elif self.op == "minus":
-        res += ii(f"{yellow('sub')} {rd}, {param}\n")
+        res += [ASMInstruction('sub', args=[rd, param])]
     elif self.op == "times":
-        res += ii(f"{yellow('mul')} {rd}, {param}\n")
+        res += [ASMInstruction('mul', args=[rd, param])]
     elif self.op == "slash":
         # XXX: this should never happen, since there is no "div" instruction in armv6
         pass
     elif self.op == "shl":
-        res += ii(f"{yellow('lsl')} {rd}, {param}\n")
+        res += [ASMInstruction('lsl', args=[rd, param])]
     elif self.op == "shr":
-        res += ii(f"{yellow('lsr')} {rd}, {param}\n")
+        res += [ASMInstruction('lsr', args=[rd, param])]
     elif self.op == "mod":
-        res += ii(f"{yellow('add')} {rd}, {param}\n")
-        res += ii(f"{yellow('sub')} {get_register_string(REG_SCRATCH)}, {rb}, #{italic('1')}\n")
-        res += ii(f"{yellow('and')} {rd}, {rd}, {get_register_string(REG_SCRATCH)}\n")
+        res += [ASMInstruction('add', args=[rd, param])]
+        res += [ASMInstruction('sub', args=[get_register_string(REG_SCRATCH), rb, f"#{italic('1')}"])]
+        res += [ASMInstruction('and', args=[rd, rd, get_register_string(REG_SCRATCH)])]
 
     # conditional operations
     elif self.op == "eql":
-        res += ii(f"{yellow('cmp')} {param}\n")
-        res += ii(f"{blue('moveq')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movne')} {rd}, #{italic('0')}\n")
+        res += [ASMInstruction('cmp', args=[param])]
+        res += [ASMInstruction('moveq', args=[rd, f"#{italic('1')}"])]
+        res += [ASMInstruction('movne', args=[rd, f"#{italic('0')}"])]
     elif self.op == "neq":
-        res += ii(f"{yellow('cmp')} {param}\n")
-        res += ii(f"{blue('moveq')} {rd}, #{italic('0')}\n")
-        res += ii(f"{blue('movne')} {rd}, #{italic('1')}\n")
+        res += [ASMInstruction('cmp', args=[param])]
+        res += [ASMInstruction('moveq', args=[rd, f"#{italic('0')}"])]
+        res += [ASMInstruction('movne', args=[rd, f"#{italic('1')}"])]
     elif self.op == "lss":
-        res += ii(f"{yellow('cmp')} {param}\n")
-        res += ii(f"{blue('movlt')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movge')} {rd}, #{italic('0')}\n")
+        res += [ASMInstruction('cmp', args=[param])]
+        res += [ASMInstruction('movlt', args=[rd, f"#{italic('1')}"])]
+        res += [ASMInstruction('movge', args=[rd, f"#{italic('0')}"])]
     elif self.op == "leq":
-        res += ii(f"{yellow('cmp')} {param}\n")
-        res += ii(f"{blue('movle')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movgt')} {rd}, #{italic('0')}\n")
+        res += [ASMInstruction('cmp', args=[param])]
+        res += [ASMInstruction('movle', args=[rd, f"#{italic('1')}"])]
+        res += [ASMInstruction('movgt', args=[rd, f"#{italic('0')}"])]
     elif self.op == "gtr":
-        res += ii(f"{yellow('cmp')} {param}\n")
-        res += ii(f"{blue('movgt')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movle')} {rd}, #{italic('0')}\n")
+        res += [ASMInstruction('cmp', args=[param])]
+        res += [ASMInstruction('movgt', args=[rd, f"#{italic('1')}"])]
+        res += [ASMInstruction('movle', args=[rd, f"#{italic('0')}"])]
     elif self.op == "geq":
-        res += ii(f"{yellow('cmp')} {param}\n")
-        res += ii(f"{blue('movge')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movlt')} {rd}, #{italic('0')}\n")
+        res += [ASMInstruction('cmp', args=[param])]
+        res += [ASMInstruction('movge', args=[rd, f"#{italic('1')}"])]
+        res += [ASMInstruction('movlt', args=[rd, f"#{italic('0')}"])]
 
     # logic operations
     elif self.op == "and":
-        res += ii(f"{yellow('and')} {rd}, {param}\n")
+        res += [ASMInstruction('and', args=[rd, param])]
     elif self.op == "or":
-        res += ii(f"{yellow('orr')} {rd}, {param}\n")
+        res += [ASMInstruction('orr', args=[rd, param])]
 
     else:
         raise RuntimeError(f"Operation {self.op} unexpected")
 
-    return res + regalloc.gen_spill_store_if_necessary(self.dest)
+    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    return res
 
 
 BinaryInstruction.codegen = binary_codegen
@@ -204,20 +206,20 @@ def unary_codegen(self, regalloc):
     # algebric operations
     if self.op == 'plus':
         if rs != rd:
-            res += ii(f"{blue('mov')} {rd}, {rs}\n")
+            res += [ASMInstruction('mov', args=[rd, rs])]
     elif self.op == 'minus':
-        res += ii(f"{blue('mvn')} {rd}, {rs}\n")
-        res += ii(f"{yellow('add')} {rd}, {rd}, #{italic('1')}\n")
+        res += [ASMInstruction('mvn', args=[rd, rs])]
+        res += [ASMInstruction('add', args=[rd, rd, f"#{italic('1')}"])]
 
     # conditional operations
     elif self.op == 'odd':
-        res += ii(f"{yellow('and')} {rd}, {rs}, #{italic('1')}\n")
+        res += [ASMInstruction('and', args=[rd, rs, f"#{italic('1')}"])]
 
     # logic operations
     elif self.op == 'not':
-        res += ii(f"{blue('cmp')} {rs}, #{italic('0')}\n")
-        res += ii(f"{blue('moveq')} {rd}, #{italic('1')}\n")
-        res += ii(f"{blue('movne')} {rd}, #{italic('0')}\n")
+        res += [ASMInstruction('cmp', args=[rs, f"#{italic('0')}"])]
+        res += [ASMInstruction('moveq', args=[rd, f"#{italic('1')}"])]
+        res += [ASMInstruction('movne', args=[rd, f"#{italic('0')}"])]
 
     else:
         raise RuntimeError(f"Unexpected operation {self.op}")
@@ -234,25 +236,25 @@ def print_codegen(self, regalloc):
     rp = regalloc.get_register_for_variable(self.src)
 
     res += save_regs(REGS_CALLERSAVE)
-    res += ii(f"{blue('mov')} {get_register_string(0)}, {rp}\n")
+    res += [ASMInstruction('mov', args=[get_register_string(0), rp])]
     if self.newline:
-        res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(1)}\n")
+        res += [ASMInstruction('mov', args=[get_register_string(1), f"#{italic(1)}"])]
     else:
-        res += ii(f"{blue('mov')} {get_register_string(1)}, #{italic(0)}\n")
+        res += [ASMInstruction('mov', args=[get_register_string(1), f"#{italic(0)}"])]
     if self.print_type.is_string():
-        res += ii(f"{red('bl')} {magenta('__pl0_print_string')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_string')])]
     elif self.print_type == TYPENAMES['boolean']:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_boolean')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_boolean')])]
     elif self.print_type == TYPENAMES['ubyte']:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_unsigned_byte')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_unsigned_byte')])]
     elif self.print_type == TYPENAMES['ushort']:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_unsigned_short')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_unsigned_short')])]
     elif self.print_type == TYPENAMES['byte']:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_byte')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_byte')])]
     elif self.print_type == TYPENAMES['short']:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_short')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_short')])]
     else:
-        res += ii(f"{red('bl')} {magenta('__pl0_print_integer')}\n")
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_integer')])]
     res += restore_regs(REGS_CALLERSAVE)
     return res
 
@@ -260,7 +262,7 @@ def print_codegen(self, regalloc):
 PrintInstruction.codegen = print_codegen
 
 
-def read_codegen(self, regalloc):
+def read_codegen(self, regalloc):  # TODO: this is not in use now
     rd = regalloc.get_register_for_variable(self.dest)
 
     # punch a hole in the saved registers if one of them is the destination
@@ -270,8 +272,8 @@ def read_codegen(self, regalloc):
         saved_regs.remove(regalloc.var_to_reg[self.dest])
 
     res = save_regs(saved_regs)
-    res += ii(f"{red('bl')} {magenta('__pl0_read')}\n")
-    res += ii(f"{blue('mov')} {rd}, {get_register_string(0)}\n")
+    res += [ASMInstruction('bl', args=[magenta('__pl0_read')])]
+    res += [ASMInstruction('mov', args=[rd, get_register_string(0)])]
     res += restore_regs(saved_regs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
@@ -282,11 +284,11 @@ ReadInstruction.codegen = read_codegen
 
 # TODO: documentation on the ABI
 def call_codegen(call, regalloc):
-    res = ""
+    res = []
 
     # add space on the stack for the return values
     if len(call.returns) > 0:
-        res += ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{len(call.returns) * -4}')}\n")
+        res += [ASMInstruction('add', args=[get_register_string(REG_SP), get_register_string(REG_SP), f"#{italic(f'{len(call.returns) * -4}')}"])]
 
     res += save_regs(REGS_CALLERSAVE)
 
@@ -295,7 +297,7 @@ def call_codegen(call, regalloc):
     # push on the stack all parameters after the first four
     for param_to_put_in_the_stack in call.parameters[4:]:
         res += regalloc.gen_spill_load_if_necessary(param_to_put_in_the_stack)
-        res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(param_to_put_in_the_stack)}}}\n")
+        res += [ASMInstruction('push', args=[f"{{{regalloc.get_register_for_variable(param_to_put_in_the_stack)}}}"])]
 
     # put the first 4 parameters in r0-r3
     for i in range(len(call.parameters[:4]) - 1, -1, -1):
@@ -304,27 +306,27 @@ def call_codegen(call, regalloc):
         var = regalloc.get_register_for_variable(call.parameters[i])
 
         if remove_formatting(var) not in ['r0', 'r1', 'r2', 'r3']:
-            res += ii(f"{blue('mov')} {reg}, {var}\n")
+            res += [ASMInstruction('mov', args=[reg, var])]
         else:
             # XXX: weird hack to resolve data dependencies:
             #      we have to get this value from one of r0-r3,
             #      but we may have already modified it; to solve this,
             #      use the caller saved register we just pushed on the stack
             pos = ['r0', 'r1', 'r2', 'r3'].index(remove_formatting(var))
-            res += ii(f"{blue('ldr')} {reg}, [{get_register_string(REG_SP)}, #{4 * (pos + num_stack_parameters)}]\n")
+            res += [ASMInstruction('ldr', args=[reg, f"[{get_register_string(REG_SP)}, #{4 * (pos + num_stack_parameters)}]"])]
 
     res += load_static_chain_pointer(call)
 
-    res += ii(f"{red('bl')} {magenta(call.target.name)}\n")
+    res += [ASMInstruction('bl', args=[magenta(call.target.name)])]
 
     # put the first 4 return values from r0-r3 on the stack
     for i in range(len(call.returns[:4]) - 1, -1, -1):
         pos = 4 * (i + 4 + num_stack_parameters)  # TODO documentation
-        res += ii(f"{blue('str')} {get_register_string(i)}, [{get_register_string(REG_SP)}, #{pos}]\n")
+        res += [ASMInstruction('str', args=[get_register_string(i), f"[{get_register_string(REG_SP)}, #{pos}]"])]
 
     # pop the parameters pushed previously
     for param_to_put_in_the_stack in list(reversed(call.parameters[4:])):
-        res += ii(f"{cyan('pop')} {{{regalloc.get_register_for_variable(param_to_put_in_the_stack)}}}\n")
+        res += [ASMInstruction('pop', args=[f"{{{regalloc.get_register_for_variable(param_to_put_in_the_stack)}}}"])]
         res += regalloc.gen_spill_store_if_necessary(param_to_put_in_the_stack)
 
     res += restore_regs(REGS_CALLERSAVE)
@@ -333,30 +335,30 @@ def call_codegen(call, regalloc):
     for i in range(len(call.returns)):
         if call.returns[i] != '_':
             reg = regalloc.get_register_for_variable(call.returns[i])
-            res += ii(f"{cyan('pop')} {{{reg}}}\n")
+            res += [ASMInstruction('pop', args=[f"{{{reg}}}"])]
             res += regalloc.gen_spill_store_if_necessary(call.returns[i])
         else:
-            res += ii(f"{yellow('add')} {get_register_string(REG_SP)}, {get_register_string(REG_SP)}, #{italic(f'{4}')}\n")
+            res += [ASMInstruction('add', args=[get_register_string(REG_SP), get_register_string(REG_SP), f"#{italic(f'{4}')}"])]
 
     return res
 
 
 def branch_codegen(self, regalloc):
-    res = ""
+    res = []
 
     if self.target is not None and not self.is_call():
         # just a branch
 
         target_label = magenta(self.target.name)
         if self.cond is None:
-            return ii(f"{red('b')} {target_label}\n")
+            return [ASMInstruction('b', args=[target_label])]
         else:
             res += regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
 
-            res += ii(f"{red('tst')} {rcond}, {rcond}\n")
-            op = red("beq" if self.negcond else "bne")
-            res += ii(f"{op} {target_label}\n")
+            res += [ASMInstruction('tst', args=[rcond, rcond])]
+            op = "beq" if self.negcond else "bne"
+            res += [ASMInstruction(op, args=[target_label])]
             return res
 
     elif self.is_return():
@@ -365,21 +367,21 @@ def branch_codegen(self, regalloc):
             ret = self.returns[4:][i]
             res += regalloc.gen_spill_load_if_necessary(ret)
             pos = CALL_OFFSET + 4 * (4 + i + len(self.parameters[4:]))  # TODO: documentation
-            res += ii(f"{blue('str')} {regalloc.get_register_for_variable(ret)}, [{get_register_string(REG_FP)}, #{pos}]\n")
+            res += [ASMInstruction('str', args=[regalloc.get_register_for_variable(ret), f"[{get_register_string(REG_FP)}, #{pos}]"])]
 
         # XXX: this is a hack: to avoid data dependencies, like `mov r0, r1; mov r1, r0`,
         #      push the 4 registers with the return value, then pop them in r0-r3
         for i in range(len(self.returns[:4])):
             ret = self.returns[i]
             res += regalloc.gen_spill_load_if_necessary(ret)
-            res += ii(f"{cyan('push')} {{{regalloc.get_register_for_variable(ret)}}}\n")
+            res += [ASMInstruction('push', args=[f"{{{regalloc.get_register_for_variable(ret)}}}"])]
 
         for i in range(len(self.returns[:4]) - 1, -1, -1):
-            res += ii(f"{cyan('pop')} {{{get_register_string(i)}}}\n")
+            res += [ASMInstruction('pop', args=[f"{{{get_register_string(i)}}}"])]
 
-        res += ii(f"{blue('mov')} {get_register_string(REG_SP)}, {get_register_string(REG_FP)}\n")
+        res += [ASMInstruction('mov', args=[get_register_string(REG_SP), get_register_string(REG_FP)])]
         res += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-        res += ii(f"{red('bx')} {get_register_string(REG_LR)}\n")
+        res += [ASMInstruction('bx', args=[get_register_string(REG_LR)])]
         return res
 
     # this branch is a call
@@ -390,7 +392,7 @@ BranchInstruction.codegen = branch_codegen
 
 
 def label_codegen(self, regalloc):
-    return hi(magenta(f"{self.label.name}:\n"))
+    return [ASMInstruction(magenta(f"{self.label.name}:"), indentation=1)]
 
 
 LabelInstruction.codegen = label_codegen
@@ -398,25 +400,26 @@ LabelInstruction.codegen = label_codegen
 
 def loadpointer_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
-    res = ''
+    res = []
 
     alloc_info = self.symbol.allocinfo
     if isinstance(alloc_info, LocalSymbolLayout):
-        res = ii(f"{yellow('add')} {rd}, {get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}\n")
+        res = [ASMInstruction('add', args=[rd, get_register_string(REG_FP), f"#{green(f'{alloc_info.symname}')}"])]
     else:
-        res = ii(f"{blue('ldr')} {rd}, ={magenta(f'{alloc_info.symname}')}\n")
-    return res + regalloc.gen_spill_store_if_necessary(self.dest)
+        res = [ASMInstruction('ldr', args=[rd, f"={magenta(f'{alloc_info.symname}')}"])]
+    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    return res
 
 
 LoadPointerInstruction.codegen = loadpointer_codegen
 
 
 def store_codegen(self, regalloc):
-    res = ''
+    res = []
 
     if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.dest.is_pointer():
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
-        res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
+        res += [ASMInstruction('mov', args=[regalloc.get_register_for_variable(self.dest), regalloc.get_register_for_variable(self.symbol)])]
         res += regalloc.gen_spill_store_if_necessary(self.dest)
         return res
 
@@ -436,7 +439,7 @@ def store_codegen(self, regalloc):
                 dest = f"[{get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}]"
 
         else:
-            res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, ={green(f'{alloc_info.symname}')}\n")
+            res = [ASMInstruction('ldr', args=[get_register_string(REG_SCRATCH), f"={green(f'{alloc_info.symname}')}"])]
             dest = f"[{get_register_string(REG_SCRATCH)}]"
 
     # XXX: not entirely sure about this
@@ -452,7 +455,7 @@ def store_codegen(self, regalloc):
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
 
-    res += ii(f"{blue(f'str{typeid}')} {rsrc}, {dest}\n")
+    res += [ASMInstruction(f'str{typeid}', args=[rsrc, dest])]
     return res
 
 
@@ -460,11 +463,11 @@ StoreInstruction.codegen = store_codegen
 
 
 def load_codegen(self, regalloc):
-    res = ''
+    res = []
 
     if self.dest.alloct == 'reg' and self.symbol.alloct == 'reg' and not self.symbol.is_pointer():
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
-        res += ii(f"{blue('mov')} {regalloc.get_register_for_variable(self.dest)}, {regalloc.get_register_for_variable(self.symbol)}\n")
+        res += [ASMInstruction('mov', args=[regalloc.get_register_for_variable(self.dest), regalloc.get_register_for_variable(self.symbol)])]
         res += regalloc.gen_spill_store_if_necessary(self.dest)
         return res
 
@@ -484,7 +487,7 @@ def load_codegen(self, regalloc):
                 src = f"[{get_register_string(REG_FP)}, #{green(f'{alloc_info.symname}')}]"
 
         else:
-            res = ii(f"{blue('ldr')} {get_register_string(REG_SCRATCH)}, ={green(f'{alloc_info.symname}')}\n")
+            res = [ASMInstruction('ldr', args=[get_register_string(REG_SCRATCH), f"={green(f'{alloc_info.symname}')}"])]
             src = f"[{get_register_string(REG_SCRATCH)}]"
 
     # XXX: not entirely sure about this
@@ -500,7 +503,7 @@ def load_codegen(self, regalloc):
         typeid = f"s{typeid}"
 
     rdst = regalloc.get_register_for_variable(self.dest)
-    res += ii(f"{blue(f'ldr{typeid}')} {rdst}, {src}\n")
+    res += [ASMInstruction(f'ldr{typeid}', args=[rdst, src])]
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
 
@@ -510,7 +513,7 @@ LoadInstruction.codegen = load_codegen
 
 def loadimm_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
-    res = ''
+    res = []
 
     if self.val == "True":
         self.val = 1
@@ -520,26 +523,27 @@ def loadimm_codegen(self, regalloc):
     if self.val >= -256 and self.val < 256:
         if self.val < 0:
             rv = -self.val - 1
-            op = f"{blue('mvn')}"
+            op = "mvn"
         else:
             rv = self.val
-            op = f"{blue('mov')}"
+            op = "mov"
 
-        res += ii(f"{op} {rd}, #{italic(f'{rv}')}\n")
+        res += [ASMInstruction(op, args=[rd, f"#{italic(f'{rv}')}"])]
     else:
-        res += ii(f"{blue('ldr')} {rd}, =#{italic(f'{self.val}')}\n")
+        res += [ASMInstruction("ldr", args=[rd, f"=#{italic(f'{self.val}')}"])]
 
-    return res + regalloc.gen_spill_store_if_necessary(self.dest)
+    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    return res
 
 
 LoadImmInstruction.codegen = loadimm_codegen
 
 
 def generate_data_section():
-    res = ii(".data\n")
+    res = [ASMInstruction(".data")]
     for symbol in DataSymbolTable.get_data_symtab():
         if symbol.is_string() and symbol.value is not None:
-            res += ii(f"{symbol.name}: .asciz \"{symbol.value}\"\n")
+            res += [ASMInstruction(f"{symbol.name}:", args=[f".asciz \"{symbol.value}\""])]
         else:
             raise NotImplementedError("Don't have implemented storing non-string values is .data section")
 
@@ -548,7 +552,7 @@ def generate_data_section():
 
 def generate_code(program, regalloc):
     res = generate_data_section()
-    res += ii(".text\n")
-    res += ii(".arch armv6\n")
-    res += ii(".syntax unified\n")
+    res += [ASMInstruction(".text")]
+    res += [ASMInstruction(".arch armv6")]
+    res += [ASMInstruction(".syntax unified")]
     return res + program.codegen(regalloc)
