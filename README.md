@@ -55,7 +55,7 @@ so any version 3.10+ should work
 You can run the compiler with
 
 ```sh
-python3 main.py -i <input_file> [-o <output_file> -O{0,1,2}]
+python3 main.py -i <input_file> [-o <output_file> (default: out.s) -O{0,1,2} (default: 2)]
 ```
 
 to generate an ARMv6 assembly file
@@ -103,6 +103,12 @@ The debugger can be set in the Makefile or using the variable `$(DEBUGGER)`; I u
 ### Interpreter
 
 You can run the Abstract Syntax Tree Intepreter with
+
+```sh
+python3 main.py -I -i <input_file> [-o <output_file> (default: out.s) -O{0,1,2} (default: 2)]
+```
+
+or test it directly with
 
 ```sh
 make test=<input_file> interpret=True [OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
