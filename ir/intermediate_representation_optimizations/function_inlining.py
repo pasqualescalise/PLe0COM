@@ -136,7 +136,10 @@ def inline(self):
     self.parent.children = previous_instructions + function_instructions + next_instructions
 
     for local_symbol in target_definition.body.local_symtab:
-        if local_symbol not in self.parent.parent.local_symtab:
+        if local_symbol in target_definition.parameters:
+            continue  # we don't need the function parameters, they have been mapped to other symbols
+
+        elif local_symbol not in self.parent.parent.local_symtab:
             self.parent.parent.local_symtab.append(local_symbol)
 
     for child in self.parent.children:
