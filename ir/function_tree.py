@@ -144,3 +144,15 @@ class FunctionTree:
         logger.indentation -= 1
         if not quiet:
             log_indentation(f"Navigated function {magenta(root.symbol.name)}, {id(root.definition)}")
+
+    @staticmethod
+    def remove_from_symtabs(symbol):
+        FunctionTree.__remove_from_symtabs(FunctionTree.root, symbol)
+
+    @staticmethod
+    def __remove_from_symtabs(function_node, symbol):
+        if symbol in function_node.definition.body.symtab:
+            function_node.definition.body.symtab.remove(symbol)
+
+        for child in function_node.children:
+            FunctionTree.__remove_from_symtabs(child, symbol)

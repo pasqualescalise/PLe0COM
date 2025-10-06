@@ -29,6 +29,9 @@ def remove_inlined_functions_from_definition(definition_list):
                 if sub_definition.called_by_counter > 0:
                     new_definitions += [sub_definition]
 
+            # remove the function symbol from SymbolTables, it's just cleaner
+            FunctionTree.remove_from_symtabs(definition.symbol)
+
             removed += 1
             print(f"{green('Removed inlined function')} {magenta(f'{definition.symbol.name}')}")
         else:
