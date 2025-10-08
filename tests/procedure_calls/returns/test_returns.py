@@ -22,7 +22,7 @@ class TestReturns():
         with pytest.raises(RuntimeError) as e:
             compile("tests/procedure_calls/returns/03.procedure_that_doesnt_return/code.pl0", int(optimization_level), interpreter, "")
 
-        check_expected_output(f"{str(e.value)}\n", "tests/procedure_calls/returns/03.procedure_that_doesnt_return/expected")
+        check_expected_output(f"{str(e.value)}\n", "tests/procedure_calls/returns/03.procedure_that_doesnt_return/expected_error")
 
     def test_more_complex_returns(self, optimization_level, interpreter):
         output = get_test_output("tests/procedure_calls/returns/04.more_complex_returns/code.pl0", int(optimization_level), interpreter)

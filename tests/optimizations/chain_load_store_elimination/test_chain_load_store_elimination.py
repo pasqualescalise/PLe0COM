@@ -16,4 +16,4 @@ class TestChainLoadStoreElimination():
         with pytest.raises(RuntimeError) as e:
             compile("tests/optimizations/chain_load_store_elimination/01.useless_function/code.pl0", int(optimization_level), interpreter, "")
 
-        check_expected_output(f"{str(e.value)}\n", "tests/optimizations/chain_load_store_elimination/01.useless_function/expected")
+        check_expected_output(f"{str(e.value)}\n", "tests/optimizations/chain_load_store_elimination/01.useless_function/expected_error")
