@@ -20,7 +20,7 @@ I'm using it to experiment and have fun with compiler stuff
 	+ Memory-to-register promotion
 	+ Chain Load-Store elimination
 	+ Loop Unrolling
-+ Fully working test suite
++ Fully working test suite written using [pytest](https://docs.pytest.org/en/stable/index.html)
 + PEP8 compliant (except E501)
 + ARM ABI compliant (circa, since we can return multiple values)
 + An AST interpreter
@@ -48,6 +48,10 @@ To use the Makefile on ARM, the variables `$(CC)` and `$(RUN_COMMAND)` must be c
 The code was tested on Python 3.11 and uses features from version 3.10 (e.g. `match`),
 so any version 3.10+ should work
 
+### Test suite
+
+The only dependency is [pytest](https://docs.pytest.org/en/stable/index.html), [follow their instruction to install it](https://docs.pytest.org/en/stable/getting-started.html#get-started)
+
 ## Compile and run
 
 ### Compile
@@ -60,10 +64,10 @@ python3 main.py -i <input_file> [-o <output_file> (default: out.s) -O{0,1,2} (de
 
 to generate an ARMv6 assembly file
 
-To compile to an actual binary, just use
+To compile and assemble, just use
 
 ```sh
-make compile test=<input_file> [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+make compile input=<input_file> [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 ### Execute
@@ -79,17 +83,15 @@ make execute [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} 
 Or just do both with
 
 ```sh
-make test=<input_file> [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+make input=<input_file> [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
-
-If the input file is present in the `tests` directory, it also checks if its output (in the `tests/expected`) directory is correct
 
 ### Debugger
 
 To debug the executable on a non-ARM machine, use
 
 ```sh
-make test=<input_file> dbg=True [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+make input=<input_file> dbg=True [EXECUTABLE=<executable> (default: out) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 and in another terminal
@@ -108,20 +110,64 @@ You can run the Abstract Syntax Tree Intepreter with
 python3 main.py -I -i <input_file> [-o <output_file> (default: out.s) -O{0,1,2} (default: 2)]
 ```
 
-or test it directly with
+or with make
 
 ```sh
-make test=<input_file> interpret=True [OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+make input=<input_file> interpret=True [OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
-
-If the input file is present in the `tests` directory, it also checks if its output (in the `tests/expected`) directory is correct
 
 ## Testing
 
+All tests are located in the "tests" directory, organized in subdirectories and classes. Each tests has its own corresponding expected output/expected error message.
+
+You can know more about tests by looking in the "tests" directory or by executing `python3 tests/test.py`
+
+### Single test
+
 ```sh
-make -s testall
+python3 tests/test.py -t <test_name> [-I (to use the interpreter) -O{0,1,2} (default: 2)]
+```
+
+### Single class
+
+```sh
+python3 tests/test.py -c <class_name> [-I (to use the interpreter) -O{0,1,2} (default: 2)]
+```
+
+### Single directory
+
+```sh
+python3 tests/test.py -d <directory_path> [-I (to use the interpreter) -O{0,1,2} (default: 2)] 
+```
+
+### All tests at once with a specific optimization level and compiler/interpreter
+
+Either
+
+```sh
+python3 tests/test.py -a [-I (to use the interpreter) -O{0,1,2} (default: 2)] 
+```
+
+or
+
+```sh
+make -s testall [interpret=True (to use the interpreter) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 compiles and executes all tests, checking if their output is the expected one
 
-To add a new test, put it in the `tests` directory, then add its expected output in the `tests/expected/` directory in a file with the same name as the test and extension ".expected"; you can check if tests fail with a specific message by putting that error message in the `.expected` file
+### All possible tests
+
+Either
+
+```sh
+python3 tests/test.py -A
+```
+
+or
+
+```sh
+make -s testallall
+```
+
+compiles and executes all tests with all possible combination of optimization level and compiler/interpreter, checking if their output is the expected one
