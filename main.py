@@ -71,7 +71,7 @@ def compile_program(text, optimization_level, interpret, output_file):
     if interpret:
         print(h2("INTERPRETER"))
         perform_interpretation(program, output_file)
-        exit()
+        return ""
 
     ##############################################
 
