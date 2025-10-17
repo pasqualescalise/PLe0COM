@@ -4,19 +4,21 @@
 Testing platform
 """
 
+import pytest
+
 from argparse import ArgumentParser
 
-import pytest
 
 default_args = ["--show-capture=no", "--no-header", "--tb=line"]
 
 
-def single_test(test, optimization_level, interpret, quiet):
+def single_test(test, optimization_level, interpret, quiet, debug):
     args = ["-v"]
 
     args += [] if quiet else ["-s"]
     args += [f"--optimization_level={optimization_level}"]
     args += ["-I"] if interpret else []
+    args += ["-D"] if debug else []
 
     args += ["-k", test]
 
@@ -81,13 +83,14 @@ def main():
     parser.add_argument('-O', '--optimization_level', default="2", choices=["0", "1", "2"])
     parser.add_argument('-I', '--interpret', default=False, action='store_true')
     parser.add_argument('-q', '--quiet', default=False, action='store_true', help="Only considered if testing a single test (-t), otherwise automatically set to true")
+    parser.add_argument('-D', '--debug', default=False, action='store_true', help="Only considered if testing a single test (-t), otherwise automatically set to false: execute the program using a debugger")
 
     args = parser.parse_args()
 
     if args.test is not None:
         print(f"TESTING {args.test}")
         print(f"Optimization level {args.optimization_level}, {'compiling' if not args.interpret else 'interpreting'}")
-        single_test(args.test, args.optimization_level, args.interpret, args.quiet)
+        single_test(args.test, args.optimization_level, args.interpret, args.quiet, args.debug)
         return
 
     if args.category is not None:

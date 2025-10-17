@@ -22,11 +22,13 @@ def compile(in_file, optimization_level, interpreted, out_file):
 
 
 # Assemble and execute the compiled code, return the stdout of the asembled program
-def execute(out_file, executable_file):
+def execute(out_file, executable_file, debug):
     assemble_command = f"arm-linux-gnueabi-gcc -g -static -march=armv6 -z noexecstack {out_file.name} runtime.c -o {executable_file.name}"
     run(assemble_command.split(' '))
 
     execute_command = f"qemu-arm -cpu arm1136 {executable_file.name}"
+    if debug:  # open gdb port 7777
+        execute_command = f"qemu-arm -cpu arm1136 -g 7777 {executable_file.name}"
     execute = run(execute_command.split(' '), capture_output=True)
 
     output = execute.stdout.decode('utf-8')
@@ -35,7 +37,7 @@ def execute(out_file, executable_file):
 
 
 # Returns the output of the compiled/interpreted test, also prints it
-def get_test_output(in_file, optimization_level, interpreted):
+def get_test_output(in_file, optimization_level, interpreted, debug):
     out_temp_file = NamedTemporaryFile(mode="w+", suffix=".s")
     executable_temp_file = NamedTemporaryFile(mode="w+")
 
@@ -47,7 +49,7 @@ def get_test_output(in_file, optimization_level, interpreted):
     if interpreted:
         output = out_temp_file.read()
     else:
-        output = execute(out_temp_file, executable_temp_file)
+        output = execute(out_temp_file, executable_temp_file, debug)
 
     out_temp_file.close()
     executable_temp_file.close()

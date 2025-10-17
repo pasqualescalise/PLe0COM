@@ -4,6 +4,7 @@ import pytest
 def pytest_addoption(parser):
     parser.addoption('-O', '--optimization_level', choices=["0", "1", "2"], default=["2"], help="Optimization Level")
     parser.addoption('-I', '--interpreter', default=[False], action='store_const', const=[True], help="Interpret the AST instead of compiling")
+    parser.addoption('-D', '--debug_executable', default=[False], action='store_const', const=[True], help="Execute the program using a debugger")
 
 
 def pytest_generate_tests(metafunc):
@@ -11,6 +12,8 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("optimization_level", metafunc.config.getoption("optimization_level"))
     if "interpreter" in metafunc.fixturenames:
         metafunc.parametrize("interpreter", metafunc.config.getoption("interpreter"))
+    if "debug_executable" in metafunc.fixturenames:
+        metafunc.parametrize("debug_executable", metafunc.config.getoption("debug_executable"))
 
 
 def pytest_configure(config):
