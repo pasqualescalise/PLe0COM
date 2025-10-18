@@ -1,0 +1,11 @@
+VAR x, y : int;
+
+BEGIN
+	x = 10;
+	if x > 2 then begin
+		y = 2;
+	end else begin
+		y = 3;
+	end;
+	print y;
+END
