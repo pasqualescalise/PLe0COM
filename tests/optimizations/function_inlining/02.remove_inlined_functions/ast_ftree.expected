@@ -1,0 +1,5 @@
+| main
+    | not_inline_1
+        | inline_1
+            | inline_2
+                | not_inline_2

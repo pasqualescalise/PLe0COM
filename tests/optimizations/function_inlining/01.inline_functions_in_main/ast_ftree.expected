@@ -1,0 +1,10 @@
+| main
+    | function_to_inline_no_return
+    | function_to_inline_no_return_string
+    | function_to_inline_return
+    | function_to_inline_multiple_return
+    | function_to_inline_more_complex_return
+    | function_to_inline_empty_return
+    | function_to_inline_param
+    | function_to_inline_param_return
+    | function_to_inline_param_return_dont_care
