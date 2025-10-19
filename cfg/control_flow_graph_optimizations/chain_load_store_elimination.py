@@ -19,7 +19,7 @@ from ir.ir import StoreInstruction, LoadInstruction
 from logger import green
 
 
-def perform_chain_load_store_elimination(bb):
+def perform_chain_load_store_elimination(bb, debug_info):
     keep_going = False
     mapping = {}
 
@@ -53,6 +53,7 @@ def perform_chain_load_store_elimination(bb):
         bb.remove(instruction)
         instruction.parent.remove(instruction)
         print(f"{green('Removed chained instruction')} {instruction}")
+        debug_info['chain_load_store_elimination'] += [instruction]
         keep_going = True
 
     return keep_going

@@ -917,4 +917,8 @@ class DefinitionList(IRInstruction):
         self.children.remove(elem)
 
     def __deepcopy__(self, memo):
+        new_children = []
+        for child in self.children:
+            new_children.append(deepcopy(child, memo))
+
         return DefinitionList(parent=self.parent, children=self.children)

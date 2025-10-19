@@ -12,7 +12,7 @@ from ir.ir import FunctionDef, PointerType, TYPENAMES
 from ir.function_tree import FunctionTree
 
 
-OUTPUT_FILE = None
+OUTPUT = ""
 RETURN_FLAG = False
 
 
@@ -261,10 +261,11 @@ def print_stat_interpret(self, variable_state):
             interpreted_expr = (2 ** self.print_type.size) - interpreted_expr
             interpreted_expr *= -1
 
+    global OUTPUT
+    OUTPUT += str(interpreted_expr)
+
     if self.newline:
-        print(interpreted_expr, file=OUTPUT_FILE)
-    else:
-        print(interpreted_expr, end='', file=OUTPUT_FILE)
+        OUTPUT += "\n"
 
 
 PrintStat.interpret = print_stat_interpret
@@ -332,11 +333,10 @@ def functiondef_interpret(self, variable_state):
 FunctionDef.interpret = functiondef_interpret
 
 
-def perform_interpretation(program, output_file):
-    global OUTPUT_FILE
-    OUTPUT_FILE = open(output_file, "w")
+def perform_interpretation(program):
+    global OUTPUT
 
     variable_state = {}
     program.interpret(variable_state)
 
-    OUTPUT_FILE.close()
+    return OUTPUT

@@ -50,6 +50,7 @@ class ASTNode:  # abstract
                     pass
         else:
             self.children = []
+        self.type = None
 
     # XXX: must only be used for printing
     def type_repr(self):
@@ -148,11 +149,12 @@ class ASTNode:  # abstract
 # CONST and VAR
 
 class Const(ASTNode):
-    def __init__(self, parent=None, value=0, symbol=None, symtab=None):
+    def __init__(self, parent=None, value=0, symbol=None, type=None, symtab=None):
         log_indentation(bold(f"New Const Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
         self.value = value
         self.symbol = symbol
+        self.type = type
 
     def lower(self):  # TODO: make it possible to define constant booleans
         if self.value in ["True", "False"]:
@@ -167,16 +169,17 @@ class Const(ASTNode):
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        return Const(parent=self.parent, value=self.value, symbol=self.symbol, symtab=self.symtab)
+        return Const(parent=self.parent, value=self.value, symbol=self.symbol, type=self.type, symtab=self.symtab)
 
 
 class Var(ASTNode):
     """loads in a temporary the value pointed to by the symbol"""
 
-    def __init__(self, parent=None, var=None, symtab=None):
+    def __init__(self, parent=None, var=None, type=None, symtab=None):
         log_indentation(bold(f"New Var Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
         self.symbol = var
+        self.type = type
 
     def lower(self):
         if self.symbol.is_string() and self.symbol.alloct != 'param':  # load strings as char pointers
@@ -194,13 +197,13 @@ class Var(ASTNode):
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        return Var(parent=self.parent, var=self.symbol, symtab=self.symtab)
+        return Var(parent=self.parent, var=self.symbol, type=self.type, symtab=self.symtab)
 
 
 class ArrayElement(ASTNode):
     """loads in a temporary the value pointed by: the symbol + the index"""
 
-    def __init__(self, parent=None, var=None, offset=None, num_of_accesses=0, symtab=None):
+    def __init__(self, parent=None, var=None, offset=None, num_of_accesses=0, type=None, symtab=None):
         """offset can NOT be a list of exps in case of multi-d arrays; it should
         have already been flattened beforehand"""
         log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
@@ -210,6 +213,7 @@ class ArrayElement(ASTNode):
         self.offset.parent = self
         # for a multidimensional array, how deep is this element
         self.num_of_accesses = num_of_accesses
+        self.type = type
 
     def lower(self):  # TODO: add code to check at runtime if we went over the array size
         src = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
@@ -242,16 +246,17 @@ class ArrayElement(ASTNode):
 
     def __deepcopy__(self, memo):
         new_offset = deepcopy(self.offset, memo)
-        return ArrayElement(parent=self.parent, var=self.symbol, offset=new_offset, num_of_accesses=self.num_of_accesses, symtab=self.symtab)
+        return ArrayElement(parent=self.parent, var=self.symbol, offset=new_offset, num_of_accesses=self.num_of_accesses, type=self.type, symtab=self.symtab)
 
 
 class String(ASTNode):
     """Puts a fixed string in the data SymbolTable"""
 
-    def __init__(self, parent=None, value="", symtab=None):
+    def __init__(self, parent=None, value="", type=None, symtab=None):
         log_indentation(bold(f"New String Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
         self.value = value
+        self.type = type
 
     def lower(self):
         # put the string in the data SymbolTable
@@ -264,7 +269,7 @@ class String(ASTNode):
         return self.parent.replace(self, ir.InstructionList(children=[access_string], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        return String(parent=self.parent, value=self.value, symtab=self.symtab)
+        return String(parent=self.parent, value=self.value, type=self.type, symtab=self.symtab)
 
 
 class StaticArray(ASTNode):
@@ -286,7 +291,7 @@ class StaticArray(ASTNode):
         for value in self.values:
             new_values.append(deepcopy(value, memo))
 
-        return StaticArray(parent=self.parent, values=new_values, type=self.values_type, symtab=self.symtab)
+        return StaticArray(parent=self.parent, values=new_values, values_type=self.values_type, symtab=self.symtab)
 
 
 # EXPRESSIONS
@@ -297,9 +302,10 @@ class Expr(ASTNode):  # abstract
 
 
 class BinaryExpr(Expr):
-    def __init__(self, parent=None, children=None, symtab=None):
+    def __init__(self, parent=None, children=None, type=None, symtab=None):
         log_indentation(bold(f"New BinaryExpr Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
+        self.type = type
 
     def lower(self):
         instrs = [self.children[1], self.children[2]]
@@ -395,13 +401,14 @@ class BinaryExpr(Expr):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return BinaryExpr(parent=self.parent, children=new_children, symtab=self.symtab)
+        return BinaryExpr(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
 
 
 class UnaryExpr(Expr):
-    def __init__(self, parent=None, children=None, symtab=None):
+    def __init__(self, parent=None, children=None, type=None, symtab=None):
         log_indentation(bold(f"New UnaryExpr Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
+        self.type = type
 
     def lower(self):
         src = self.children[1].destination()
@@ -415,7 +422,7 @@ class UnaryExpr(Expr):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return UnaryExpr(parent=self.parent, children=new_children, symtab=self.symtab)
+        return UnaryExpr(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
 
 
 # STATEMENTS
@@ -428,11 +435,12 @@ class Stat(ASTNode):  # abstract
 class CallStat(Stat):
     """Procedure call"""
 
-    def __init__(self, parent=None, function_symbol=None, parameters=[], returns=[], symtab=None):
+    def __init__(self, parent=None, function_symbol=None, parameters=[], returns=[], type=None, symtab=None):
         log_indentation(bold(f"New CallStat Node (id: {id(self)})"))
         super().__init__(parent, parameters, symtab)
         self.function_symbol = function_symbol
         self.returns = returns
+        self.type = type
 
     def lower(self):
         function_definition = FunctionTree.get_function_definition(self.function_symbol)
@@ -464,11 +472,11 @@ class CallStat(Stat):
             new_parameters.append(deepcopy(parameter, memo))
 
         new_function_symbol = deepcopy(self.function_symbol, memo)  # TODO: isn't this wrong?
-        return CallStat(parent=self.parent, function_symbol=new_function_symbol, parameters=new_parameters, returns=self.returns, symtab=self.symtab)
+        return CallStat(parent=self.parent, function_symbol=new_function_symbol, parameters=new_parameters, returns=self.returns, type=self.type, symtab=self.symtab)
 
 
 class IfStat(Stat):
-    def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elifs_conditions=[], elsepart=None, symtab=None):
+    def __init__(self, parent=None, cond=None, thenpart=None, elifspart=None, elifs_conditions=[], elsepart=None, type=None, symtab=None):
         log_indentation(bold(f"New IfStat Node (id: {id(self)})"))
         super().__init__(parent, elifs_conditions, symtab)
         self.cond = cond
@@ -483,6 +491,8 @@ class IfStat(Stat):
 
         if self.elsepart:
             self.elsepart.parent = self
+
+        self.type = type
 
     def lower(self):
         exit_label = ir.TYPENAMES['label']()
@@ -552,17 +562,18 @@ class IfStat(Stat):
         thenpart = deepcopy(self.thenpart, memo)
         elifspart = deepcopy(self.elifspart, memo)
         elsepart = deepcopy(self.elsepart, memo)
-        return IfStat(parent=self.parent, cond=cond, thenpart=thenpart, elifspart=elifspart, elsepart=elsepart, symtab=self.symtab)
+        return IfStat(parent=self.parent, cond=cond, thenpart=thenpart, elifspart=elifspart, elsepart=elsepart, type=self.type, symtab=self.symtab)
 
 
 class WhileStat(Stat):
-    def __init__(self, parent=None, cond=None, body=None, symtab=None):
+    def __init__(self, parent=None, cond=None, body=None, type=None, symtab=None):
         log_indentation(bold(f"New WhileStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.cond = cond
         self.body = body
         self.cond.parent = self
         self.body.parent = self
+        self.type = type
 
     def lower(self):
         entry_label = ir.TYPENAMES['label']()
@@ -576,11 +587,11 @@ class WhileStat(Stat):
     def __deepcopy__(self, memo):
         new_cond = deepcopy(self.cond, memo)
         new_body = deepcopy(self.body, memo)
-        return WhileStat(parent=self.parent, cond=new_cond, body=new_body, symtab=self.symtab)
+        return WhileStat(parent=self.parent, cond=new_cond, body=new_body, type=self.type, symtab=self.symtab)
 
 
 class ForStat(Stat):
-    def __init__(self, parent=None, init=None, cond=None, step=None, body=None, epilogue=None, symtab=None):
+    def __init__(self, parent=None, init=None, cond=None, step=None, body=None, epilogue=None, type=None, symtab=None):
         log_indentation(bold(f"New ForStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
         self.init = init
@@ -595,6 +606,7 @@ class ForStat(Stat):
         self.epilogue = epilogue
         if self.epilogue is not None:
             self.epilogue.parent = self
+            self.type = type
 
     def lower(self):
         entry_label = ir.TYPENAMES['label']()
@@ -617,11 +629,11 @@ class ForStat(Stat):
         new_step = deepcopy(self.step, memo)
         new_body = deepcopy(self.body, memo)
         new_epilogue = deepcopy(self.epilogue, memo)
-        return ForStat(parent=self.parent, init=new_init, cond=new_cond, step=new_step, body=new_body, epilogue=new_epilogue, symtab=self.symtab)
+        return ForStat(parent=self.parent, init=new_init, cond=new_cond, step=new_step, body=new_body, epilogue=new_epilogue, type=self.type, symtab=self.symtab)
 
 
 class AssignStat(Stat):
-    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, num_of_accesses=0, symtab=None):
+    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, num_of_accesses=0, type=None, symtab=None):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
         self.symbol = target
@@ -640,6 +652,7 @@ class AssignStat(Stat):
         self.offset = offset
         if self.offset is not None:
             self.offset.parent = self
+            self.type = type
 
     def lower(self):
         dst = self.symbol
@@ -743,17 +756,18 @@ class AssignStat(Stat):
     def __deepcopy__(self, memo):
         new_expr = deepcopy(self.expr, memo)
         new_offset = deepcopy(self.offset, memo)
-        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, num_of_accesses=self.num_of_accesses, symtab=self.symtab)
+        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, num_of_accesses=self.num_of_accesses, type=self.type, symtab=self.symtab)
 
 
 class PrintStat(Stat):
-    def __init__(self, parent=None, children=[], expr=None, newline=True, symtab=None):
+    def __init__(self, parent=None, children=[], expr=None, newline=True, type=None, symtab=None):
         log_indentation(bold(f"New PrintStat Node (id: {id(self)})"))
         if children != []:
             super().__init__(parent, children, symtab)
         else:
             super().__init__(parent, [expr], symtab)
         self.newline = newline
+        self.type = type
 
     def lower(self):
         print_type = self.print_type  # set during type checking
@@ -766,13 +780,14 @@ class PrintStat(Stat):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return PrintStat(parent=self.parent, children=new_children, expr=new_children[0], newline=self.newline, symtab=self.symtab)
+        return PrintStat(parent=self.parent, children=new_children, expr=new_children[0], newline=self.newline, type=self.type, symtab=self.symtab)
 
 
 class ReadStat(Stat):
-    def __init__(self, parent=None, symtab=None):
+    def __init__(self, parent=None, type=None, symtab=None):
         log_indentation(bold(f"New ReadStat Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
+        self.type = type
 
     def lower(self):
         tmp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
@@ -780,15 +795,16 @@ class ReadStat(Stat):
         return self.parent.replace(self, ir.InstructionList(children=[read], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        return ReadStat(parent=self.parent, symtab=self.symtab)
+        return ReadStat(parent=self.parent, type=self.type, symtab=self.symtab)
 
 
 class ReturnStat(Stat):
-    def __init__(self, parent=None, children=[], symtab=None):
+    def __init__(self, parent=None, children=[], type=None, symtab=None):
         log_indentation(bold(f"New ReturnStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
         for child in self.children:
             child.parent = self
+            self.type = type
 
     def apply_masks(self, returns):
         masks = []
@@ -817,11 +833,11 @@ class ReturnStat(Stat):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return ReturnStat(parent=self.parent, children=new_children, symtab=self.symtab)
+        return ReturnStat(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
 
 
 class StatList(Stat):
-    def __init__(self, parent=None, children=None, symtab=None):
+    def __init__(self, parent=None, children=None, type=None, symtab=None):
         log_indentation(bold(f"New StatList Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         if children:
@@ -830,6 +846,8 @@ class StatList(Stat):
                 child.parent = self
         else:
             self.children = []
+
+        self.type = type
 
     def append(self, elem):
         elem.parent = self
@@ -876,4 +894,4 @@ class StatList(Stat):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return StatList(parent=self.parent, children=new_children, symtab=self.symtab)
+        return StatList(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)

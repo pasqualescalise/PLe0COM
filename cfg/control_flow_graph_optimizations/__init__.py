@@ -13,7 +13,7 @@ from cfg.cfg import ControlFlowGraph
 from logger import h3, cyan
 
 
-def perform_control_flow_graph_optimizations(program, cfg, optimization_level):
+def perform_control_flow_graph_optimizations(program, cfg, optimization_level, debug_info):
     recomputed_liveness = False
 
     if optimization_level > 1:
@@ -26,10 +26,12 @@ def perform_control_flow_graph_optimizations(program, cfg, optimization_level):
         perform_liveness_analysis(cfg)
 
         print(h3("DEAD VARIABLE ELIMINATION"))
-        recomputed_liveness |= apply_cfg_optimization(cfg, perform_dead_variable_elimination)
+        debug_info['dead_variable_elimination'] = []
+        recomputed_liveness |= apply_cfg_optimization(cfg, perform_dead_variable_elimination, debug_info)
 
         print(h3("CHAIN LOAD STORE ELIMINATION"))
-        recomputed_liveness |= apply_cfg_optimization(cfg, perform_chain_load_store_elimination)
+        debug_info['chain_load_store_elimination'] = []
+        recomputed_liveness |= apply_cfg_optimization(cfg, perform_chain_load_store_elimination, debug_info)
 
     if len(cfg) == 0:
         raise RuntimeError("The ControlFlowGraph is empty, either there's a problem or a useless program is being compiled")
@@ -42,14 +44,14 @@ def perform_control_flow_graph_optimizations(program, cfg, optimization_level):
 
 
 # Apply the optimization on the ControlFlowGraph until no changes are made anymore
-def apply_cfg_optimization(cfg, optimization_pass):
+def apply_cfg_optimization(cfg, optimization_pass, debug_info):
     recomputed_liveness = False
     keep_going = True
 
     while keep_going:
         keep_going = False
         for bb in cfg:
-            keep_going |= optimization_pass(bb)
+            keep_going |= optimization_pass(bb, debug_info)
 
         if keep_going:
             update_cfg(cfg)

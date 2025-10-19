@@ -6,7 +6,7 @@ useless if the variable it modifies is not used after it"""
 from logger import green
 
 
-def perform_dead_variable_elimination(bb):
+def perform_dead_variable_elimination(bb, debug_info):
     keep_going = False
 
     for instruction in bb.instrs:
@@ -19,6 +19,7 @@ def perform_dead_variable_elimination(bb):
             bb.remove(instruction)
             instruction.parent.remove(instruction)
             print(f"{green('Removed useless instruction')} {instruction}")
+            debug_info['dead_variable_elimination'] += [instruction]
             keep_going = True
 
     return keep_going

@@ -209,9 +209,8 @@ class ControlFlowGraph(list):
 
         return tail
 
-    def print_cfg_to_dot(self, filename):
-        """Print the CFG in graphviz dot to file"""
-        f = open(filename, "w")
+    def cfg_to_dot(self):
+        """Get the CFG in graphviz dot"""
         dot = "digraph G {\n"
         for n in self:
             dot += n.graphviz_repr()
@@ -225,8 +224,7 @@ class ControlFlowGraph(list):
             else:
                 dot += f'{p.symbol.name} -> {id(bb)} [label="{{}}"];\n'
         dot += "}\n"
-        f.write(remove_formatting(dot))
-        f.close()
+        return remove_formatting(dot)
 
     def find_target_bb(self, label):
         """Return the BB that contains a given label;
