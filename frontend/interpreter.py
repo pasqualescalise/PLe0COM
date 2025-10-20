@@ -12,7 +12,6 @@ from ir.ir import FunctionDef, PointerType, TYPENAMES
 from ir.function_tree import FunctionTree
 
 
-OUTPUT = ""
 RETURN_FLAG = False
 
 
@@ -335,6 +334,7 @@ FunctionDef.interpret = functiondef_interpret
 
 def perform_interpretation(program):
     global OUTPUT
+    OUTPUT = ""
 
     variable_state = {}
     program.interpret(variable_state)
