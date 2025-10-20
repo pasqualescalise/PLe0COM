@@ -232,7 +232,7 @@ class Symbol:
         if self.allocinfo is not None:
             res += f" {{{yellow(italic(f'{self.allocinfo}'))}}}"
         if self.value and not self.is_label():
-            res += " value \"" + f"{bold(f'{self.value}')}" + "\""
+            res += " value '" + f"{bold(f'{self.value}')}" + "'"
         return res
 
     def __deepcopy__(self, memo):
