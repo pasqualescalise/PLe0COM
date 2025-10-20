@@ -3,6 +3,7 @@
 """The main function of the compiler, AKA the compiler driver"""
 
 from argparse import ArgumentParser
+from os.path import join, exists
 from copy import deepcopy
 
 from frontend.lexer import Lexer
@@ -25,6 +26,11 @@ from backend.codegen import generate_code
 from backend.post_code_generation_optimizations import perform_post_code_generation_optimizations
 
 from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, cyan, bold, italic
+
+
+# These can be specified from the command line to get the corresponding
+# debug information printed to file
+debug_info_choices = ["pre_opts_ast", "ast_ftree", "post_opts_ast", "interpreter_output", "pre_opts_ir", "post_opts_ir", "dead_variable_elimination", "chain_load_store_elimination", "post_cfg_ir", "cfg", "cfg_dot", "ftree", "pre_opts_code", "code"]
 
 
 # Returns a dictionary with all the debug informations, like the AST,
@@ -155,6 +161,39 @@ def compile_program(text, optimization_level, interpret):
     return debug_info
 
 
+def put_debug_info_in_file(debug_info, print_debug, debug_directory):
+    if len(print_debug) == 0:
+        return
+
+    if not exists(debug_directory):
+        raise RuntimeError(f"Debug directory {debug_directory} does not exist! Please create it before asking for debug information")
+
+    for info in print_debug:
+        if info not in debug_info:
+            continue
+
+        filename = f"{join(debug_directory, info)}.debug"
+        output = remove_formatting(repr(debug_info[info]))
+        match info:
+            case "interpreter_output":
+                output = debug_info[info]
+
+            case "dead_variable_elimination" | "chain_load_store_elimination" | "cfg":
+                # print list using newlines
+                output = remove_formatting('\n'.join([repr(x) for x in debug_info[info]]))
+
+            case "cfg_dot":
+                filename = f"{join(debug_directory, 'cfg')}.dot"
+                output = remove_formatting(debug_info[info])
+
+            case "pre_opts_code" | "code":
+                output = remove_formatting('\n'.join([repr(x) for x in debug_info[info]]) + '\n')
+                filename = f"{join(debug_directory, info)}.s"
+
+        with open(f"{filename}", 'w') as debugf:
+            debugf.write(output)
+
+
 def driver_main():
     parser = ArgumentParser(prog="Pl0COM", description="Optimizing compiler for the (modified) PL/0 language", epilog="")
 
@@ -162,6 +201,8 @@ def driver_main():
     parser.add_argument('-o', '--output_file', default="out.s", help="Compilation: assembly output")
     parser.add_argument('-O', '--optimization_level', default="2", choices=["0", "1", "2"])
     parser.add_argument('-I', '--interpret', default=False, action='store_true')
+    parser.add_argument('-p', '--print_debug', default="", choices=debug_info_choices, nargs='+', help="What debug info to print to a file in the debug directory")
+    parser.add_argument('-d', '--debug_directory', default="./debug")
 
     args = parser.parse_args()
 
@@ -170,6 +211,7 @@ def driver_main():
         test_program = inf.read()
 
     debug_info = compile_program(test_program, int(args.optimization_level), args.interpret)
+    put_debug_info_in_file(debug_info, args.print_debug, args.debug_directory)
 
     if not args.interpret:
         with open(args.output_file, 'w') as outf:

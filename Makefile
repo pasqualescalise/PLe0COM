@@ -13,9 +13,9 @@ DEBUGGER := pwndbg
 TEST_FILE := tests/test.py
 TEST_COMMAND := python3 
 
-CFG_DOT_FILE := cfg/cfg.dot
-CFG_PDF_FILE := cfg/cfg.pdf
-CFG_PNG_FILE := cfg/cfg.png
+CFG_DOT_FILE := debug/cfg.dot
+CFG_PDF_FILE := debug/cfg.pdf
+CFG_PNG_FILE := debug/cfg.png
 
 INTERPRET := $(interpret)
 
