@@ -515,10 +515,13 @@ class BranchInstruction(IRInstruction):
                     self.cond = new_temp
 
         if self.target and not self.is_call():
-            if create_new:
-                new_target = TYPENAMES['label']()
-                mapping[self.target] = new_target
-                self.target = new_target
+            if self.target in mapping:
+                self.target = mapping[self.target]
+            else:
+                if create_new:
+                    new_target = TYPENAMES['label']()
+                    mapping[self.target] = new_target
+                    self.target = new_target
 
         new_parameters = []
         for parameter in self.parameters:
