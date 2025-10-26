@@ -4,6 +4,7 @@ import pytest
 def pytest_addoption(parser):
     parser.addoption('-O', '--optimization_level', choices=["0", "1", "2"], default=["2"], help="Optimization Level")
     parser.addoption('-I', '--interpreter', default=[False], action='store_const', const=[True], help="Interpret the AST instead of compiling")
+    parser.addoption('-L', '--llvm', default=[False], action='store_const', const=[True], help="Compile using LLVM")
     parser.addoption('-D', '--debug_executable', default=[False], action='store_const', const=[True], help="Execute the program using a debugger")
 
 
@@ -12,6 +13,8 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("optimization_level", metafunc.config.getoption("optimization_level"))
     if "interpreter" in metafunc.fixturenames:
         metafunc.parametrize("interpreter", metafunc.config.getoption("interpreter"))
+    if "llvm" in metafunc.fixturenames:
+        metafunc.parametrize("llvm", metafunc.config.getoption("llvm"))
     if "debug_executable" in metafunc.fixturenames:
         metafunc.parametrize("debug_executable", metafunc.config.getoption("debug_executable"))
 
@@ -22,6 +25,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "not_optimization_level_two: can't run test at -O2")
 
     config.addinivalue_line("markers", "not_interpreter: can't run test on interpreter")
+    config.addinivalue_line("markers", "not_llvm: can't run test using LLVM")
     config.addinivalue_line("markers", "not_compiler: can't run test on compiler")  # XXX: this is useless
 
 
@@ -47,12 +51,18 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_if_optimization_level_two)
 
     interpreter = config.getoption("--interpreter")[0]
+    llvm = config.getoption("--llvm")[0]
 
     if interpreter:
         skip_if_interpreter = pytest.mark.skip(reason="can't run test on interpreter")
         for item in items:
             if "not_interpreter" in item.keywords:
                 item.add_marker(skip_if_interpreter)
+    elif llvm:
+        skip_if_llvm = pytest.mark.skip(reason="can't run test on LLVM")
+        for item in items:
+            if "not_llvm" in item.keywords:
+                item.add_marker(skip_if_llvm)
     else:
         skip_if_compiler = pytest.mark.skip(reason="can't run test on compiler")
         for item in items:

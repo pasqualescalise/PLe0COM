@@ -8,10 +8,11 @@ from ir.ir import LoadImmInstruction
 @pytest.mark.not_optimization_level_zero
 @pytest.mark.not_optimization_level_one
 @pytest.mark.not_interpreter
+@pytest.mark.not_llvm
 class TestDeadVariableElimination():
 
-    def test_dead_variable_elimination(self, optimization_level, interpreter, debug_executable):
-        output, debug_info = run_test("tests/optimizations/dead_variable_elimination/00.dead_variable_elimination/code.pl0", int(optimization_level), interpreter, debug_executable)
+    def test_dead_variable_elimination(self, optimization_level, interpreter, llvm, debug_executable):
+        output, debug_info = run_test("tests/optimizations/dead_variable_elimination/00.dead_variable_elimination/code.pl0", int(optimization_level), interpreter, llvm, debug_executable)
         check_expected_output(output, "tests/optimizations/dead_variable_elimination/00.dead_variable_elimination/expected")
 
         # check that we have removed the right dead variable

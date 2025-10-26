@@ -24,6 +24,7 @@ I'm using it to experiment and have fun with compiler stuff
 + PEP8 compliant (except E501)
 + ARM ABI compliant (circa, since we can return multiple values)
 + An AST interpreter
++ LLVM integration using [llvmlite](https://pypi.org/project/llvmlite/)
 
 ## Dependencies
 
@@ -47,6 +48,10 @@ To use the Makefile on ARM, the variables `$(CC)` and `$(RUN_COMMAND)` must be c
 
 The code was tested on Python 3.11 and uses features from version 3.10 (e.g. `match`),
 so any version 3.10+ should work
+
+### LLVM
+
+For LLVM, this project uses [llvmlite](https://pypi.org/project/llvmlite/), please [follow their instructions to install it](https://llvmlite.readthedocs.io/en/latest/admin-guide/install.html)
 
 ### Test suite
 
@@ -116,6 +121,20 @@ or with make
 make input=<input_file> interpret=True [OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
+### LLVM
+
+You can run the LLVM compiler with
+
+```sh
+python3 main.py -L -i <input_file> [-o <output_file> (default: out.s) -O{0,1,2} (default: 2)]
+```
+
+or with make
+
+```sh
+make input=<input_file> llvm=True [OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+```
+
 ## Testing
 
 All tests are located in the "tests" directory, organized in subdirectories and classes. Each tests has its own corresponding expected output/expected error message.
@@ -125,19 +144,19 @@ You can know more about tests by looking in the "tests" directory or by executin
 ### Single test
 
 ```sh
-python3 tests/test.py -t <test_name> [-I (to use the interpreter) -O{0,1,2} (default: 2)]
+python3 tests/test.py -t <test_name> [-I (to use the interpreter) -L (to use LLVM) -O{0,1,2} (default: 2)]
 ```
 
 ### Single class
 
 ```sh
-python3 tests/test.py -c <class_name> [-I (to use the interpreter) -O{0,1,2} (default: 2)]
+python3 tests/test.py -c <class_name> [-I (to use the interpreter) -L (to use LLVM) -O{0,1,2} (default: 2)]
 ```
 
 ### Single directory
 
 ```sh
-python3 tests/test.py -d <directory_path> [-I (to use the interpreter) -O{0,1,2} (default: 2)] 
+python3 tests/test.py -d <directory_path> [-I (to use the interpreter) -L (to use LLVM) -O{0,1,2} (default: 2)] 
 ```
 
 ### All tests at once with a specific optimization level and compiler/interpreter
@@ -145,13 +164,13 @@ python3 tests/test.py -d <directory_path> [-I (to use the interpreter) -O{0,1,2}
 Either
 
 ```sh
-python3 tests/test.py -a [-I (to use the interpreter) -O{0,1,2} (default: 2)] 
+python3 tests/test.py -a [-I (to use the interpreter) -L (to use LLVM) -O{0,1,2} (default: 2)] 
 ```
 
 or
 
 ```sh
-make -s testall [interpret=True (to use the interpreter) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
+make -s testall [interpret=True (to use the interpreter) llvm=True (to use LLVM) OPTIMIZATION_LEVEL={0,1,2} (default: 2)]
 ```
 
 compiles and executes all tests, checking if their output is the expected one

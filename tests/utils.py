@@ -6,14 +6,14 @@ from logger import initialize_logger, remove_formatting
 
 
 # Returns the assembly code produced by the compiler or raises an Error
-def compile(in_file, optimization_level, interpreted):
+def compile(in_file, optimization_level, interpreted, llvm):
     with open(in_file, 'r') as inf:
         test_program = inf.read()
 
     initialize_logger()
 
     try:
-        debug_info = compile_program(test_program, optimization_level, interpreted)
+        debug_info = compile_program(test_program, optimization_level, interpreted, llvm)
     except Exception as e:
         print(f"Raised Exception {repr(e)}")
         raise e
@@ -38,8 +38,8 @@ def execute(out_file, executable_file, debug):
 
 
 # Returns and prints the output of the compiled/interpreted test + the debug information
-def run_test(in_file, optimization_level, interpreted, debug):
-    debug_info = compile(in_file, optimization_level, interpreted)
+def run_test(in_file, optimization_level, interpreted, llvm, debug):
+    debug_info = compile(in_file, optimization_level, interpreted, llvm)
 
     if interpreted:
         output = debug_info['interpreter_output']
@@ -48,10 +48,26 @@ def run_test(in_file, optimization_level, interpreted, debug):
         executable_temp_file = NamedTemporaryFile(mode="w+")
 
         code = debug_info['code']
-        printable_code = '\n'.join([repr(x) for x in code]) + '\n'
 
-        out_temp_file.write(remove_formatting(printable_code))
-        out_temp_file.seek(0)
+        if llvm:
+            llvm_temp_file = NamedTemporaryFile(mode="w+", suffix=".ll")
+            printable_code = repr(debug_info["code"])
+
+            llvm_temp_file.write(remove_formatting(printable_code))
+            llvm_temp_file.seek(0)
+
+            llvm_compile_command = f"llc --march arm {llvm_temp_file.name} -o {out_temp_file.name}"
+            llvm_outcome = run(llvm_compile_command.split(' '))
+
+            if llvm_outcome.returncode != 0:
+                raise RuntimeError("Failed to LLVM compile")
+
+            llvm_temp_file.close()
+        else:  # normal compilation
+            printable_code = '\n'.join([repr(x) for x in code]) + '\n'
+
+            out_temp_file.write(remove_formatting(printable_code))
+            out_temp_file.seek(0)
 
         output = execute(out_temp_file, executable_temp_file, debug)
 

@@ -16,6 +16,8 @@ from ir.support import get_node_list, lowering, flattening
 from ir.intermediate_representation_optimizations import perform_intermediate_representation_optimizations
 from ir.function_tree import FunctionTree
 
+from llvm.llvm import llvm_codegen
+
 from cfg.cfg import ControlFlowGraph
 from cfg.control_flow_graph_optimizations import perform_control_flow_graph_optimizations
 from cfg.control_flow_graph_analyses import perform_control_flow_graph_analyses
@@ -35,7 +37,7 @@ debug_info_choices = ["pre_opts_ast", "ast_ftree", "post_opts_ast", "interpreter
 
 # Returns a dictionary with all the debug informations, like the AST,
 # the IR, the FunctionTree, the CFG, the actual code, etc.
-def compile_program(text, optimization_level, interpret):
+def compile_program(text, optimization_level, interpret, llvm):
     debug_info = {}
 
     print(h1("FRONT-END"))
@@ -86,6 +88,13 @@ def compile_program(text, optimization_level, interpret):
         interpreter_output = perform_interpretation(program)
         print(interpreter_output)
         debug_info["interpreter_output"] = interpreter_output
+        return debug_info
+
+    if llvm:
+        print(h2("LLVM"))
+        llvm_code = llvm_codegen(program)
+        print(llvm_code)
+        debug_info["code"] = llvm_code
         return debug_info
 
     ##############################################
@@ -201,6 +210,7 @@ def driver_main():
     parser.add_argument('-o', '--output_file', default="out.s", help="Compilation: assembly output")
     parser.add_argument('-O', '--optimization_level', default="2", choices=["0", "1", "2"])
     parser.add_argument('-I', '--interpret', default=False, action='store_true')
+    parser.add_argument('-L', '--llvm', default=False, action='store_true')
     parser.add_argument('-p', '--print_debug', default="", choices=debug_info_choices, nargs='+', help="What debug info to print to a file in the debug directory")
     parser.add_argument('-d', '--debug_directory', default="./debug")
 
@@ -210,12 +220,15 @@ def driver_main():
     with open(args.input_file, 'r') as inf:
         test_program = inf.read()
 
-    debug_info = compile_program(test_program, int(args.optimization_level), args.interpret)
+    debug_info = compile_program(test_program, int(args.optimization_level), args.interpret, args.llvm)
     put_debug_info_in_file(debug_info, args.print_debug, args.debug_directory)
 
     if not args.interpret:
         with open(args.output_file, 'w') as outf:
-            printable_code = '\n'.join([repr(x) for x in debug_info["code"]]) + '\n'
+            if args.llvm:
+                printable_code = repr(debug_info["code"])
+            else:
+                printable_code = '\n'.join([repr(x) for x in debug_info["code"]]) + '\n'
             outf.write(remove_formatting(printable_code))
 
         print(green(bold(f"\nThe code can be found in the '{args.output_file}' file")))
