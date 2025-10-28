@@ -4,6 +4,7 @@
 *.pdf
 *.png
 *.s
+*.ll
 
 tests/output
 tests/examples
@@ -14,7 +15,11 @@ out
 .editorconfig
 tags
 ToDo.md
+TODO
 
 git-mailmap
 
 scratch.pl0
+
+v
+venv
