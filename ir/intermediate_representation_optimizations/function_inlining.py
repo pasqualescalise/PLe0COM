@@ -62,7 +62,7 @@ def add_returns_stores(instructions, returns):
             new_stores = []
             for j in range(len(returns)):
                 if returns[j] != "_":  # skip dontcares
-                    new_store = StoreInstruction(parent=instruction.parent, dest=returns[j], symbol=instruction.returns[j], symtab=instruction.symtab)
+                    new_store = StoreInstruction(parent=instruction.parent, source=instruction.returns[j], dest=returns[j], symtab=instruction.symtab)
                     new_stores.append(new_store)
             stores_indices.append((i, new_stores))
 
@@ -88,11 +88,11 @@ def map_symbols(function_symbols, call_symbols):
 # Change all LoadInstruction symbols from variables to temporaries using the provided mapping
 def change_loads(instructions, destinations):
     for instruction in instructions:
-        if isinstance(instruction, LoadInstruction) and instruction.symbol in destinations:
-            if instruction.symbol.is_array() and destinations[instruction.symbol].is_pointer():
+        if isinstance(instruction, LoadInstruction) and instruction.source in destinations:
+            if instruction.source.is_array() and destinations[instruction.source].is_pointer():
                 # fix pass-by-reference, instead this becomes a move of the array address
-                destinations[instruction.symbol].type = instruction.symbol.type
-            instruction.symbol = destinations[instruction.symbol]
+                destinations[instruction.source].type = instruction.source.type
+            instruction.source = destinations[instruction.source]
 
     return instructions
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-"""Data layout computation pass. For each symbol whose location (alloct)
+"""Data layout computation pass. For each symbol whose location (alloc_class)
 is not a register, calculate their position. Symbols can be allocated
-either in the data section (alloct data or alloct global) or in the
-local stack frame (alloct auto, alloct param)
+either in the data section (alloc_class data or alloc_class global) or in the
+local stack frame (alloc_class auto, alloc_class param)
 
 Function parameters exist only in the called function and its nested
 children, and are also referenced using stack offset (even though some
@@ -54,7 +54,7 @@ def perform_data_layout_of_function(funcroot):
     fname = funcroot.symbol.name
 
     # local variables
-    for var in funcroot.body.symtab.exclude_alloct(['reg', 'global', 'param', 'return', 'data']):
+    for var in funcroot.body.symtab.exclude_alloc_class(['reg', 'global', 'param', 'return', 'data']):
         if var.type.size == 0:
             continue
 
@@ -100,7 +100,7 @@ def perform_data_layout_of_function(funcroot):
 
 # Calculate the size of all the global variables
 def perform_data_layout_of_program(root):
-    for var in root.body.symtab.exclude_alloct(['reg', 'data']):
+    for var in root.body.symtab.exclude_alloc_class(['reg', 'data']):
         if var.type.size == 0:
             continue
 

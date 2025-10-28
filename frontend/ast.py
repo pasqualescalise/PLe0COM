@@ -29,8 +29,8 @@ BINARY_CONDITIONALS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
 def mask_numeric(operand, symtab):
     mask = [int(0x000000ff), int(0x0000ffff)][operand.type.size // 8 - 1]  # either byte or short
     mask_temp = ir.new_temporary(symtab, ir.TYPENAMES['int'])
-    load_mask = ir.LoadImmInstruction(dest=mask_temp, val=mask, symtab=symtab)
-    apply_mask = ir.BinaryInstruction(dest=operand, op="and", srca=operand, srcb=load_mask.destination(), symtab=symtab)
+    load_mask = ir.LoadImmInstruction(value=mask, dest=mask_temp, symtab=symtab)
+    apply_mask = ir.BinaryInstruction(op="and", srca=operand, srcb=load_mask.destination(), dest=operand, symtab=symtab)
     return [load_mask, apply_mask]
 
 
@@ -159,13 +159,13 @@ class Const(ASTNode):
     def lower(self):  # TODO: make it possible to define constant booleans
         if self.value in ["True", "False"]:
             new = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-            loadst = ir.LoadImmInstruction(dest=new, val=self.value, symtab=self.symtab)
+            loadst = ir.LoadImmInstruction(value=self.value, dest=new, symtab=self.symtab)
         elif self.symbol is None:
             new = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loadst = ir.LoadImmInstruction(dest=new, val=self.value, symtab=self.symtab)
+            loadst = ir.LoadImmInstruction(value=self.value, dest=new, symtab=self.symtab)
         else:
             new = ir.new_temporary(self.symtab, self.symbol.type)
-            loadst = ir.LoadInstruction(dest=new, symbol=self.symbol, symtab=self.symtab)
+            loadst = ir.LoadInstruction(source=self.symbol, dest=new, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
@@ -190,18 +190,18 @@ class Var(ASTNode):
         return self.lower_array()
 
     def lower_scalar(self):
-        if self.symbol.is_string() and self.symbol.alloct != 'param':  # load strings as char pointers
+        if self.symbol.is_string() and self.symbol.alloc_class != 'param':  # load strings as char pointers
             ptrreg = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            loadptr = ir.LoadPointerInstruction(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+            loadptr = ir.LoadPointerInstruction(source=self.symbol, dest=ptrreg, symtab=self.symtab)
             return self.parent.replace(self, ir.InstructionList(children=[loadptr], symtab=self.symtab))
 
-        elif self.symbol.is_array() and self.symbol.alloct != 'param':  # load arrays as pointers
+        elif self.symbol.is_array() and self.symbol.alloc_class != 'param':  # load arrays as pointers
             ptrreg = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
-            loadptr = ir.LoadPointerInstruction(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+            loadptr = ir.LoadPointerInstruction(source=self.symbol, dest=ptrreg, symtab=self.symtab)
             return self.parent.replace(self, ir.InstructionList(children=[loadptr], symtab=self.symtab))
 
         new = ir.new_temporary(self.symtab, self.symbol.type)
-        loadst = ir.LoadInstruction(dest=new, symbol=self.symbol, symtab=self.symtab)
+        loadst = ir.LoadInstruction(source=self.symbol, dest=new, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
     def lower_array(self):
@@ -210,7 +210,7 @@ class Var(ASTNode):
 
         if not self.type.is_string():  # do not go deeper inside strings
             dest = ir.new_temporary(self.symtab, self.symbol.type.basetype)
-            load_array_pointer = ir.LoadInstruction(dest=dest, symbol=array_pointer, symtab=self.symtab)
+            load_array_pointer = ir.LoadInstruction(source=array_pointer, dest=dest, symtab=self.symtab)
             instrs += [load_array_pointer]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -238,17 +238,17 @@ class ArrayElement(ASTNode):
         for i in range(len(self.children) - 1, -1, -1):  # backwards
             multiplier = stride * index_magnitude
             multiplier_temp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            multiplier_initialize = ir.LoadImmInstruction(dest=multiplier_temp, val=multiplier, symtab=self.symtab)
+            multiplier_initialize = ir.LoadImmInstruction(value=multiplier, dest=multiplier_temp, symtab=self.symtab)
             instrs += [multiplier_initialize]
 
             index_temp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            calc_index = ir.BinaryInstruction(dest=index_temp, op='times', srca=self.children[i].destination(), srcb=multiplier_temp, symtab=self.symtab)
+            calc_index = ir.BinaryInstruction(op='times', srca=self.children[i].destination(), srcb=multiplier_temp, dest=index_temp, symtab=self.symtab)
             instrs += [calc_index]
 
             if i == len(self.children) - 1:
                 accumulator = index_temp
             else:
-                add_temps = ir.BinaryInstruction(dest=index_temp, op='plus', srca=accumulator, srcb=index_temp, symtab=self.symtab)
+                add_temps = ir.BinaryInstruction(op='plus', srca=accumulator, srcb=index_temp, dest=index_temp, symtab=self.symtab)
                 instrs += [add_temps]
                 accumulator = index_temp  # XXX: change accumulator each time to reduce register pressure
 
@@ -261,21 +261,21 @@ class ArrayElement(ASTNode):
         instrs = self.lower_offset()
         off = instrs[-1].destination()
 
-        if self.symbol.alloct == 'param':
+        if self.symbol.alloc_class == 'param':
             # pass by reference, we have to deallocate the pointer twice
             parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
-            loadparameter = ir.LoadPointerInstruction(dest=parameter, symbol=self.symbol, symtab=self.symtab)
+            loadparameter = ir.LoadPointerInstruction(source=self.symbol, dest=parameter, symtab=self.symtab)
 
             array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            loadptr = ir.LoadInstruction(dest=array_pointer, symbol=parameter, symtab=self.symtab)
+            loadptr = ir.LoadInstruction(source=parameter, dest=array_pointer, symtab=self.symtab)
             instrs += [loadparameter, loadptr]
         else:
             array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            loadptr = ir.LoadPointerInstruction(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
+            loadptr = ir.LoadPointerInstruction(source=self.symbol, dest=array_pointer, symtab=self.symtab)
 
             instrs += [loadptr]
 
-        add = ir.BinaryInstruction(dest=src, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
+        add = ir.BinaryInstruction(op='plus', srca=array_pointer, srcb=off, dest=src, symtab=self.symtab)
         instrs += [add]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -303,7 +303,7 @@ class String(ASTNode):
 
         # load the fixed data string address
         ptrreg_data = ir.new_temporary(self.symtab, ir.PointerType(data_variable.type.basetype))
-        access_string = ir.LoadPointerInstruction(dest=ptrreg_data, symbol=data_variable, symtab=self.symtab)
+        access_string = ir.LoadPointerInstruction(source=data_variable, dest=ptrreg_data, symtab=self.symtab)
 
         return self.parent.replace(self, ir.InstructionList(children=[access_string], symtab=self.symtab))
 
@@ -359,7 +359,7 @@ class BinaryExpr(Expr):
         dest = ir.new_temporary(self.symtab, self.type)
 
         if self.children[0] not in ["slash", "mod"]:
-            expression = ir.BinaryInstruction(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
+            expression = ir.BinaryInstruction(op=self.children[0], srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
             instrs += [expression]
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
@@ -378,15 +378,15 @@ class BinaryExpr(Expr):
               }
               res = op1;
             """
-            if isinstance(self.children[2].children[0], ir.LoadImmInstruction) and log(self.children[2].children[0].val, 2).is_integer():
-                expression = ir.BinaryInstruction(dest=dest, op="mod", srca=srca, srcb=srcb, symtab=self.symtab)
+            if isinstance(self.children[2].children[0], ir.LoadImmInstruction) and log(self.children[2].children[0].value, 2).is_integer():
+                expression = ir.BinaryInstruction(op="mod", srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
                 instrs += [expression]
                 return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
             condition_variable = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loop_condition = ir.BinaryInstruction(dest=condition_variable, op='geq', srca=srca, srcb=srcb, symtab=self.symtab)
+            loop_condition = ir.BinaryInstruction(op='geq', srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
 
-            diff = ir.BinaryInstruction(dest=srca, op='minus', srca=srca, srcb=srcb, symtab=self.symtab)
+            diff = ir.BinaryInstruction(op='minus', srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
             loop_body = ir.InstructionList(children=[diff], symtab=self.symtab)
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
@@ -396,7 +396,7 @@ class BinaryExpr(Expr):
             while_loop.lower()
             instrs += while_statements.children
 
-            result_store = ir.StoreInstruction(dest=dest, symbol=srca, symtab=self.symtab)
+            result_store = ir.StoreInstruction(source=srca, dest=dest, symtab=self.symtab)
             instrs += [result_store]
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -413,17 +413,17 @@ class BinaryExpr(Expr):
                 res++;
             }
             """
-            zero_destination = ir.LoadImmInstruction(dest=dest, val=0, symtab=self.symtab)
+            zero_destination = ir.LoadImmInstruction(value=0, dest=dest, symtab=self.symtab)
 
             one = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            load_one = ir.LoadImmInstruction(dest=one, val=1, symtab=self.symtab)
+            load_one = ir.LoadImmInstruction(value=1, dest=one, symtab=self.symtab)
             instrs += [zero_destination, load_one]
 
             condition_variable = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loop_condition = ir.BinaryInstruction(dest=condition_variable, op="geq", srca=srca, srcb=srcb, symtab=self.symtab)
+            loop_condition = ir.BinaryInstruction(op="geq", srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
 
-            op2_update = ir.BinaryInstruction(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
-            calc_result = ir.BinaryInstruction(dest=dest, op="plus", srca=dest, srcb=one, symtab=self.symtab)
+            op2_update = ir.BinaryInstruction(op="minus", srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
+            calc_result = ir.BinaryInstruction(op="plus", srca=dest, srcb=one, dest=dest, symtab=self.symtab)
             loop_body = ir.InstructionList(children=[op2_update, calc_result], symtab=self.symtab)
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
@@ -450,9 +450,9 @@ class UnaryExpr(Expr):
         self.type = type
 
     def lower(self):
-        src = self.children[1].destination()
+        source = self.children[1].destination()
         dest = ir.new_temporary(self.symtab, self.type)
-        expression = ir.UnaryInstruction(dest=dest, op=self.children[0], src=src, symtab=self.symtab)
+        expression = ir.UnaryInstruction(op=self.children[0], source=source, dest=dest, symtab=self.symtab)
         instrs = [self.children[1], expression]
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
@@ -712,7 +712,7 @@ class AssignStat(Stat):
                 dest = self.offset.destination()
                 instrs += [self.offset]
 
-            instrs += [ir.StoreInstruction(dest=dest, symbol=src, symtab=self.symtab)]
+            instrs += [ir.StoreInstruction(source=src, dest=dest, symtab=self.symtab)]
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
@@ -728,34 +728,34 @@ class AssignStat(Stat):
             ptrreg_var = self.offset.destination()  # string array
         else:
             ptrreg_var = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            access_var = ir.LoadPointerInstruction(dest=ptrreg_var, symbol=self.symbol, symtab=self.symtab)
+            access_var = ir.LoadPointerInstruction(source=self.symbol, dest=ptrreg_var, symtab=self.symtab)
             instrs += [access_var]
 
         counter = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        counter_initialize = ir.LoadImmInstruction(dest=counter, val=0, symtab=self.symtab)
+        counter_initialize = ir.LoadImmInstruction(value=0, dest=counter, symtab=self.symtab)
 
         zero = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        zero_initialize = ir.LoadImmInstruction(dest=zero, val=0, symtab=self.symtab)
+        zero_initialize = ir.LoadImmInstruction(value=0, dest=zero, symtab=self.symtab)
 
         one = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        one_initialize = ir.LoadImmInstruction(dest=one, val=1, symtab=self.symtab)
+        one_initialize = ir.LoadImmInstruction(value=1, dest=one, symtab=self.symtab)
 
         # load first char of data
         character = ir.new_temporary(self.symtab, ir.TYPENAMES['char'])
-        load_data_char = ir.LoadInstruction(dest=character, symbol=ptrreg_data, symtab=self.symtab)
+        load_data_char = ir.LoadInstruction(source=ptrreg_data, dest=character, symtab=self.symtab)
 
         instrs += [counter_initialize, zero_initialize, one_initialize, load_data_char]
 
         # while the char loaded from the fixed string is different from 0x0,
         # copy the chars from the fixed string to the variable one
         dest = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-        cond = ir.BinaryInstruction(dest=dest, op='neq', srca=character, srcb=zero, symtab=self.symtab)
+        cond = ir.BinaryInstruction(op='neq', srca=character, srcb=zero, dest=dest, symtab=self.symtab)
 
-        store_var_char = ir.StoreInstruction(dest=ptrreg_var, symbol=character, symtab=self.symtab)
+        store_var_char = ir.StoreInstruction(source=character, dest=ptrreg_var, symtab=self.symtab)
 
-        increment_data = ir.BinaryInstruction(dest=ptrreg_data, op='plus', srca=ptrreg_data, srcb=one, symtab=self.symtab)
-        increment_var = ir.BinaryInstruction(dest=ptrreg_var, op='plus', srca=ptrreg_var, srcb=one, symtab=self.symtab)
-        increment_counter = ir.BinaryInstruction(dest=counter, op='plus', srca=counter, srcb=one, symtab=self.symtab)
+        increment_data = ir.BinaryInstruction(op='plus', srca=ptrreg_data, srcb=one, dest=ptrreg_data, symtab=self.symtab)
+        increment_var = ir.BinaryInstruction(op='plus', srca=ptrreg_var, srcb=one, dest=ptrreg_var, symtab=self.symtab)
+        increment_counter = ir.BinaryInstruction(op='plus', srca=counter, srcb=one, dest=counter, symtab=self.symtab)
 
         loop_body = ir.InstructionList(children=[store_var_char, increment_data, increment_var, increment_counter, load_data_char], symtab=self.symtab)
         while_loop = WhileStat(cond=cond, body=loop_body, symtab=self.symtab)
@@ -766,7 +766,7 @@ class AssignStat(Stat):
         instrs += while_statements.children
 
         # put a terminator 0x0 byte in the variable string
-        end_zero_string = ir.StoreInstruction(dest=ptrreg_var, symbol=zero, symtab=self.symtab)
+        end_zero_string = ir.StoreInstruction(source=zero, dest=ptrreg_var, symtab=self.symtab)
         instrs += [end_zero_string]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -790,7 +790,7 @@ class PrintStat(Stat):
     def lower(self):
         print_type = self.print_type  # set during type checking
 
-        pc = ir.PrintInstruction(src=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
+        pc = ir.PrintInstruction(symbol=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[self.children[0], pc], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
@@ -809,7 +809,7 @@ class ReadStat(Stat):
 
     def lower(self):
         tmp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        read = ir.ReadInstruction(dest=tmp, symtab=self.symtab)
+        read = ir.ReadInstruction(symbol=tmp, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[read], symtab=self.symtab))
 
     def __deepcopy__(self, memo):

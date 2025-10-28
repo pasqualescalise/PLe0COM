@@ -11,7 +11,7 @@ SPILL_FLAG = 999
 
 
 def remove_non_regs(set):
-    return {var for var in set if var.alloct == 'reg'}
+    return {var for var in set if var.alloc_class == 'reg'}
 
 
 class RegisterAllocation(object):

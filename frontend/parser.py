@@ -374,17 +374,17 @@ class Parser:
         self.error("Error while parsing statement")
 
     @logger
-    def block(self, parent_symtab, local_symtab, alloct='auto'):
+    def block(self, parent_symtab, local_symtab, alloc_class='auto'):
         # variables definition
         while self.accept('constsym') or self.accept('varsym'):
             if self.sym == 'constsym':
-                self.constdef(local_symtab, alloct)
+                self.constdef(local_symtab, alloc_class)
                 while self.accept('comma'):
-                    self.constdef(local_symtab, alloct)
+                    self.constdef(local_symtab, alloc_class)
             else:
                 # get all the newly defined variables and add them to the symtab
 
-                new_symbols = self.varsdef(alloct)
+                new_symbols = self.varsdef(alloc_class)
 
                 for new_symbol in new_symbols:
                     local_symtab.push(new_symbol)
@@ -436,7 +436,7 @@ class Parser:
 
                     # XXX: this symbols are only used for their type and size, they are
                     #      not in any SymbolTable and cannot be referenced in the program
-                    ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", type, alloct='return', function_symbol=function_symbol)
+                    ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", type, alloc_class='return', function_symbol=function_symbol)
                     returns.append(ret)
 
                     if self.new_sym == "comma":
@@ -462,24 +462,24 @@ class Parser:
 
         # parse the block statements
         statements = self.statement(local_symtab)
-        return ir.Block(gl_sym=parent_symtab, lc_sym=local_symtab, defs=function_defs, body=statements)
+        return ir.Block(global_symtab=parent_symtab, local_symtab=local_symtab, defs=function_defs, body=statements)
 
     @logger
-    def constdef(self, local_vars, alloct='auto'):  # TODO: unused at the moment
+    def constdef(self, local_vars, alloc_class='auto'):  # TODO: unused at the moment
         self.expect('ident')
         name = self.value
         self.expect('eql')
         self.expect('number')
-        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
+        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloc_class=alloc_class, function_symbol=self.current_function), int(self.value))
         while self.accept('comma'):
             self.expect('ident')
             name = self.value
             self.expect('eql')
             self.expect('number')
-            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
+            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloc_class=alloc_class, function_symbol=self.current_function), int(self.value))
 
     @logger
-    def varsdef(self, alloct='auto'):
+    def varsdef(self, alloc_class='auto'):
         new_vars = []
 
         self.expect('ident')
@@ -498,7 +498,7 @@ class Parser:
 
         # set the types for the new symbols
         for new_var in new_vars:
-            new_symbols.append(ir.Symbol(new_var, type, alloct=alloct, function_symbol=self.current_function))
+            new_symbols.append(ir.Symbol(new_var, type, alloc_class=alloc_class, function_symbol=self.current_function))
 
         return new_symbols
 
@@ -508,7 +508,7 @@ class Parser:
         # for the main, this acts also as the local_symtab
         global_symtab = ir.SymbolTable()
         self.getsym()
-        main_body = self.block(global_symtab, global_symtab, alloct='global')
+        main_body = self.block(global_symtab, global_symtab, alloc_class='global')
         main = ir.FunctionDef(symbol=self.current_function, parameters=[], body=main_body, returns=[], called_by_counter=1)
         self.expect('end of file')
         return main

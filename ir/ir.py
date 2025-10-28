@@ -26,7 +26,7 @@ temporary_count = 0
 
 def new_temporary(symtab, type):
     global temporary_count
-    temp = Symbol(name=f"t{temporary_count}", type=type, alloct='reg', is_temporary=True)
+    temp = Symbol(name=f"t{temporary_count}", type=type, alloc_class='reg', is_temporary=True)
     temporary_count += 1
     return temp
 
@@ -180,11 +180,11 @@ class Symbol:
       because they can't be referenced, but are needed to know where on the stack
       to put return values"""
 
-    def __init__(self, name, type, value=None, alloct='auto', function_symbol=None, used_in_nested_procedure=False, is_temporary=False):
+    def __init__(self, name, type, value=None, alloc_class='auto', function_symbol=None, used_in_nested_procedure=False, is_temporary=False):
         self.name = name
         self.type = type
         self.value = value  # if not None, it is a constant
-        self.alloct = alloct
+        self.alloc_class = alloc_class
         self.allocinfo = None
         # useful to understand the scope of the symbol
         self.function_symbol = function_symbol
@@ -221,11 +221,11 @@ class Symbol:
         return isinstance(self.type, LabelType)
 
     def __repr__(self):
-        res = f"{self.alloct} {self.type}"
+        res = f"{self.alloc_class} {self.type}"
 
         if self.type in [FunctionType(), LabelType()]:
             res += f" {magenta(f'{self.name}')}"
-        elif self.alloct != "reg":
+        elif self.alloc_class != "reg":
             res += f" {green(f'{self.name}')}"
         else:
             res += f" {red(f'{self.name}')}"
@@ -236,14 +236,14 @@ class Symbol:
         return res
 
     def __deepcopy__(self, memo):
-        return Symbol(self.name, self.type, value=self.value, alloct=self.alloct, function_symbol=self.function_symbol, used_in_nested_procedure=self.used_in_nested_procedure, is_temporary=self.is_temporary)
+        return Symbol(self.name, self.type, value=self.value, alloc_class=self.alloc_class, function_symbol=self.function_symbol, used_in_nested_procedure=self.used_in_nested_procedure, is_temporary=self.is_temporary)
 
 
 class SymbolTable(list):
     def find(self, node, name):
         log_indentation(underline(f"Looking up {name}"))
         for s in self:
-            if s.alloct == "param":
+            if s.alloc_class == "param":
                 # for parameters it's not enough to check the name, also
                 # the called function must be the one being parsed to
                 # make sure to get the correct variable in the scope
@@ -274,8 +274,8 @@ class SymbolTable(list):
     def exclude_without_qualifier(self, qualifier):
         return [symb for symb in self if qualifier in symb.type.qualifiers]
 
-    def exclude_alloct(self, allocts):
-        return [symb for symb in self if symb.alloct not in allocts]
+    def exclude_alloc_class(self, alloc_classes):
+        return [symb for symb in self if symb.alloc_class not in alloc_classes]
 
 
 class DataSymbolTable():
@@ -286,7 +286,7 @@ class DataSymbolTable():
     def new_data_symbol(type, value):
         name = f"data{DataSymbolTable.data_variables_count}"
         DataSymbolTable.data_variables_count += 1
-        data_variable = Symbol(name=name, type=type, value=value, alloct='data')
+        data_variable = Symbol(name=name, type=type, value=value, alloc_class='data')
         return data_variable
 
     @staticmethod
@@ -381,55 +381,94 @@ class IRInstruction():  # abstract
         return []
 
 
-class PrintInstruction(IRInstruction):
-    def __init__(self, parent=None, src=None, print_type=None, newline=True, symtab=None):
-        log_indentation(bold(f"New PrintInstruction Node (id: {id(self)})"))
+class BinaryInstruction(IRInstruction):
+    def __init__(self, parent=None, op=None, srca=None, srcb=None, dest=None, symtab=None):
+        log_indentation(bold(f"New BinaryInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
-        self.src = src
-        if src.alloct != 'reg':
-            raise RuntimeError('Trying to print a symbol not stored in a register')
-
-        self.print_type = print_type
-        self.newline = newline
+        self.op = op
+        self.srca = srca  # symbol
+        self.srcb = srcb  # symbol
+        if self.srca.alloc_class != 'reg' or self.srcb.alloc_class != 'reg':
+            raise RuntimeError('A source of the BinaryInstruction is not a register')
+        self.dest = dest  # symbol
+        if self.dest.alloc_class != 'reg':
+            raise RuntimeError('The destination of the BinaryInstruction is not a register')
 
     def used_variables(self):
-        return [self.src]
-
-    def __repr__(self):
-        return f"{blue('print')} {self.src}"
-
-    def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['src'], mapping, create_new=create_new)
-
-    def __deepcopy__(self, memo):
-        return PrintInstruction(parent=self.parent, src=self.src, print_type=self.print_type, symtab=self.symtab)
-
-
-class ReadInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, symtab=None):
-        log_indentation(bold(f"New ReadInstruction Node (id: {id(self)})"))
-        super().__init__(parent, symtab)
-        self.dest = dest
-        if dest.alloct != 'reg':
-            raise RuntimeError('Trying to read from a symbol not stored in a register')
-
-    def destination(self):
-        return self.dest
-
-    def used_variables(self):
-        return []
+        return [self.srca, self.srcb]
 
     def killed_variables(self):
         return [self.dest]
 
+    def destination(self):
+        return self.dest
+
     def __repr__(self):
-        return f"{blue('read')} {self.dest}"
+        return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.op}')} {self.srcb}"
 
     def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
+        replace_temporary_attributes(self, ['srca', 'srcb', 'dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return ReadInstruction(parent=self.parent, dest=self.dest, symtab=self.symtab)
+        return BinaryInstruction(parent=self.parent, op=self.op, srca=self.srca, srcb=self.srcb, dest=self.dest, symtab=self.symtab)
+
+
+class UnaryInstruction(IRInstruction):
+    def __init__(self, parent=None, op=None, source=None, dest=None, symtab=None):
+        log_indentation(bold(f"New UnaryInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.dest = dest
+        self.op = op
+        self.source = source
+        if self.dest.alloc_class != 'reg':
+            raise RuntimeError('The destination of the UnaryInstruction is not a register')
+        if self.source.alloc_class != 'reg':
+            raise RuntimeError('The source of the UnaryInstruction is not a register')
+
+    def used_variables(self):
+        return [self.source]
+
+    def killed_variables(self):
+        return [self.dest]
+
+    def destination(self):
+        return self.dest
+
+    def __repr__(self):
+        return f"{self.dest} {bold('<-')} {bold(f'{self.op}')} {self.source}"
+
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
+
+    def __deepcopy__(self, memo):
+        return UnaryInstruction(parent=self.parent, op=self.op, source=self.source, dest=self.dest, symtab=self.symtab)
+
+
+class LabelInstruction(IRInstruction):
+    def __init__(self, parent=None, label=None, symtab=None):
+        log_indentation(bold(f"New LabelInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.label = label
+        if label is None:
+            raise RuntimeError("Can't create a LabelInstruction without a label")
+
+    def __repr__(self):
+        return magenta(f"{self.label.name}: ")
+
+    def used_variables(self):
+        return []
+
+    def replace_temporaries(self, mapping, create_new=True):
+        if self.label in mapping:
+            self.label = mapping[self.label]
+        else:
+            if create_new:
+                new_label = TYPENAMES['label']()
+                mapping[self.label] = new_label
+                self.label = new_label
+
+    def __deepcopy__(self, memo):
+        return LabelInstruction(parent=self.parent, label=self.label, symtab=self.symtab)
 
 
 class BranchInstruction(IRInstruction):
@@ -443,7 +482,7 @@ class BranchInstruction(IRInstruction):
         super().__init__(parent, symtab)
         self.cond = cond
         self.negcond = negcond
-        if not (self.cond is None) and self.cond.alloct != 'reg':
+        if not (self.cond is None) and self.cond.alloc_class != 'reg':
             raise RuntimeError('Trying to branch on a condition not stored in a register')
         self.target = target
         self.parameters = parameters
@@ -557,50 +596,17 @@ class BranchInstruction(IRInstruction):
         return BranchInstruction(parent=self.parent, cond=self.cond, target=self.target, negcond=self.negcond, parameters=self.parameters, returns=self.returns, symtab=self.symtab)
 
 
-class LabelInstruction(IRInstruction):
-    def __init__(self, parent=None, label=None, symtab=None):
-        log_indentation(bold(f"New LabelInstruction Node (id: {id(self)})"))
+class LoadImmInstruction(IRInstruction):
+    def __init__(self, parent=None, value=0, dest=None, symtab=None):
+        log_indentation(bold(f"New LoadImmInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
-        self.label = label
-
-        if label is None:
-            raise RuntimeError("Can't create a LabelInstruction without a label")
-
-    def __repr__(self):
-        return magenta(f"{self.label.name}: ")
+        self.value = value
+        self.dest = dest
+        if self.dest.alloc_class != 'reg':
+            raise RuntimeError('Trying to load a value not to a register')
 
     def used_variables(self):
         return []
-
-    def replace_temporaries(self, mapping, create_new=True):
-        if self.label in mapping:
-            self.label = mapping[self.label]
-        else:
-            if create_new:
-                new_label = TYPENAMES['label']()
-                mapping[self.label] = new_label
-                self.label = new_label
-
-    def __deepcopy__(self, memo):
-        return LabelInstruction(parent=self.parent, label=self.label, symtab=self.symtab)
-
-
-class LoadPointerInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, symbol=None, symtab=None):
-        """Loads to the 'dest' symbol the location in memory (as an absolute
-        address) of 'symbol'. This instruction is used as a starting point for
-        lowering nodes which need any kind of pointer arithmetic."""
-        log_indentation(bold(f"New LoadPointerInstruction Node (id: {id(self)})"))
-        super().__init__(parent, symtab)
-        self.symbol = symbol
-        self.dest = dest
-        if self.symbol.alloct == 'reg':
-            raise RuntimeError('The symbol is not in memory')
-        if self.dest.alloct != 'reg':
-            raise RuntimeError('The destination is not to a register')
-
-    def used_variables(self):
-        return [self.symbol]
 
     def killed_variables(self):
         return [self.dest]
@@ -609,18 +615,86 @@ class LoadPointerInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        return f"{self.dest} {bold('<-')} &({self.symbol})"
+        return f"{self.dest} {bold('<-')} {self.value}"
 
     def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
+        replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return LoadPointerInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
+        return LoadImmInstruction(parent=self.parent, value=self.value, dest=self.dest, symtab=self.symtab)
+
+
+class LoadPointerInstruction(IRInstruction):
+    def __init__(self, parent=None, source=None, dest=None, symtab=None):
+        """Loads to the 'dest' symbol the location in memory (as an absolute
+        address) of the 'source' symbol. This instruction is used as a starting
+        point for lowering nodes which need any kind of pointer arithmetic."""
+        log_indentation(bold(f"New LoadPointerInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.source = source
+        self.dest = dest
+        if self.source.alloc_class == 'reg':
+            raise RuntimeError('The source symbol is not in memory')
+        if self.dest.alloc_class != 'reg':
+            raise RuntimeError('The destination is not to a register')
+
+    def used_variables(self):
+        return [self.source]
+
+    def killed_variables(self):
+        return [self.dest]
+
+    def destination(self):
+        return self.dest
+
+    def __repr__(self):
+        return f"{self.dest} {bold('<-')} &({self.source})"
+
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
+
+    def __deepcopy__(self, memo):
+        return LoadPointerInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
+
+
+class LoadInstruction(IRInstruction):
+    def __init__(self, parent=None, source=None, dest=None, symtab=None):
+        """Loads the value in source to dest, which must be a temporary. 'source'
+        can be a symbol allocated in memory, or a temporary (symbol allocated to a
+        register). In the first case, the value contained in the symbol itself is
+        loaded; in the second case the symbol is used as a pointer to an arbitrary
+        location in memory."""
+        log_indentation(bold(f"New LoadInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.source = source
+        self.dest = dest
+        if self.dest.alloc_class != 'reg':
+            raise RuntimeError('Trying to load a value not to a register')
+
+    def used_variables(self):
+        return [self.source]
+
+    def killed_variables(self):
+        return [self.dest]
+
+    def destination(self):
+        return self.dest
+
+    def __repr__(self):
+        if self.source.is_pointer():
+            return f"{self.dest} {bold('<-')} [{self.source}]"
+        return f"{self.dest} {bold('<-')} {self.source}"
+
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
+
+    def __deepcopy__(self, memo):
+        return LoadInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
 
 
 class StoreInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, symbol=None, symtab=None):
-        """Stores the value in the 'symbol' temporary (register) to 'dest' which
+    def __init__(self, parent=None, source=None, dest=None, symtab=None):
+        """Stores the value in the 'source' temporary (register) to 'dest' which
         can be a symbol allocated in memory, or a temporary (symbol allocated to a
         register). In the first case, the store is done to the symbol itself; in
         the second case the dest symbol is used as a pointer to an arbitrary
@@ -628,21 +702,21 @@ class StoreInstruction(IRInstruction):
         Special cases for parameters and returns defined in the codegen"""
         log_indentation(bold(f"New StoreInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
-        self.symbol = symbol
-        if self.symbol.alloct != 'reg':
+        self.source = source
+        if self.source.alloc_class != 'reg':
             raise RuntimeError('Trying to store a value not from a register')
         self.dest = dest
 
     def used_variables(self):
-        if self.dest.alloct == 'reg' and self.dest.is_pointer():
-            return [self.symbol, self.dest]
-        return [self.symbol]
+        if self.dest.alloc_class == 'reg' and self.dest.is_pointer():
+            return [self.source, self.dest]
+        return [self.source]
 
     def killed_variables(self):
-        if self.dest.alloct != 'reg':  # putting a value in a symbol
+        if self.dest.alloc_class != 'reg':  # putting a value in a symbol
             return [self.dest]
 
-        if self.symbol.alloct == 'reg' and not self.dest.is_pointer():  # mov between registers
+        if self.source.alloc_class == 'reg' and not self.dest.is_pointer():  # mov between registers
             return [self.dest]
         else:
             return []
@@ -652,140 +726,65 @@ class StoreInstruction(IRInstruction):
 
     def __repr__(self):
         if self.dest.is_pointer():
-            return f"[{self.dest}] {bold('<-')} {self.symbol}"
-        return f"{self.dest} {bold('<-')} {self.symbol}"
+            return f"[{self.dest}] {bold('<-')} {self.source}"
+        return f"{self.dest} {bold('<-')} {self.source}"
 
     def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
+        replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return StoreInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
+        return StoreInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
 
 
-class LoadInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, symbol=None, symtab=None):
-        """Loads the value in symbol to dest, which must be a temporary. 'symbol'
-        can be a symbol allocated in memory, or a temporary (symbol allocated to a
-        register). In the first case, the value contained in the symbol itself is
-        loaded; in the second case the symbol is used as a pointer to an arbitrary
-        location in memory."""
-        log_indentation(bold(f"New LoadInstruction Node (id: {id(self)})"))
+class PrintInstruction(IRInstruction):
+    def __init__(self, parent=None, symbol=None, print_type=None, newline=True, symtab=None):
+        log_indentation(bold(f"New PrintInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.symbol = symbol
-        self.dest = dest
-        if self.dest.alloct != 'reg':
-            raise RuntimeError('Trying to load a value not to a register')
+        if symbol.alloc_class != 'reg':
+            raise RuntimeError('Trying to print a symbol not stored in a register')
+
+        self.print_type = print_type
+        self.newline = newline
 
     def used_variables(self):
         return [self.symbol]
 
-    def killed_variables(self):
-        return [self.dest]
-
-    def destination(self):
-        return self.dest
-
     def __repr__(self):
-        if self.symbol.is_pointer():
-            return f"{self.dest} {bold('<-')} [{self.symbol}]"
-        return f"{self.dest} {bold('<-')} {self.symbol}"
+        return f"{blue('print')} {self.symbol}"
 
     def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest', 'symbol'], mapping, create_new=create_new)
+        replace_temporary_attributes(self, ['symbol'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return LoadInstruction(parent=self.parent, dest=self.dest, symbol=self.symbol, symtab=self.symtab)
+        return PrintInstruction(parent=self.parent, symbol=self.symbol, print_type=self.print_type, symtab=self.symtab)
 
 
-class LoadImmInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, val=0, symtab=None):
-        log_indentation(bold(f"New LoadImmInstruction Node (id: {id(self)})"))
+class ReadInstruction(IRInstruction):
+    def __init__(self, parent=None, symbol=None, symtab=None):
+        log_indentation(bold(f"New ReadInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
-        self.val = val
-        self.dest = dest
-        if self.dest.alloct != 'reg':
-            raise RuntimeError('Trying to load a value not to a register')
+        self.symbol = symbol
+        if symbol.alloc_class != 'reg':
+            raise RuntimeError('Trying to read from a symbol not stored in a register')
+
+    def destination(self):
+        return self.symbol
 
     def used_variables(self):
         return []
 
     def killed_variables(self):
-        return [self.dest]
-
-    def destination(self):
-        return self.dest
+        return [self.symbol]
 
     def __repr__(self):
-        return f"{self.dest} {bold('<-')} {self.val}"
+        return f"{blue('read')} {self.symbol}"
 
     def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest'], mapping, create_new=create_new)
+        replace_temporary_attributes(self, ['symbol'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return LoadImmInstruction(parent=self.parent, dest=self.dest, val=self.val, symtab=self.symtab)
-
-
-class BinaryInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, op=None, srca=None, srcb=None, symtab=None):
-        log_indentation(bold(f"New BinaryInstruction Node (id: {id(self)})"))
-        super().__init__(parent, symtab)
-        self.dest = dest  # symbol
-        self.op = op
-        self.srca = srca  # symbol
-        self.srcb = srcb  # symbol
-        if self.dest.alloct != 'reg':
-            raise RuntimeError('The destination of the BinaryInstruction is not a register')
-        if self.srca.alloct != 'reg' or self.srcb.alloct != 'reg':
-            raise RuntimeError('A source of the BinaryInstruction is not a register')
-
-    def killed_variables(self):
-        return [self.dest]
-
-    def used_variables(self):
-        return [self.srca, self.srcb]
-
-    def destination(self):
-        return self.dest
-
-    def __repr__(self):
-        return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.op}')} {self.srcb}"
-
-    def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest', 'srca', 'srcb'], mapping, create_new=create_new)
-
-    def __deepcopy__(self, memo):
-        return BinaryInstruction(parent=self.parent, dest=self.dest, op=self.op, srca=self.srca, srcb=self.srcb, symtab=self.symtab)
-
-
-class UnaryInstruction(IRInstruction):
-    def __init__(self, parent=None, dest=None, op=None, src=None, symtab=None):
-        log_indentation(bold(f"New UnaryInstruction Node (id: {id(self)})"))
-        super().__init__(parent, symtab)
-        self.dest = dest
-        self.op = op
-        self.src = src
-        if self.dest.alloct != 'reg':
-            raise RuntimeError('The destination of the UnaryInstruction is not a register')
-        if self.src.alloct != 'reg':
-            raise RuntimeError('The source of the UnaryInstruction is not a register')
-
-    def killed_variables(self):
-        return [self.dest]
-
-    def used_variables(self):
-        return [self.src]
-
-    def destination(self):
-        return self.dest
-
-    def __repr__(self):
-        return f"{self.dest} {bold('<-')} {bold(f'{self.op}')} {self.src}"
-
-    def replace_temporaries(self, mapping, create_new=True):
-        replace_temporary_attributes(self, ['dest', 'src'], mapping, create_new=create_new)
-
-    def __deepcopy__(self, memo):
-        return UnaryInstruction(parent=self.parent, dest=self.dest, op=self.op, src=self.src, symtab=self.symtab)
+        return ReadInstruction(parent=self.parent, symbol=self.symbol, symtab=self.symtab)
 
 
 class InstructionList(IRInstruction):
@@ -854,18 +853,20 @@ class InstructionList(IRInstruction):
         return InstructionList(parent=self.parent, children=new_children, flat=self.flat, symtab=self.symtab)
 
 
+# DEFINITIONS
+
 class Block(IRInstruction):
-    def __init__(self, parent=None, gl_sym=None, lc_sym=None, defs=None, body=None):
+    def __init__(self, parent=None, global_symtab=None, local_symtab=None, defs=None, body=None):
         log_indentation(bold(f"New Block Node (id: {id(self)})"))
-        super().__init__(parent, lc_sym)
-        self.global_symtab = gl_sym
+        super().__init__(parent, local_symtab)
+        self.global_symtab = global_symtab
         self.body = body
         self.defs = defs
         self.body.parent = self
         self.defs.parent = self
         self.stackroom = 0
         # XXX: used just for printing
-        self.local_symtab = lc_sym
+        self.local_symtab = local_symtab
 
     def replace_temporaries(self, mapping, create_new=True):
         pass
@@ -874,19 +875,17 @@ class Block(IRInstruction):
         new_body = deepcopy(self.body, memo)
         new_defs = deepcopy(self.defs, memo)
 
-        return Block(parent=self.parent, gl_sym=self.global_symtab, lc_sym=self.local_symtab, defs=new_defs, body=new_body)
+        return Block(parent=self.parent, global_symtab=self.global_symtab, local_symtab=self.local_symtab, defs=new_defs, body=new_body)
 
-
-# DEFINITIONS
 
 class FunctionDef(IRInstruction):
     def __init__(self, parent=None, symbol=None, parameters=[], body=None, returns=[], called_by_counter=0):
         log_indentation(bold(f"New Functions Definition Node (id: {id(self)})"))
         super().__init__(parent, None)
         self.symbol = symbol
+        self.parameters = parameters
         self.body = body
         self.body.parent = self
-        self.parameters = parameters
         self.returns = returns
         self.called_by_counter = called_by_counter
 
