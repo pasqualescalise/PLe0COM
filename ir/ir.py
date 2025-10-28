@@ -382,10 +382,10 @@ class IRInstruction():  # abstract
 
 
 class BinaryInstruction(IRInstruction):
-    def __init__(self, parent=None, op=None, srca=None, srcb=None, dest=None, symtab=None):
+    def __init__(self, parent=None, operator=None, srca=None, srcb=None, dest=None, symtab=None):
         log_indentation(bold(f"New BinaryInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
-        self.op = op
+        self.operator = operator
         self.srca = srca  # symbol
         self.srcb = srcb  # symbol
         if self.srca.alloc_class != 'reg' or self.srcb.alloc_class != 'reg':
@@ -404,21 +404,21 @@ class BinaryInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.op}')} {self.srcb}"
+        return f"{self.dest} {bold('<-')} {self.srca} {bold(f'{self.operator}')} {self.srcb}"
 
     def replace_temporaries(self, mapping, create_new=True):
         replace_temporary_attributes(self, ['srca', 'srcb', 'dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return BinaryInstruction(parent=self.parent, op=self.op, srca=self.srca, srcb=self.srcb, dest=self.dest, symtab=self.symtab)
+        return BinaryInstruction(parent=self.parent, operator=self.operator, srca=self.srca, srcb=self.srcb, dest=self.dest, symtab=self.symtab)
 
 
 class UnaryInstruction(IRInstruction):
-    def __init__(self, parent=None, op=None, source=None, dest=None, symtab=None):
+    def __init__(self, parent=None, operator=None, source=None, dest=None, symtab=None):
         log_indentation(bold(f"New UnaryInstruction Node (id: {id(self)})"))
         super().__init__(parent, symtab)
         self.dest = dest
-        self.op = op
+        self.operator = operator
         self.source = source
         if self.dest.alloc_class != 'reg':
             raise RuntimeError('The destination of the UnaryInstruction is not a register')
@@ -435,13 +435,13 @@ class UnaryInstruction(IRInstruction):
         return self.dest
 
     def __repr__(self):
-        return f"{self.dest} {bold('<-')} {bold(f'{self.op}')} {self.source}"
+        return f"{self.dest} {bold('<-')} {bold(f'{self.operator}')} {self.source}"
 
     def replace_temporaries(self, mapping, create_new=True):
         replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
-        return UnaryInstruction(parent=self.parent, op=self.op, source=self.source, dest=self.dest, symtab=self.symtab)
+        return UnaryInstruction(parent=self.parent, operator=self.operator, source=self.source, dest=self.dest, symtab=self.symtab)
 
 
 class LabelInstruction(IRInstruction):

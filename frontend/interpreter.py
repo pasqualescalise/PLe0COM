@@ -101,10 +101,10 @@ String.interpret = string_interpret
 
 
 def binary_expr_interpret(self, variable_state):
-    op_a = self.children[1].interpret(variable_state)
-    op_b = self.children[2].interpret(variable_state)
+    op_a = self.children[0].interpret(variable_state)
+    op_b = self.children[1].interpret(variable_state)
 
-    match self.children[0]:
+    match self.operator:
         case 'plus':
             return mask_number_to_its_type(op_a + op_b, self.type)
         case 'minus':
@@ -144,18 +144,18 @@ BinaryExpr.interpret = binary_expr_interpret
 
 
 def unary_expr_interpret(self, variable_state):
-    op = self.children[1].interpret(variable_state)
+    operand = self.children[0].interpret(variable_state)
 
-    match self.children[0]:
+    match self.operator:
         case 'plus':
-            return mask_number_to_its_type(+op, self.type)
+            return mask_number_to_its_type(+operand, self.type)
         case 'minus':
-            return mask_number_to_its_type(-op, self.type)
+            return mask_number_to_its_type(-operand, self.type)
 
         case 'odd':
-            return False if op % 2 == 0 else True
+            return False if operand % 2 == 0 else True
         case 'not':
-            return not op
+            return not operand
 
 
 UnaryExpr.interpret = unary_expr_interpret

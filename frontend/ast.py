@@ -33,7 +33,7 @@ def mask_numeric(operand, symtab):
     mask = [int(0x000000ff), int(0x0000ffff)][operand.type.size // 8 - 1]  # either byte or short
     mask_temp = ir.new_temporary(symtab, ir.TYPENAMES['int'])
     load_mask = ir.LoadImmInstruction(value=mask, dest=mask_temp, symtab=symtab)
-    apply_mask = ir.BinaryInstruction(op="and", srca=operand, srcb=load_mask.destination(), dest=operand, symtab=symtab)
+    apply_mask = ir.BinaryInstruction(operator="and", srca=operand, srcb=load_mask.destination(), dest=operand, symtab=symtab)
     return [load_mask, apply_mask]
 
 
@@ -46,11 +46,7 @@ class ASTNode:  # abstract
         if children:
             self.children = children[:]
             for c in self.children:
-                try:
-                    c.parent = self
-                except Exception:
-                    # TODO: error checking, maybe just remove the string operation from the expressions
-                    pass
+                c.parent = self
         else:
             self.children = []
         self.type = None
@@ -60,7 +56,7 @@ class ASTNode:  # abstract
         return ".".join(str(type(self)).split("'")[1].split(".")[-2:])
 
     def __repr__(self):
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values', 'type'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values', 'type', 'operator'} & set(dir(self))
 
         res = f"{cyan(f'{self.type_repr()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -245,13 +241,13 @@ class ArrayElement(ASTNode):
             instrs += [multiplier_initialize]
 
             index_temp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            calc_index = ir.BinaryInstruction(op='times', srca=self.children[i].destination(), srcb=multiplier_temp, dest=index_temp, symtab=self.symtab)
+            calc_index = ir.BinaryInstruction(operator='times', srca=self.children[i].destination(), srcb=multiplier_temp, dest=index_temp, symtab=self.symtab)
             instrs += [calc_index]
 
             if i == len(self.children) - 1:
                 accumulator = index_temp
             else:
-                add_temps = ir.BinaryInstruction(op='plus', srca=accumulator, srcb=index_temp, dest=index_temp, symtab=self.symtab)
+                add_temps = ir.BinaryInstruction(operator='plus', srca=accumulator, srcb=index_temp, dest=index_temp, symtab=self.symtab)
                 instrs += [add_temps]
                 accumulator = index_temp  # XXX: change accumulator each time to reduce register pressure
 
@@ -278,7 +274,7 @@ class ArrayElement(ASTNode):
 
             instrs += [loadptr]
 
-        add = ir.BinaryInstruction(op='plus', srca=array_pointer, srcb=off, dest=src, symtab=self.symtab)
+        add = ir.BinaryInstruction(operator='plus', srca=array_pointer, srcb=off, dest=src, symtab=self.symtab)
         instrs += [add]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -339,21 +335,26 @@ class StaticArray(ASTNode):
 # EXPRESSIONS
 
 class Expr(ASTNode):  # abstract
+    def __init__(self, parent=None, operator='', operands=None, symtab=None):
+        super().__init__(parent, operands, symtab)
+        self.operator = operator
+
     def get_operator(self):
-        return self.children[0]
+        return self.operator
 
 
 class BinaryExpr(Expr):
-    def __init__(self, parent=None, children=None, type=None, symtab=None):
+    def __init__(self, parent=None, operator='', operands=None, type=None, symtab=None):
         log_indentation(bold(f"New BinaryExpr Node (id: {id(self)})"))
-        super().__init__(parent, children, symtab)
+        super().__init__(parent, operator, operands, symtab)
+        self.operator = operator
         self.type = type
 
     def lower(self):
-        instrs = [self.children[1], self.children[2]]
+        instrs = [self.children[0], self.children[1]]
 
-        srca = self.children[1].destination()
-        srcb = self.children[2].destination()
+        srca = self.children[0].destination()
+        srcb = self.children[1].destination()
 
         if self.mask:  # set during type checking
             smallest_operand = srca if srca.type.size < srcb.type.size else srcb
@@ -361,12 +362,12 @@ class BinaryExpr(Expr):
 
         dest = ir.new_temporary(self.symtab, self.type)
 
-        if self.children[0] not in ["slash", "mod"]:
-            expression = ir.BinaryInstruction(op=self.children[0], srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
+        if self.operator not in ["slash", "mod"]:
+            expression = ir.BinaryInstruction(operator=self.operator, srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
             instrs += [expression]
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
-        elif self.children[0] == "mod":
+        elif self.operator == "mod":
             """
             try to see at compile time if the dividend of
             the modulus is a power of two:
@@ -381,15 +382,15 @@ class BinaryExpr(Expr):
               }
               res = op1;
             """
-            if isinstance(self.children[2].children[0], ir.LoadImmInstruction) and log(self.children[2].children[0].value, 2).is_integer():
-                expression = ir.BinaryInstruction(op="mod", srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
+            if isinstance(self.children[1].children[0], ir.LoadImmInstruction) and log(self.children[1].children[0].value, 2).is_integer():
+                expression = ir.BinaryInstruction(operator="mod", srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
                 instrs += [expression]
                 return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
             condition_variable = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loop_condition = ir.BinaryInstruction(op='geq', srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
+            loop_condition = ir.BinaryInstruction(operator='geq', srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
 
-            diff = ir.BinaryInstruction(op='minus', srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
+            diff = ir.BinaryInstruction(operator='minus', srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
             loop_body = ir.InstructionList(children=[diff], symtab=self.symtab)
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
@@ -404,7 +405,7 @@ class BinaryExpr(Expr):
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
-        elif self.children[0] == "slash":
+        elif self.operator == "slash":
             """
             implement the division as a while loop
             so that `res = op1 / op2`
@@ -423,10 +424,10 @@ class BinaryExpr(Expr):
             instrs += [zero_destination, load_one]
 
             condition_variable = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loop_condition = ir.BinaryInstruction(op="geq", srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
+            loop_condition = ir.BinaryInstruction(operator="geq", srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
 
-            op2_update = ir.BinaryInstruction(op="minus", srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
-            calc_result = ir.BinaryInstruction(op="plus", srca=dest, srcb=one, dest=dest, symtab=self.symtab)
+            op2_update = ir.BinaryInstruction(operator="minus", srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
+            calc_result = ir.BinaryInstruction(operator="plus", srca=dest, srcb=one, dest=dest, symtab=self.symtab)
             loop_body = ir.InstructionList(children=[op2_update, calc_result], symtab=self.symtab)
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
@@ -443,28 +444,26 @@ class BinaryExpr(Expr):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return BinaryExpr(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
+        return BinaryExpr(parent=self.parent, operator=self.operator, operands=new_children, type=self.type, symtab=self.symtab)
 
 
 class UnaryExpr(Expr):
-    def __init__(self, parent=None, children=None, type=None, symtab=None):
+    def __init__(self, parent=None, operator='', operand=None, type=None, symtab=None):
         log_indentation(bold(f"New UnaryExpr Node (id: {id(self)})"))
-        super().__init__(parent, children, symtab)
+        super().__init__(parent, operator, [operand], symtab)
+        self.operator = operator
         self.type = type
 
     def lower(self):
-        source = self.children[1].destination()
+        source = self.children[0].destination()
         dest = ir.new_temporary(self.symtab, self.type)
-        expression = ir.UnaryInstruction(op=self.children[0], source=source, dest=dest, symtab=self.symtab)
-        instrs = [self.children[1], expression]
+        expression = ir.UnaryInstruction(operator=self.operator, source=source, dest=dest, symtab=self.symtab)
+        instrs = [self.children[0], expression]
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        new_children = []
-        for child in self.children:
-            new_children.append(deepcopy(child, memo))
-
-        return UnaryExpr(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
+        new_operand = deepcopy(self.children[0], memo)
+        return UnaryExpr(parent=self.parent, operator=self.operator, operand=new_operand, type=self.type, symtab=self.symtab)
 
 
 # STATEMENTS
@@ -746,13 +745,13 @@ class AssignStat(Stat):
         # while the char loaded from the fixed string is different from 0x0,
         # copy the chars from the fixed string to the variable one
         dest = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-        cond = ir.BinaryInstruction(op='neq', srca=character, srcb=zero, dest=dest, symtab=self.symtab)
+        cond = ir.BinaryInstruction(operator='neq', srca=character, srcb=zero, dest=dest, symtab=self.symtab)
 
         store_var_char = ir.StoreInstruction(source=character, dest=ptrreg_var, symtab=self.symtab)
 
-        increment_data = ir.BinaryInstruction(op='plus', srca=ptrreg_data, srcb=one, dest=ptrreg_data, symtab=self.symtab)
-        increment_var = ir.BinaryInstruction(op='plus', srca=ptrreg_var, srcb=one, dest=ptrreg_var, symtab=self.symtab)
-        increment_counter = ir.BinaryInstruction(op='plus', srca=counter, srcb=one, dest=counter, symtab=self.symtab)
+        increment_data = ir.BinaryInstruction(operator='plus', srca=ptrreg_data, srcb=one, dest=ptrreg_data, symtab=self.symtab)
+        increment_var = ir.BinaryInstruction(operator='plus', srca=ptrreg_var, srcb=one, dest=ptrreg_var, symtab=self.symtab)
+        increment_counter = ir.BinaryInstruction(operator='plus', srca=counter, srcb=one, dest=counter, symtab=self.symtab)
 
         loop_body = ir.InstructionList(children=[store_var_char, increment_data, increment_var, increment_counter, load_data_char], symtab=self.symtab)
         while_loop = WhileStat(cond=cond, body=loop_body, symtab=self.symtab)

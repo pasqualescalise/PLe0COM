@@ -126,7 +126,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.condition(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -138,7 +138,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.additive(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -150,7 +150,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.multiplicative(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -162,7 +162,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.unary_expression(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -176,10 +176,10 @@ class Parser:
         expr = self.primary(symtab)
 
         for operator in list(reversed(unary_operators)):
-            expr = ast.UnaryExpr(children=[operator, expr], symtab=symtab)
+            expr = ast.UnaryExpr(operator=operator, operand=expr, symtab=symtab)
 
         while self.accept('incsym') or self.accept('decsym'):
-            expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+            expr = ast.BinaryExpr(operator='plus' if self.sym == 'incsym' else 'minus', operands=[expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
 
         return expr
 
@@ -242,7 +242,7 @@ class Parser:
                     dest = ast.Var(symbol=symbol, symtab=symtab)
                 else:
                     dest = ast.Var(symbol=symbol, offset=deepcopy(offset), symtab=symtab)
-                expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+                expr = ast.BinaryExpr(operator='plus' if self.sym == 'incsym' else 'minus', operands=[dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
             else:
                 self.expect('becomes')
                 expr = self.expression(symtab)

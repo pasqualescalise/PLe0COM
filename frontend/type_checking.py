@@ -122,8 +122,8 @@ StaticArray.type_checking = static_array_type_checking
 
 
 def binary_expr_type_checking(self):
-    type_a = self.children[1].type
-    type_b = self.children[2].type
+    type_a = self.children[0].type
+    type_b = self.children[1].type
 
     self.mask = False  # wheter to apply a mask to one operand
 
@@ -146,10 +146,10 @@ def binary_expr_type_checking(self):
         except ValueError:
             pass
 
-    if self.children[0] in BINARY_CONDITIONALS:
+    if self.operator in BINARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
 
-    elif self.children[0] in BINARY_BOOLEANS and self.children[1].type != TYPENAMES['boolean']:
+    elif self.operator in BINARY_BOOLEANS and self.children[1].type != TYPENAMES['boolean']:
         raise TypeError(f"Boolean operation {self.children[0]} can only be applied to unary operators, not {self.children[1].type} and {self.children[2].type}")
 
 
@@ -157,12 +157,12 @@ BinaryExpr.type_checking = binary_expr_type_checking
 
 
 def unary_expr_type_checking(self):
-    self.type = self.children[1].type
+    self.type = self.children[0].type
 
-    if self.children[0] in UNARY_CONDITIONALS:
+    if self.operator in UNARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
 
-    elif self.children[0] in UNARY_BOOLEANS and self.children[1].type != TYPENAMES['boolean']:
+    elif self.operator in UNARY_BOOLEANS and self.children[0].type != TYPENAMES['boolean']:
         raise TypeError(f"Boolean operation {self.children[0]} can only be applied to unary operators, not {self.children[1].type}")
 
 

@@ -64,7 +64,7 @@ def unroll(self):
     # subtract one to the actual loop condition
     loop_end = self.cond.children[-1]
     loop_unrolling_factor_minus_one = Const(value=LOOP_UNROLLING_FACTOR - 1, symtab=self.symtab)
-    sub = BinaryExpr(parent=self.cond, children=['minus', loop_end, loop_unrolling_factor_minus_one], symtab=self.symtab)
+    sub = BinaryExpr(parent=self.cond, operator='minus', operands=[loop_end, loop_unrolling_factor_minus_one], symtab=self.symtab)
 
     loop_unrolling_factor_minus_one.parent = sub
     loop_end.parent = sub
@@ -82,7 +82,7 @@ def unroll(self):
     if LOOP_UNROLLING_FACTOR == 2:
         # just check if the loop condition is odd or not; if it is, execute the remaining loop body
         loop_end_copy = deepcopy(loop_end)
-        odd_cond = UnaryExpr(children=['odd', loop_end_copy], symtab=self.symtab)
+        odd_cond = UnaryExpr(operator='odd', operand=loop_end_copy, symtab=self.symtab)
         then = deepcopy(original_body_copy)
         check = IfStat(cond=odd_cond, thenpart=then, elifspart=StatList(), elsepart=None, symtab=self.symtab)
         check.parent = self
@@ -99,9 +99,9 @@ def unroll(self):
         loop = ForStat(parent=None, init=init, cond=loop_cond, step=step, body=loop_body, symtab=self.symtab)
 
         loop_unrolling_factor = Const(value=LOOP_UNROLLING_FACTOR, symtab=self.symtab)
-        modulus = BinaryExpr(children=['mod', loop_end_copy, loop_unrolling_factor], symtab=self.symtab)
+        modulus = BinaryExpr(operator='mod', operands=[loop_end_copy, loop_unrolling_factor], symtab=self.symtab)
         zero = Const(value=0, symtab=self.symtab)
-        if_cond = BinaryExpr(children=['neq', modulus, zero], symtab=self.symtab)
+        if_cond = BinaryExpr(operator='neq', operands=[modulus, zero], symtab=self.symtab)
         check = IfStat(cond=if_cond, thenpart=loop, elifspart=StatList(), elsepart=None, symtab=self.symtab)
 
         loop.parent = check
@@ -145,28 +145,28 @@ def check_if_for_loop_is_normalized(for_loop):
 
     elif not isinstance(for_loop.step.expr, BinaryExpr):
         return False
-    elif for_loop.step.expr.children[0] != "plus":
+    elif for_loop.step.expr.operator != "plus":
         return False
-    elif not isinstance(for_loop.step.expr.children[1], Var):
+    elif not isinstance(for_loop.step.expr.children[0], Var):
         return False
-    elif for_loop.step.symbol != for_loop.step.expr.children[1].symbol:
+    elif for_loop.step.symbol != for_loop.step.expr.children[0].symbol:
         return False
-    elif not isinstance(for_loop.step.expr.children[2], Const):
+    elif not isinstance(for_loop.step.expr.children[1], Const):
         return False
-    elif for_loop.step.expr.children[2].value != 1:
+    elif for_loop.step.expr.children[1].value != 1:
         return False
 
     elif not isinstance(for_loop.cond, BinaryExpr):
         return False
-    elif for_loop.cond.children[0] != "lss":
+    elif for_loop.cond.operator != "lss":
         return False
-    elif not isinstance(for_loop.cond.children[1], Var):
+    elif not isinstance(for_loop.cond.children[0], Var):
         return False
-    elif for_loop.step.symbol != for_loop.cond.children[1].symbol:
+    elif for_loop.step.symbol != for_loop.cond.children[0].symbol:
         return False
-    elif not isinstance(for_loop.cond.children[2], Const):
+    elif not isinstance(for_loop.cond.children[1], Const):
         return False
-    elif not isinstance(for_loop.cond.children[2].value, int):
+    elif not isinstance(for_loop.cond.children[1].value, int):
         return False
 
     return True

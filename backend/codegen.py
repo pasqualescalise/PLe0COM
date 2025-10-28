@@ -41,58 +41,58 @@ def binary_codegen(self, regalloc):
     param = f"{ra}, {rb}"
 
     # algebric operations
-    if self.op == "plus":
+    if self.operator == "plus":
         res += [ASMInstruction('add', args=[rd, param])]
-    elif self.op == "minus":
+    elif self.operator == "minus":
         res += [ASMInstruction('sub', args=[rd, param])]
-    elif self.op == "times":
+    elif self.operator == "times":
         res += [ASMInstruction('mul', args=[rd, param])]
-    elif self.op == "slash":
+    elif self.operator == "slash":
         # XXX: this should never happen, since there is no "div" instruction in armv6
         pass
-    elif self.op == "shl":
+    elif self.operator == "shl":
         res += [ASMInstruction('lsl', args=[rd, param])]
-    elif self.op == "shr":
+    elif self.operator == "shr":
         res += [ASMInstruction('lsr', args=[rd, param])]
-    elif self.op == "mod":
+    elif self.operator == "mod":
         res += [ASMInstruction('add', args=[rd, param])]
         res += [ASMInstruction('sub', args=[get_register_string(REG_SCRATCH), rb, f"#{italic('1')}"])]
         res += [ASMInstruction('and', args=[rd, rd, get_register_string(REG_SCRATCH)])]
 
     # conditional operations
-    elif self.op == "eql":
+    elif self.operator == "eql":
         res += [ASMInstruction('cmp', args=[param])]
         res += [ASMInstruction('moveq', args=[rd, f"#{italic('1')}"])]
         res += [ASMInstruction('movne', args=[rd, f"#{italic('0')}"])]
-    elif self.op == "neq":
+    elif self.operator == "neq":
         res += [ASMInstruction('cmp', args=[param])]
         res += [ASMInstruction('moveq', args=[rd, f"#{italic('0')}"])]
         res += [ASMInstruction('movne', args=[rd, f"#{italic('1')}"])]
-    elif self.op == "lss":
+    elif self.operator == "lss":
         res += [ASMInstruction('cmp', args=[param])]
         res += [ASMInstruction('movlt', args=[rd, f"#{italic('1')}"])]
         res += [ASMInstruction('movge', args=[rd, f"#{italic('0')}"])]
-    elif self.op == "leq":
+    elif self.operator == "leq":
         res += [ASMInstruction('cmp', args=[param])]
         res += [ASMInstruction('movle', args=[rd, f"#{italic('1')}"])]
         res += [ASMInstruction('movgt', args=[rd, f"#{italic('0')}"])]
-    elif self.op == "gtr":
+    elif self.operator == "gtr":
         res += [ASMInstruction('cmp', args=[param])]
         res += [ASMInstruction('movgt', args=[rd, f"#{italic('1')}"])]
         res += [ASMInstruction('movle', args=[rd, f"#{italic('0')}"])]
-    elif self.op == "geq":
+    elif self.operator == "geq":
         res += [ASMInstruction('cmp', args=[param])]
         res += [ASMInstruction('movge', args=[rd, f"#{italic('1')}"])]
         res += [ASMInstruction('movlt', args=[rd, f"#{italic('0')}"])]
 
     # logic operations
-    elif self.op == "and":
+    elif self.operator == "and":
         res += [ASMInstruction('and', args=[rd, param])]
-    elif self.op == "or":
+    elif self.operator == "or":
         res += [ASMInstruction('orr', args=[rd, param])]
 
     else:
-        raise RuntimeError(f"Operation {self.op} unexpected")
+        raise RuntimeError(f"Operation {self.operator} unexpected")
 
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
@@ -107,25 +107,25 @@ def unary_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
 
     # algebric operations
-    if self.op == 'plus':
+    if self.operator == 'plus':
         if rs != rd:
             res += [ASMInstruction('mov', args=[rd, rs])]
-    elif self.op == 'minus':
+    elif self.operator == 'minus':
         res += [ASMInstruction('mvn', args=[rd, rs])]
         res += [ASMInstruction('add', args=[rd, rd, f"#{italic('1')}"])]
 
     # conditional operations
-    elif self.op == 'odd':
+    elif self.operator == 'odd':
         res += [ASMInstruction('and', args=[rd, rs, f"#{italic('1')}"])]
 
     # logic operations
-    elif self.op == 'not':
+    elif self.operator == 'not':
         res += [ASMInstruction('cmp', args=[rs, f"#{italic('0')}"])]
         res += [ASMInstruction('moveq', args=[rd, f"#{italic('1')}"])]
         res += [ASMInstruction('movne', args=[rd, f"#{italic('0')}"])]
 
     else:
-        raise RuntimeError(f"Unexpected operation {self.op}")
+        raise RuntimeError(f"Unexpected operation {self.operator}")
 
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
