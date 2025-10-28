@@ -35,7 +35,9 @@ def non_strict_type_equivalence(type_a, type_b):
 #  * if it's scalar (offset is None) -> symbol type
 #  * if it's an array -> consider how many times we are accessing it
 #    e.g. if we access one time, arr[2][2] becomes arr[2]
-def symbol_with_offset_type(symbol, offset, num_of_accesses):
+def symbol_with_offset_type(symbol, offset):
+    num_of_accesses = len(offset.children)
+
     if offset is None:
         return symbol.type
 
@@ -68,6 +70,9 @@ def var_type_checking(self):
 
     self.type = self.symbol.type
 
+    if self.offset is not None:
+        self.type = self.offset.type
+
 
 Var.type_checking = var_type_checking
 
@@ -76,10 +81,14 @@ def array_element_type_checking(self):
     if self.symbol is None:
         raise TypeError(f"Can't compute type of ArrayElement {self.id} since it doesn't have a symbol")
 
-    elif self.offset is None or not self.symbol.is_array():
+    elif self.children == [] or not self.symbol.is_array():
         raise TypeError("Can only index array variables")
 
-    self.type = symbol_with_offset_type(self.symbol, self.offset, self.num_of_accesses)
+    for index in self.children:
+        if not index.type.is_numeric():
+            raise TypeError("Array indexes must be numeric")
+
+    self.type = symbol_with_offset_type(self.symbol, self)
 
 
 ArrayElement.type_checking = array_element_type_checking
@@ -150,6 +159,8 @@ def unary_expr_type_checking(self):
     if self.children[0] in UNARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
 
+    # TODO: bug: we are allowing stuff like "not <int>"
+
 
 UnaryExpr.type_checking = unary_expr_type_checking
 
@@ -173,7 +184,12 @@ def call_stat_type_checking(self):
 
         raise TypeError(f"Calling function {function_definition.symbol.name} with parameters of type {call_parameters_types} while it expects {function_parameters_types}")
 
-    call_returns_types = [symbol_with_offset_type(x[0], x[1], x[2]) if x[0] != '_' else '_' for x in self.returns]
+    # we need types but we can't navigate to this array TODO: yet
+    for ret in self.returns:
+        if ret != '_':
+            ret.navigate(type_checking)
+
+    call_returns_types = [x.type if x != '_' else '_' for x in self.returns]
     function_returns_types = [x.type for x in function_definition.returns]
 
     if len(function_returns_types) > len(call_returns_types):
@@ -234,7 +250,10 @@ def assign_stat_type_checking(self):
     if self.offset is not None and not self.symbol.is_array():
         raise TypeError("Trying to access a non-array variable with an offset")
 
-    left_hand_type = symbol_with_offset_type(self.symbol, self.offset, self.num_of_accesses)
+    if self.offset is None:
+        left_hand_type = self.symbol.type
+    else:
+        left_hand_type = self.offset.type
     right_hand_type = self.expr.type
 
     if non_strict_type_equivalence(left_hand_type, right_hand_type):
