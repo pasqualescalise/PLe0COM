@@ -79,10 +79,10 @@ class Parser:
         return ir.ArrayType(None, dims, basetype)
 
     @logger
-    def array_offset(self, target, symtab):
+    def array_offset(self, symbol, symtab):
         indexes = []
-        if target.is_array() and self.new_sym == 'lspar':
-            for i in range(0, len(target.type.dims)):
+        if symbol.is_array() and self.new_sym == 'lspar':
+            for i in range(0, len(symbol.type.dims)):
                 if self.new_sym != 'lspar':  # we are referencing a subarray
                     break
 
@@ -91,7 +91,7 @@ class Parser:
                 self.expect('rspar')
 
         if len(indexes) > 0:
-            return ast.ArrayElement(var=target, indexes=indexes, symtab=symtab)
+            return ast.ArrayElement(symbol=symbol, indexes=indexes, symtab=symtab)
         return None
 
     @logger
@@ -186,9 +186,9 @@ class Parser:
     @logger
     def primary(self, symtab):
         if self.accept('ident'):
-            var = symtab.find(self, self.value)
-            offset = self.array_offset(var, symtab)
-            return ast.Var(var=var, offset=offset, symtab=symtab)
+            symbol = symtab.find(self, self.value)
+            offset = self.array_offset(symbol, symtab)
+            return ast.Var(symbol=symbol, offset=offset, symtab=symtab)
 
         elif self.accept('number'):
             return ast.Const(value=int(self.value), symtab=symtab)
@@ -234,20 +234,20 @@ class Parser:
             return statement_list
 
         elif self.accept('ident'):
-            target = symtab.find(self, self.value)
-            offset = self.array_offset(target, symtab)
+            symbol = symtab.find(self, self.value)
+            offset = self.array_offset(symbol, symtab)
 
             if self.accept('incsym') or self.accept('decsym'):
                 if offset is None:
-                    dest = ast.Var(var=target, symtab=symtab)
+                    dest = ast.Var(symbol=symbol, symtab=symtab)
                 else:
-                    dest = ast.Var(var=target, offset=deepcopy(offset), symtab=symtab)
+                    dest = ast.Var(symbol=symbol, offset=deepcopy(offset), symtab=symtab)
                 expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
             else:
                 self.expect('becomes')
                 expr = self.expression(symtab)
 
-            return ast.AssignStat(target=target, offset=offset, expr=expr, symtab=symtab)
+            return ast.AssignStat(symbol=symbol, offset=offset, expr=expr, symtab=symtab)
 
         elif self.accept('callsym'):
             self.expect('ident')
@@ -279,9 +279,9 @@ class Parser:
                         returns.append("_")
                     else:
                         self.accept('ident')
-                        var = symtab.find(self, self.value)
-                        offset = self.array_offset(var, symtab)
-                        returns.append(ast.Var(var=var, offset=offset, symtab=symtab))
+                        symbol = symtab.find(self, self.value)
+                        offset = self.array_offset(symbol, symtab)
+                        returns.append(ast.Var(symbol=symbol, offset=offset, symtab=symtab))
 
                     if self.new_sym == "comma":
                         self.accept('comma')
@@ -350,9 +350,9 @@ class Parser:
 
         elif self.accept('read'):
             self.expect('ident')
-            target = symtab.find(self, self.value)
-            offset = self.array_offset(var, symtab)
-            return ast.AssignStat(target=target, offset=offset, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
+            symbol = symtab.find(self, self.value)
+            offset = self.array_offset(symbol, symtab)
+            return ast.AssignStat(symbol=symbol, offset=offset, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
 
         elif self.accept('returnsym'):
             self.expect('lparen')

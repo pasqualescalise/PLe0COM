@@ -175,10 +175,10 @@ class Const(ASTNode):
 class Var(ASTNode):
     """loads in a temporary the value pointed to by the symbol"""
 
-    def __init__(self, parent=None, var=None, offset=None, type=None, symtab=None):
+    def __init__(self, parent=None, symbol=None, offset=None, type=None, symtab=None):
         log_indentation(bold(f"New Var Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
-        self.symbol = var
+        self.symbol = symbol
         self.offset = offset
         if self.offset is not None:
             self.offset.parent = self
@@ -217,14 +217,14 @@ class Var(ASTNode):
 
     def __deepcopy__(self, memo):
         offset = deepcopy(self.offset)
-        return Var(parent=self.parent, var=self.symbol, offset=offset, type=self.type, symtab=self.symtab)
+        return Var(parent=self.parent, symbol=self.symbol, offset=offset, type=self.type, symtab=self.symtab)
 
 
 class ArrayElement(ASTNode):
-    def __init__(self, parent=None, var=None, indexes=[], type=None, symtab=None):
+    def __init__(self, parent=None, symbol=None, indexes=[], type=None, symtab=None):
         log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
         super().__init__(parent, indexes, symtab)
-        self.symbol = var
+        self.symbol = symbol
         self.type = type
 
     def lower_offset(self):  # TODO: add code to check at runtime if we went over the array size
@@ -285,7 +285,7 @@ class ArrayElement(ASTNode):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return ArrayElement(parent=self.parent, var=self.symbol, indexes=new_children, type=self.type, symtab=self.symtab)
+        return ArrayElement(parent=self.parent, symbol=self.symbol, indexes=new_children, type=self.type, symtab=self.symtab)
 
 
 class String(ASTNode):
@@ -318,8 +318,8 @@ class StaticArray(ASTNode):
     def __init__(self, parent=None, values=[], values_type=None, symtab=None):
         log_indentation(bold(f"New StaticArray Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
-        self.values_type = values_type
         self.values = values
+        self.values_type = values_type
         for value in self.values:
             value.parent = self
 
@@ -672,10 +672,10 @@ class ForStat(Stat):
 
 
 class AssignStat(Stat):
-    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, type=None, symtab=None):
+    def __init__(self, parent=None, children=[], symbol=None, offset=None, expr=None, type=None, symtab=None):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
-        self.symbol = target
+        self.symbol = symbol
 
         # TODO: why do this?
         try:
@@ -774,7 +774,7 @@ class AssignStat(Stat):
     def __deepcopy__(self, memo):
         new_expr = deepcopy(self.expr, memo)
         new_offset = deepcopy(self.offset, memo)
-        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, type=self.type, symtab=self.symtab)
+        return AssignStat(parent=self.parent, symbol=self.symbol, offset=new_offset, expr=new_expr, type=self.type, symtab=self.symtab)
 
 
 class PrintStat(Stat):
@@ -871,22 +871,6 @@ class StatList(Stat):
         elem.parent = self
         log_indentation(f"Appending statement {id(elem)} of type {elem.type_repr()} to StatList {id(self)}")
         self.children.append(elem)
-
-    def replace(self, old, new):
-        new.parent = self
-        if 'children' in dir(self) and len(self.children) and old in self.children:
-            self.children[self.children.index(old)] = new
-            return True
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'epilogue'} & set(dir(self))
-
-        for d in attrs:
-            try:
-                if getattr(self, d) == old:
-                    setattr(self, d, new)
-                    return True
-            except AttributeError:
-                pass
-        return False
 
     def get_content(self):
         content = f"Recap StatList {id(self)}: [\n"

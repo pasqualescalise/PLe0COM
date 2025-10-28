@@ -38,7 +38,7 @@ def add_return_assignments(self):
 
         temp = new_temporary(self.symtab, type)
         # TODO: it would be nice to assign to variables instead of symbols
-        assign_stat = AssignStat(parent=self.parent, target=self.returns[i].symbol, offset=self.returns[i].offset, expr=temp, symtab=self.symtab)
+        assign_stat = AssignStat(parent=self.parent, symbol=self.returns[i].symbol, offset=self.returns[i].offset, expr=temp, symtab=self.symtab)
         assign_stats.append(assign_stat)
 
     # add the assign statements after the call
@@ -75,8 +75,8 @@ def array_assign(self):
             array_access.children.append(index)
             index.parent = array_access
         else:
-            array_access = ArrayElement(var=self.symbol, indexes=[index], symtab=self.symtab)
-        assign_stat = AssignStat(parent=self.parent, target=self.symbol, expr=self.expr.values[i], offset=array_access, symtab=self.symtab)
+            array_access = ArrayElement(symbol=self.symbol, indexes=[index], symtab=self.symtab)
+        assign_stat = AssignStat(parent=self.parent, symbol=self.symbol, expr=self.expr.values[i], offset=array_access, symtab=self.symtab)
         assign_stats += [assign_stat]
 
     # add the new assign statements instead of this one
@@ -128,12 +128,12 @@ def array_print(self):
         for i in range(dim):
             index = Const(value=i, symtab=self.symtab)
             if expr.offset is None:
-                array_access = ArrayElement(var=expr.symbol, indexes=[], symtab=self.symtab)
+                array_access = ArrayElement(symbol=expr.symbol, indexes=[], symtab=self.symtab)
             else:
                 array_access = deepcopy(expr.offset)
             array_access.children.append(index)
             index.parent = array_access
-            var = Var(var=expr.symbol, offset=array_access, symtab=self.symtab)
+            var = Var(symbol=expr.symbol, offset=array_access, symtab=self.symtab)
             stats += [PrintStat(expr=var, newline=False, symtab=self.symtab)]
 
             if i != dim - 1:
