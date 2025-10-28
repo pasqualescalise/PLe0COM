@@ -7,6 +7,8 @@ every ASTNode; to maximize compatibility with the compiler, this interpreter
 assumes 32 bit integers and makes them overflow or underflow
 """
 
+from copy import deepcopy
+
 from frontend.ast import Const, Var, ArrayElement, String, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList
 from ir.ir import FunctionDef, PointerType, TYPENAMES
 from ir.function_tree import FunctionTree
@@ -63,19 +65,28 @@ Const.interpret = const_interpret
 
 
 def var_interpret(self, variable_state):
-    return mask_number_to_its_type(variable_state[self.symbol], self.type)
+    if self.offset is None:
+        return mask_number_to_its_type(variable_state[self.symbol], self.type)
+
+    indexes = self.offset.interpret(variable_state)
+    element = variable_state[self.symbol]
+    for index in indexes:
+        element = element[index]
+
+    return mask_number_to_its_type(element, self.type)
 
 
 Var.interpret = var_interpret
 
 
+# XXX: normally this returns an element of the array, but for the
+#      interpreter it's easier to return a list of indexes
 def array_element_interpret(self, variable_state):
-    offset = self.offset.interpret(variable_state) // (self.symbol.type.basetype.size // 8)
+    indexes = []
+    for index in self.children:
+        indexes.append(index.interpret(variable_state))
 
-    if self.symbol.type.basetype == TYPENAMES['char']:
-        offset = offset // self.symbol.type.dims[self.num_of_accesses]
-
-    return mask_number_to_its_type(variable_state[self.symbol][offset], self.symbol.type.basetype)
+    return indexes
 
 
 ArrayElement.interpret = array_element_interpret
@@ -172,7 +183,7 @@ def call_stat_interpret(self, variable_state):
 
     j = 0  # skip dontcares
     for i in range(len(called_function.returns)):
-        if self.returns[i][0] != '_':
+        if self.returns[i] != '_':
             variable_state[self.returns_storage[j]] = mask_number_to_its_type(function_variable_state[called_function.returns[i]], self.returns_storage[j].type)
             j += 1
 
@@ -234,12 +245,12 @@ def assign_stat_interpret(self, variable_state):
     if self.offset is None:
         variable_state[self.symbol] = interpreted_expr
     else:
-        offset = self.offset.interpret(variable_state) // (self.symbol.type.basetype.size // 8)
+        indexes = self.offset.interpret(variable_state)
+        element = variable_state[self.symbol]
+        for index in indexes[:-1]:
+            element = element[index]
 
-        if self.symbol.type.basetype == TYPENAMES['char']:
-            offset = offset // self.symbol.type.dims[self.num_of_accesses]
-
-        variable_state[self.symbol][offset] = interpreted_expr
+        element[indexes[-1]] = interpreted_expr
 
     # to avoid polluting the variable state, remove the Symbol
     # used only for this assignment
@@ -315,12 +326,18 @@ def functiondef_interpret(self, variable_state):
     for symbol in self.body.symtab:
         if symbol in variable_state.keys():
             continue
+        elif symbol.is_string():
+            variable_state[symbol] = get_default_value(symbol.type.basetype)
         elif symbol.is_array():
             if symbol.type.basetype == TYPENAMES["char"]:
                 # treat them as string arrays, not char arrays
-                variable_state[symbol] = [get_default_value(symbol.type.basetype)] * (symbol.type.size // symbol.type.basetype.size // len(symbol.type.dims))
+                variable_state[symbol] = [get_default_value(symbol.type.basetype) for x in range(symbol.type.dims[-2])]
+                for dim in list(reversed(symbol.type.dims[:-2])):
+                    variable_state[symbol] = [deepcopy(variable_state[symbol]) for x in range(dim)]
             else:
-                variable_state[symbol] = [get_default_value(symbol.type.basetype)] * (symbol.type.size // symbol.type.basetype.size)
+                variable_state[symbol] = [get_default_value(symbol.type.basetype) for x in range(symbol.type.dims[-1])]
+                for dim in list(reversed(symbol.type.dims[:-1])):
+                    variable_state[symbol] = [deepcopy(variable_state[symbol]) for x in range(dim)]
         elif 'assignable' not in symbol.type.qualifiers:
             continue
         else:
