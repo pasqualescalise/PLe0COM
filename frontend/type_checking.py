@@ -5,7 +5,7 @@ leaves (e.g. Vars) and Expressions have their own type, while Statements have
 the 'statement' type; for statements, check that types are respected (e.g. only
 print printable stuff, call with the right arguments, ...)"""
 
-from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList, BINARY_CONDITIONALS, UNARY_CONDITIONALS
+from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList, UNARY_CONDITIONALS, BINARY_CONDITIONALS, UNARY_BOOLEANS, BINARY_BOOLEANS
 from ir.function_tree import FunctionTree
 from ir.ir import ArrayType, TYPENAMES
 from logger import log_indentation, green, underline
@@ -149,6 +149,9 @@ def binary_expr_type_checking(self):
     if self.children[0] in BINARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
 
+    elif self.children[0] in BINARY_BOOLEANS and self.children[1].type != TYPENAMES['boolean']:
+        raise TypeError(f"Boolean operation {self.children[0]} can only be applied to unary operators, not {self.children[1].type} and {self.children[2].type}")
+
 
 BinaryExpr.type_checking = binary_expr_type_checking
 
@@ -159,7 +162,8 @@ def unary_expr_type_checking(self):
     if self.children[0] in UNARY_CONDITIONALS:
         self.type = TYPENAMES['boolean']
 
-    # TODO: bug: we are allowing stuff like "not <int>"
+    elif self.children[0] in UNARY_BOOLEANS and self.children[1].type != TYPENAMES['boolean']:
+        raise TypeError(f"Boolean operation {self.children[0]} can only be applied to unary operators, not {self.children[1].type}")
 
 
 UnaryExpr.type_checking = unary_expr_type_checking

@@ -24,6 +24,9 @@ import logger
 UNARY_CONDITIONALS = ['odd']
 BINARY_CONDITIONALS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
 
+UNARY_BOOLEANS = ['not']
+BINARY_BOOLEANS = ['and', 'or']
+
 
 # Returns instructions that mask shorts and bytes, to eliminate sign extension
 def mask_numeric(operand, symtab):
