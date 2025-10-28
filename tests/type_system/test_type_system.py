@@ -39,6 +39,10 @@ class TestTypeSystem():
         output, debug_info = run_test("tests/type_system/08.array_assignments/code.pl0", int(optimization_level), interpreter, debug_executable)
         check_expected_output(output, "tests/type_system/08.array_assignments/expected")
 
-    def test_more_complex_array_assignments(self, optimization_level, interpreter, debug_executable):
-        output, debug_info = run_test("tests/type_system/09.more_complex_array_assignments/code.pl0", int(optimization_level), interpreter, debug_executable)
-        check_expected_output(output, "tests/type_system/09.more_complex_array_assignments/expected")
+    def test_more_complex_numeric_array_assignments(self, optimization_level, interpreter, debug_executable):
+        output, debug_info = run_test("tests/type_system/09.more_complex_numeric_array_assignments/code.pl0", int(optimization_level), interpreter, debug_executable)
+        check_expected_output(output, "tests/type_system/09.more_complex_numeric_array_assignments/expected")
+
+    def test_more_complex_string_array_assignments(self, optimization_level, interpreter, debug_executable):
+        output, debug_info = run_test("tests/type_system/10.more_complex_string_array_assignments/code.pl0", int(optimization_level), interpreter, debug_executable)
+        check_expected_output(output, "tests/type_system/10.more_complex_string_array_assignments/expected")
