@@ -37,7 +37,6 @@ def add_return_assignments(self):
             type = PointerType(type.basetype)
 
         temp = new_temporary(self.symtab, type)
-        # TODO: it would be nice to assign to variables instead of symbols
         assign_stat = AssignStat(parent=self.parent, symbol=self.returns[i].symbol, offset=self.returns[i].offset, expr=temp, symtab=self.symtab)
         assign_stats.append(assign_stat)
 
@@ -97,8 +96,7 @@ def array_print(self):
 
     expr = self.children[0]
 
-    # TODO: move after the check
-    stats = [PrintStat(expr=String(value="["), newline=False, symtab=self.symtab)]
+    stats = []
 
     # printing an array directly
     if isinstance(expr, StaticArray):
@@ -142,6 +140,7 @@ def array_print(self):
     else:
         return
 
+    stats.insert(0, PrintStat(expr=String(value="["), newline=False, symtab=self.symtab))
     stats += [PrintStat(expr=String(value="]"), newline=newline, symtab=self.symtab)]
 
     index = self.parent.children.index(self)

@@ -49,7 +49,7 @@ class ASTNode:  # abstract
                 try:
                     c.parent = self
                 except Exception:
-                    # TODO: error checking
+                    # TODO: error checking, maybe just remove the string operation from the expressions
                     pass
         else:
             self.children = []
@@ -679,12 +679,6 @@ class AssignStat(Stat):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
         self.symbol = symbol
-
-        # TODO: why do this?
-        try:
-            self.symbol.parent = self
-        except AttributeError:
-            pass
 
         self.expr = expr
         if self.expr is not None:
