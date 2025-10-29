@@ -28,7 +28,7 @@ def perform_chain_load_store_elimination(bb, debug_info):
             continue
 
         # do not delete chains involving pointers
-        if not (instruction.dest.alloct == 'reg' and instruction.symbol.alloct == 'reg' and not instruction.dest.is_pointer() and not instruction.symbol.is_pointer()):
+        if not (instruction.dest.alloc_class == 'reg' and instruction.source.alloc_class == 'reg' and not instruction.dest.is_pointer() and not instruction.source.is_pointer()):
             continue
 
         # XXX: can we do this also for non temporaries?
@@ -37,13 +37,13 @@ def perform_chain_load_store_elimination(bb, debug_info):
                 continue
 
         if isinstance(instruction, LoadInstruction):
-            if not instruction.symbol.is_temporary:
+            if not instruction.source.is_temporary:
                 continue
 
         if instruction.dest in bb.live_out:  # do not overwrite symbols used in next BasicBlocks
             continue
 
-        mapping[instruction.dest] = instruction.symbol
+        mapping[instruction.dest] = instruction.source
 
         index = bb.instrs.index(instruction)
 

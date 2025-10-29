@@ -1,0 +1,55 @@
+VAR char_array : char[10][2];
+VAR hyper_char_array : char[2][2][10];
+VAR hyper_mega_char_array : char[2][3][2][2][10];
+
+BEGIN
+	print "String Arrays";
+	char_array = ["A", "B", "C"]char[2];
+	print char_array;
+	print char_array[0];
+	print char_array[1];
+	print char_array[2];
+	print ["A", "B", char_array[2]]char[2];
+	
+	hyper_char_array = [["1", "2"]char[10], ["3", "4"]char[10]]char[2][10];
+	print hyper_char_array;
+
+	hyper_mega_char_array = [
+						[
+							[
+								["A", "B"]char[10],
+								["C", "D"]char[10]
+							]char[2][10],
+							[
+								["E", "F"]char[10],
+								["G", "H"]char[10]
+							]char[2][10],
+							[
+								["I", "J"]char[10],
+								["K", "L"]char[10]
+							]char[2][10]
+						]char[2][2][10],
+						[
+							[
+								["M", "N"]char[10],
+								["O", "P"]char[10]
+							]char[2][10],
+							[
+								["Q", "R"]char[10],
+								["S", "T"]char[10]
+							]char[2][10],
+							[
+								["U", "V"]char[10],
+								["W", "X"]char[10]
+							]char[2][10]
+						]char[2][2][10]
+					]char[3][2][2][10];
+	print hyper_mega_char_array;
+	print hyper_mega_char_array[1][0][1][1];
+	print hyper_mega_char_array[0][2][1][1];
+	print hyper_mega_char_array[0][1][0][0];
+	print "0";
+	print hyper_mega_char_array[0][0][1][0];
+	print hyper_mega_char_array[1][0][1][0];
+	print hyper_mega_char_array[1][0][0][0];
+END

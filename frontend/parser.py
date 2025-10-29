@@ -2,7 +2,6 @@
 
 """PL/0 recursive descent parser adapted from Wikipedia"""
 
-from functools import reduce
 from copy import deepcopy
 
 import frontend.ast as ast
@@ -79,36 +78,21 @@ class Parser:
 
         return ir.ArrayType(None, dims, basetype)
 
-    def array_offset(self, target, symtab):
-        offset = None
-        idxes = []
-        if target.is_array() and self.new_sym == 'lspar':
-            for i in range(0, len(target.type.dims)):
+    @logger
+    def array_offset(self, symbol, symtab):
+        indexes = []
+        if symbol.is_array() and self.new_sym == 'lspar':
+            for i in range(0, len(symbol.type.dims)):
                 if self.new_sym != 'lspar':  # we are referencing a subarray
                     break
 
                 self.expect('lspar')
-                idxes.append(self.expression(symtab))
+                indexes.append(self.expression(symtab))
                 self.expect('rspar')
-            offset = self.linearize_multid_vector(idxes, target, symtab)
-        return (offset, len(idxes))
 
-    @staticmethod
-    def linearize_multid_vector(explist, target, symtab):
-        offset = None
-        for i in range(0, len(explist)):
-            if i + 1 < len(target.type.dims):
-                planedisp = reduce(lambda x, y: x * y, target.type.dims[i + 1:])
-            else:
-                planedisp = 1
-            idx = explist[i]
-            esize = (target.type.basetype.size // 8) * planedisp
-            planed = ast.BinaryExpr(children=['times', idx, ast.Const(value=esize, symtab=symtab)], symtab=symtab)
-            if offset is None:
-                offset = planed
-            else:
-                offset = ast.BinaryExpr(children=['plus', offset, planed], symtab=symtab)
-        return offset
+        if len(indexes) > 0:
+            return ast.ArrayElement(symbol=symbol, indexes=indexes, symtab=symtab)
+        return None
 
     @logger
     def static_array(self, symtab):
@@ -142,7 +126,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.condition(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -154,7 +138,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.additive(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -166,7 +150,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.multiplicative(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -178,7 +162,7 @@ class Parser:
             self.getsym()
             operator = self.sym
             expr2 = self.unary_expression(symtab)
-            expr = ast.BinaryExpr(children=[operator, expr, expr2], symtab=symtab)
+            expr = ast.BinaryExpr(operator=operator, operands=[expr, expr2], symtab=symtab)
 
         return expr
 
@@ -192,23 +176,19 @@ class Parser:
         expr = self.primary(symtab)
 
         for operator in list(reversed(unary_operators)):
-            expr = ast.UnaryExpr(children=[operator, expr], symtab=symtab)
+            expr = ast.UnaryExpr(operator=operator, operand=expr, symtab=symtab)
 
         while self.accept('incsym') or self.accept('decsym'):
-            expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+            expr = ast.BinaryExpr(operator='plus' if self.sym == 'incsym' else 'minus', operands=[expr, ast.Const(value=1, symtab=symtab)], symtab=symtab)
 
         return expr
 
     @logger
     def primary(self, symtab):
         if self.accept('ident'):
-            var = symtab.find(self, self.value)
-
-            offset, num_of_accesses = self.array_offset(var, symtab)
-            if offset is None:
-                return ast.Var(var=var, symtab=symtab)
-            else:
-                return ast.ArrayElement(var=var, offset=offset, num_of_accesses=num_of_accesses, symtab=symtab)
+            symbol = symtab.find(self, self.value)
+            offset = self.array_offset(symbol, symtab)
+            return ast.Var(symbol=symbol, offset=offset, symtab=symtab)
 
         elif self.accept('number'):
             return ast.Const(value=int(self.value), symtab=symtab)
@@ -254,20 +234,20 @@ class Parser:
             return statement_list
 
         elif self.accept('ident'):
-            target = symtab.find(self, self.value)
-            offset, num_of_accesses = self.array_offset(target, symtab)
+            symbol = symtab.find(self, self.value)
+            offset = self.array_offset(symbol, symtab)
 
             if self.accept('incsym') or self.accept('decsym'):
                 if offset is None:
-                    dest = ast.Var(var=target, symtab=symtab)
+                    dest = ast.Var(symbol=symbol, symtab=symtab)
                 else:
-                    dest = ast.ArrayElement(var=target, offset=deepcopy(offset), num_of_accesses=num_of_accesses, symtab=symtab)
-                expr = ast.BinaryExpr(children=['plus' if self.sym == 'incsym' else 'minus', dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
+                    dest = ast.Var(symbol=symbol, offset=deepcopy(offset), symtab=symtab)
+                expr = ast.BinaryExpr(operator='plus' if self.sym == 'incsym' else 'minus', operands=[dest, ast.Const(value=1, symtab=symtab)], symtab=symtab)
             else:
                 self.expect('becomes')
                 expr = self.expression(symtab)
 
-            return ast.AssignStat(target=target, offset=offset, expr=expr, num_of_accesses=num_of_accesses, symtab=symtab)
+            return ast.AssignStat(symbol=symbol, offset=offset, expr=expr, symtab=symtab)
 
         elif self.accept('callsym'):
             self.expect('ident')
@@ -296,12 +276,12 @@ class Parser:
                 while self.new_sym != "rparen":
                     if self.new_sym == "dontcaresym":
                         self.accept('dontcaresym')
-                        returns.append(("_", None))
+                        returns.append("_")
                     else:
                         self.accept('ident')
-                        var = symtab.find(self, self.value)
-                        offset, num_of_accesses = self.array_offset(var, symtab)
-                        returns.append((var, offset, num_of_accesses))
+                        symbol = symtab.find(self, self.value)
+                        offset = self.array_offset(symbol, symtab)
+                        returns.append(ast.Var(symbol=symbol, offset=offset, symtab=symtab))
 
                     if self.new_sym == "comma":
                         self.accept('comma')
@@ -370,9 +350,9 @@ class Parser:
 
         elif self.accept('read'):
             self.expect('ident')
-            target = symtab.find(self, self.value)
-            offset, num_of_accesses = self.array_offset(var, symtab)
-            return ast.AssignStat(target=target, offset=offset, num_of_accesses=num_of_accesses, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
+            symbol = symtab.find(self, self.value)
+            offset = self.array_offset(symbol, symtab)
+            return ast.AssignStat(symbol=symbol, offset=offset, expr=ast.ReadStat(symtab=symtab), symtab=symtab)
 
         elif self.accept('returnsym'):
             self.expect('lparen')
@@ -394,17 +374,17 @@ class Parser:
         self.error("Error while parsing statement")
 
     @logger
-    def block(self, parent_symtab, local_symtab, alloct='auto'):
+    def block(self, parent_symtab, local_symtab, alloc_class='auto'):
         # variables definition
         while self.accept('constsym') or self.accept('varsym'):
             if self.sym == 'constsym':
-                self.constdef(local_symtab, alloct)
+                self.constdef(local_symtab, alloc_class)
                 while self.accept('comma'):
-                    self.constdef(local_symtab, alloct)
+                    self.constdef(local_symtab, alloc_class)
             else:
                 # get all the newly defined variables and add them to the symtab
 
-                new_symbols = self.varsdef(alloct)
+                new_symbols = self.varsdef(alloc_class)
 
                 for new_symbol in new_symbols:
                     local_symtab.push(new_symbol)
@@ -456,7 +436,7 @@ class Parser:
 
                     # XXX: this symbols are only used for their type and size, they are
                     #      not in any SymbolTable and cannot be referenced in the program
-                    ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", type, alloct='return', function_symbol=function_symbol)
+                    ret = ir.Symbol(f"ret_{str(len(returns))}_{fname}", type, alloc_class='return', function_symbol=function_symbol)
                     returns.append(ret)
 
                     if self.new_sym == "comma":
@@ -482,24 +462,24 @@ class Parser:
 
         # parse the block statements
         statements = self.statement(local_symtab)
-        return ir.Block(gl_sym=parent_symtab, lc_sym=local_symtab, defs=function_defs, body=statements)
+        return ir.Block(global_symtab=parent_symtab, local_symtab=local_symtab, defs=function_defs, body=statements)
 
     @logger
-    def constdef(self, local_vars, alloct='auto'):  # TODO: unused at the moment
+    def constdef(self, local_vars, alloc_class='auto'):  # TODO: unused at the moment
         self.expect('ident')
         name = self.value
         self.expect('eql')
         self.expect('number')
-        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
+        local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloc_class=alloc_class, function_symbol=self.current_function), int(self.value))
         while self.accept('comma'):
             self.expect('ident')
             name = self.value
             self.expect('eql')
             self.expect('number')
-            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloct=alloct, function_symbol=self.current_function), int(self.value))
+            local_vars.append(ir.Symbol(name, ir.TYPENAMES['int'], alloc_class=alloc_class, function_symbol=self.current_function), int(self.value))
 
     @logger
-    def varsdef(self, alloct='auto'):
+    def varsdef(self, alloc_class='auto'):
         new_vars = []
 
         self.expect('ident')
@@ -518,7 +498,7 @@ class Parser:
 
         # set the types for the new symbols
         for new_var in new_vars:
-            new_symbols.append(ir.Symbol(new_var, type, alloct=alloct, function_symbol=self.current_function))
+            new_symbols.append(ir.Symbol(new_var, type, alloc_class=alloc_class, function_symbol=self.current_function))
 
         return new_symbols
 
@@ -528,7 +508,7 @@ class Parser:
         # for the main, this acts also as the local_symtab
         global_symtab = ir.SymbolTable()
         self.getsym()
-        main_body = self.block(global_symtab, global_symtab, alloct='global')
+        main_body = self.block(global_symtab, global_symtab, alloc_class='global')
         main = ir.FunctionDef(symbol=self.current_function, parameters=[], body=main_body, returns=[], called_by_counter=1)
         self.expect('end of file')
         return main

@@ -21,4 +21,4 @@ class TestDeadVariableElimination():
         eliminated_instruction = debug_info['dead_variable_elimination'][0]
 
         assert isinstance(eliminated_instruction, LoadImmInstruction)
-        assert eliminated_instruction.val == 2
+        assert eliminated_instruction.value == 2

@@ -24,13 +24,16 @@ import logger
 UNARY_CONDITIONALS = ['odd']
 BINARY_CONDITIONALS = ['eql', 'neq', 'lss', 'leq', 'gtr', 'geq']
 
+UNARY_BOOLEANS = ['not']
+BINARY_BOOLEANS = ['and', 'or']
+
 
 # Returns instructions that mask shorts and bytes, to eliminate sign extension
 def mask_numeric(operand, symtab):
     mask = [int(0x000000ff), int(0x0000ffff)][operand.type.size // 8 - 1]  # either byte or short
     mask_temp = ir.new_temporary(symtab, ir.TYPENAMES['int'])
-    load_mask = ir.LoadImmInstruction(dest=mask_temp, val=mask, symtab=symtab)
-    apply_mask = ir.BinaryInstruction(dest=operand, op="and", srca=operand, srcb=load_mask.destination(), symtab=symtab)
+    load_mask = ir.LoadImmInstruction(value=mask, dest=mask_temp, symtab=symtab)
+    apply_mask = ir.BinaryInstruction(operator="and", srca=operand, srcb=load_mask.destination(), dest=operand, symtab=symtab)
     return [load_mask, apply_mask]
 
 
@@ -43,11 +46,7 @@ class ASTNode:  # abstract
         if children:
             self.children = children[:]
             for c in self.children:
-                try:
-                    c.parent = self
-                except Exception:
-                    # TODO: error checking
-                    pass
+                c.parent = self
         else:
             self.children = []
         self.type = None
@@ -57,7 +56,7 @@ class ASTNode:  # abstract
         return ".".join(str(type(self)).split("'")[1].split(".")[-2:])
 
     def __repr__(self):
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values', 'type'} & set(dir(self))
+        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'local_symtab', 'offset', 'function_symbol', 'parameters', 'returns', 'called_by_counter', 'epilogue', 'values', 'type', 'operator'} & set(dir(self))
 
         res = f"{cyan(f'{self.type_repr()}')}, {id(self)}" + " {"
         if self.parent is not None:
@@ -159,13 +158,13 @@ class Const(ASTNode):
     def lower(self):  # TODO: make it possible to define constant booleans
         if self.value in ["True", "False"]:
             new = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-            loadst = ir.LoadImmInstruction(dest=new, val=self.value, symtab=self.symtab)
+            loadst = ir.LoadImmInstruction(value=self.value, dest=new, symtab=self.symtab)
         elif self.symbol is None:
             new = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loadst = ir.LoadImmInstruction(dest=new, val=self.value, symtab=self.symtab)
+            loadst = ir.LoadImmInstruction(value=self.value, dest=new, symtab=self.symtab)
         else:
             new = ir.new_temporary(self.symtab, self.symbol.type)
-            loadst = ir.LoadInstruction(dest=new, symbol=self.symbol, symtab=self.symtab)
+            loadst = ir.LoadInstruction(source=self.symbol, dest=new, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
@@ -175,78 +174,117 @@ class Const(ASTNode):
 class Var(ASTNode):
     """loads in a temporary the value pointed to by the symbol"""
 
-    def __init__(self, parent=None, var=None, type=None, symtab=None):
+    def __init__(self, parent=None, symbol=None, offset=None, type=None, symtab=None):
         log_indentation(bold(f"New Var Node (id: {id(self)})"))
         super().__init__(parent, None, symtab)
-        self.symbol = var
+        self.symbol = symbol
+        self.offset = offset
+        if self.offset is not None:
+            self.offset.parent = self
         self.type = type
 
     def lower(self):
-        if self.symbol.is_string() and self.symbol.alloct != 'param':  # load strings as char pointers
+        if self.offset is None:
+            return self.lower_scalar()
+        return self.lower_array()
+
+    def lower_scalar(self):
+        if self.symbol.is_string() and self.symbol.alloc_class != 'param':  # load strings as char pointers
             ptrreg = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            loadptr = ir.LoadPointerInstruction(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+            loadptr = ir.LoadPointerInstruction(source=self.symbol, dest=ptrreg, symtab=self.symtab)
             return self.parent.replace(self, ir.InstructionList(children=[loadptr], symtab=self.symtab))
 
-        elif self.symbol.is_array() and self.symbol.alloct != 'param':  # load arrays as pointers
+        elif self.symbol.is_array() and self.symbol.alloc_class != 'param':  # load arrays as pointers
             ptrreg = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
-            loadptr = ir.LoadPointerInstruction(dest=ptrreg, symbol=self.symbol, symtab=self.symtab)
+            loadptr = ir.LoadPointerInstruction(source=self.symbol, dest=ptrreg, symtab=self.symtab)
             return self.parent.replace(self, ir.InstructionList(children=[loadptr], symtab=self.symtab))
 
         new = ir.new_temporary(self.symtab, self.symbol.type)
-        loadst = ir.LoadInstruction(dest=new, symbol=self.symbol, symtab=self.symtab)
+        loadst = ir.LoadInstruction(source=self.symbol, dest=new, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[loadst], symtab=self.symtab))
 
-    def __deepcopy__(self, memo):
-        return Var(parent=self.parent, var=self.symbol, type=self.type, symtab=self.symtab)
-
-
-class ArrayElement(ASTNode):
-    """loads in a temporary the value pointed by: the symbol + the index"""
-
-    def __init__(self, parent=None, var=None, offset=None, num_of_accesses=0, type=None, symtab=None):
-        """offset can NOT be a list of exps in case of multi-d arrays; it should
-        have already been flattened beforehand"""
-        log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
-        super().__init__(parent, [], symtab)
-        self.symbol = var
-        self.offset = offset
-        self.offset.parent = self
-        # for a multidimensional array, how deep is this element
-        self.num_of_accesses = num_of_accesses
-        self.type = type
-
-    def lower(self):  # TODO: add code to check at runtime if we went over the array size
-        src = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-        dest = ir.new_temporary(self.symtab, self.symbol.type.basetype)
-        off = self.offset.destination()
-
+    def lower_array(self):
+        array_pointer = self.offset.destination()
         instrs = [self.offset]
 
-        if self.symbol.alloct == 'param':
-            # pass by reference, we have to deallocate the pointer twice
-            parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
-            loadparameter = ir.LoadPointerInstruction(dest=parameter, symbol=self.symbol, symtab=self.symtab)
-
-            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            loadptr = ir.LoadInstruction(dest=array_pointer, symbol=parameter, symtab=self.symtab)
-            instrs += [loadparameter, loadptr]
-        else:
-            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-            loadptr = ir.LoadPointerInstruction(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
-
-            instrs += [loadptr]
-
-        add = ir.BinaryInstruction(dest=src, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
-        instrs += [add]
-
-        if self.symbol.is_monodimensional_array() or (not self.symbol.is_monodimensional_array() and not self.type.is_string()):
-            instrs += [ir.LoadInstruction(dest=dest, symbol=src, symtab=self.symtab)]
+        if not self.type.is_string():  # do not go deeper inside strings
+            dest = ir.new_temporary(self.symtab, self.symbol.type.basetype)
+            load_array_pointer = ir.LoadInstruction(source=array_pointer, dest=dest, symtab=self.symtab)
+            instrs += [load_array_pointer]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        new_offset = deepcopy(self.offset, memo)
-        return ArrayElement(parent=self.parent, var=self.symbol, offset=new_offset, num_of_accesses=self.num_of_accesses, type=self.type, symtab=self.symtab)
+        offset = deepcopy(self.offset)
+        return Var(parent=self.parent, symbol=self.symbol, offset=offset, type=self.type, symtab=self.symtab)
+
+
+class ArrayElement(ASTNode):
+    def __init__(self, parent=None, symbol=None, indexes=[], type=None, symtab=None):
+        log_indentation(bold(f"New ArrayElement Node (id: {id(self)})"))
+        super().__init__(parent, indexes, symtab)
+        self.symbol = symbol
+        self.type = type
+
+    def lower_offset(self):  # TODO: add code to check at runtime if we went over the array size
+        instrs = self.children[:]
+
+        stride = self.type.size // 8
+        type_indices = self.symbol.type.dims
+
+        accumulator = None
+        index_magnitude = 1  # how far in the array are we, multiplied by the array dimensions
+        for i in range(len(self.children) - 1, -1, -1):  # backwards
+            multiplier = stride * index_magnitude
+            multiplier_temp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
+            multiplier_initialize = ir.LoadImmInstruction(value=multiplier, dest=multiplier_temp, symtab=self.symtab)
+            instrs += [multiplier_initialize]
+
+            index_temp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
+            calc_index = ir.BinaryInstruction(operator='times', srca=self.children[i].destination(), srcb=multiplier_temp, dest=index_temp, symtab=self.symtab)
+            instrs += [calc_index]
+
+            if i == len(self.children) - 1:
+                accumulator = index_temp
+            else:
+                add_temps = ir.BinaryInstruction(operator='plus', srca=accumulator, srcb=index_temp, dest=index_temp, symtab=self.symtab)
+                instrs += [add_temps]
+                accumulator = index_temp  # XXX: change accumulator each time to reduce register pressure
+
+            index_magnitude *= type_indices[i]
+
+        return instrs
+
+    def lower(self):
+        src = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
+        instrs = self.lower_offset()
+        off = instrs[-1].destination()
+
+        if self.symbol.alloc_class == 'param':
+            # pass by reference, we have to deallocate the pointer twice
+            parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
+            loadparameter = ir.LoadPointerInstruction(source=self.symbol, dest=parameter, symtab=self.symtab)
+
+            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
+            loadptr = ir.LoadInstruction(source=parameter, dest=array_pointer, symtab=self.symtab)
+            instrs += [loadparameter, loadptr]
+        else:
+            array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
+            loadptr = ir.LoadPointerInstruction(source=self.symbol, dest=array_pointer, symtab=self.symtab)
+
+            instrs += [loadptr]
+
+        add = ir.BinaryInstruction(operator='plus', srca=array_pointer, srcb=off, dest=src, symtab=self.symtab)
+        instrs += [add]
+
+        return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
+
+    def __deepcopy__(self, memo):
+        new_children = []
+        for child in self.children:
+            new_children.append(deepcopy(child, memo))
+
+        return ArrayElement(parent=self.parent, symbol=self.symbol, indexes=new_children, type=self.type, symtab=self.symtab)
 
 
 class String(ASTNode):
@@ -264,7 +302,7 @@ class String(ASTNode):
 
         # load the fixed data string address
         ptrreg_data = ir.new_temporary(self.symtab, ir.PointerType(data_variable.type.basetype))
-        access_string = ir.LoadPointerInstruction(dest=ptrreg_data, symbol=data_variable, symtab=self.symtab)
+        access_string = ir.LoadPointerInstruction(source=data_variable, dest=ptrreg_data, symtab=self.symtab)
 
         return self.parent.replace(self, ir.InstructionList(children=[access_string], symtab=self.symtab))
 
@@ -279,8 +317,8 @@ class StaticArray(ASTNode):
     def __init__(self, parent=None, values=[], values_type=None, symtab=None):
         log_indentation(bold(f"New StaticArray Node (id: {id(self)})"))
         super().__init__(parent, [], symtab)
-        self.values_type = values_type
         self.values = values
+        self.values_type = values_type
         for value in self.values:
             value.parent = self
 
@@ -297,21 +335,26 @@ class StaticArray(ASTNode):
 # EXPRESSIONS
 
 class Expr(ASTNode):  # abstract
+    def __init__(self, parent=None, operator='', operands=None, symtab=None):
+        super().__init__(parent, operands, symtab)
+        self.operator = operator
+
     def get_operator(self):
-        return self.children[0]
+        return self.operator
 
 
 class BinaryExpr(Expr):
-    def __init__(self, parent=None, children=None, type=None, symtab=None):
+    def __init__(self, parent=None, operator='', operands=None, type=None, symtab=None):
         log_indentation(bold(f"New BinaryExpr Node (id: {id(self)})"))
-        super().__init__(parent, children, symtab)
+        super().__init__(parent, operator, operands, symtab)
+        self.operator = operator
         self.type = type
 
     def lower(self):
-        instrs = [self.children[1], self.children[2]]
+        instrs = [self.children[0], self.children[1]]
 
-        srca = self.children[1].destination()
-        srcb = self.children[2].destination()
+        srca = self.children[0].destination()
+        srcb = self.children[1].destination()
 
         if self.mask:  # set during type checking
             smallest_operand = srca if srca.type.size < srcb.type.size else srcb
@@ -319,12 +362,12 @@ class BinaryExpr(Expr):
 
         dest = ir.new_temporary(self.symtab, self.type)
 
-        if self.children[0] not in ["slash", "mod"]:
-            expression = ir.BinaryInstruction(dest=dest, op=self.children[0], srca=srca, srcb=srcb, symtab=self.symtab)
+        if self.operator not in ["slash", "mod"]:
+            expression = ir.BinaryInstruction(operator=self.operator, srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
             instrs += [expression]
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
-        elif self.children[0] == "mod":
+        elif self.operator == "mod":
             """
             try to see at compile time if the dividend of
             the modulus is a power of two:
@@ -339,15 +382,15 @@ class BinaryExpr(Expr):
               }
               res = op1;
             """
-            if isinstance(self.children[2].children[0], ir.LoadImmInstruction) and log(self.children[2].children[0].val, 2).is_integer():
-                expression = ir.BinaryInstruction(dest=dest, op="mod", srca=srca, srcb=srcb, symtab=self.symtab)
+            if isinstance(self.children[1].children[0], ir.LoadImmInstruction) and log(self.children[1].children[0].value, 2).is_integer():
+                expression = ir.BinaryInstruction(operator="mod", srca=srca, srcb=srcb, dest=dest, symtab=self.symtab)
                 instrs += [expression]
                 return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
             condition_variable = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loop_condition = ir.BinaryInstruction(dest=condition_variable, op='geq', srca=srca, srcb=srcb, symtab=self.symtab)
+            loop_condition = ir.BinaryInstruction(operator='geq', srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
 
-            diff = ir.BinaryInstruction(dest=srca, op='minus', srca=srca, srcb=srcb, symtab=self.symtab)
+            diff = ir.BinaryInstruction(operator='minus', srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
             loop_body = ir.InstructionList(children=[diff], symtab=self.symtab)
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
@@ -357,12 +400,12 @@ class BinaryExpr(Expr):
             while_loop.lower()
             instrs += while_statements.children
 
-            result_store = ir.StoreInstruction(dest=dest, symbol=srca, symtab=self.symtab)
+            result_store = ir.StoreInstruction(source=srca, dest=dest, symtab=self.symtab)
             instrs += [result_store]
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
-        elif self.children[0] == "slash":
+        elif self.operator == "slash":
             """
             implement the division as a while loop
             so that `res = op1 / op2`
@@ -374,17 +417,17 @@ class BinaryExpr(Expr):
                 res++;
             }
             """
-            zero_destination = ir.LoadImmInstruction(dest=dest, val=0, symtab=self.symtab)
+            zero_destination = ir.LoadImmInstruction(value=0, dest=dest, symtab=self.symtab)
 
             one = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            load_one = ir.LoadImmInstruction(dest=one, val=1, symtab=self.symtab)
+            load_one = ir.LoadImmInstruction(value=1, dest=one, symtab=self.symtab)
             instrs += [zero_destination, load_one]
 
             condition_variable = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-            loop_condition = ir.BinaryInstruction(dest=condition_variable, op="geq", srca=srca, srcb=srcb, symtab=self.symtab)
+            loop_condition = ir.BinaryInstruction(operator="geq", srca=srca, srcb=srcb, dest=condition_variable, symtab=self.symtab)
 
-            op2_update = ir.BinaryInstruction(dest=srca, op="minus", srca=srca, srcb=srcb, symtab=self.symtab)
-            calc_result = ir.BinaryInstruction(dest=dest, op="plus", srca=dest, srcb=one, symtab=self.symtab)
+            op2_update = ir.BinaryInstruction(operator="minus", srca=srca, srcb=srcb, dest=srca, symtab=self.symtab)
+            calc_result = ir.BinaryInstruction(operator="plus", srca=dest, srcb=one, dest=dest, symtab=self.symtab)
             loop_body = ir.InstructionList(children=[op2_update, calc_result], symtab=self.symtab)
 
             while_loop = WhileStat(cond=loop_condition, body=loop_body, symtab=self.symtab)
@@ -401,28 +444,26 @@ class BinaryExpr(Expr):
         for child in self.children:
             new_children.append(deepcopy(child, memo))
 
-        return BinaryExpr(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
+        return BinaryExpr(parent=self.parent, operator=self.operator, operands=new_children, type=self.type, symtab=self.symtab)
 
 
 class UnaryExpr(Expr):
-    def __init__(self, parent=None, children=None, type=None, symtab=None):
+    def __init__(self, parent=None, operator='', operand=None, type=None, symtab=None):
         log_indentation(bold(f"New UnaryExpr Node (id: {id(self)})"))
-        super().__init__(parent, children, symtab)
+        super().__init__(parent, operator, [operand], symtab)
+        self.operator = operator
         self.type = type
 
     def lower(self):
-        src = self.children[1].destination()
+        source = self.children[0].destination()
         dest = ir.new_temporary(self.symtab, self.type)
-        expression = ir.UnaryInstruction(dest=dest, op=self.children[0], src=src, symtab=self.symtab)
-        instrs = [self.children[1], expression]
+        expression = ir.UnaryInstruction(operator=self.operator, source=source, dest=dest, symtab=self.symtab)
+        instrs = [self.children[0], expression]
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
     def __deepcopy__(self, memo):
-        new_children = []
-        for child in self.children:
-            new_children.append(deepcopy(child, memo))
-
-        return UnaryExpr(parent=self.parent, children=new_children, type=self.type, symtab=self.symtab)
+        new_operand = deepcopy(self.children[0], memo)
+        return UnaryExpr(parent=self.parent, operator=self.operator, operand=new_operand, type=self.type, symtab=self.symtab)
 
 
 # STATEMENTS
@@ -454,7 +495,7 @@ class CallStat(Stat):
             #      a list with the temporaries that will contain the return values
             j = 0
             for i in range(len(self.returns)):
-                if self.returns[i][0] == "_":
+                if self.returns[i] == "_":
                     rets.append("_")
                 else:
                     rets.append(self.returns_storage[j])
@@ -633,17 +674,10 @@ class ForStat(Stat):
 
 
 class AssignStat(Stat):
-    def __init__(self, parent=None, children=[], target=None, offset=None, expr=None, num_of_accesses=0, type=None, symtab=None):
+    def __init__(self, parent=None, children=[], symbol=None, offset=None, expr=None, type=None, symtab=None):
         log_indentation(bold(f"New AssignStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
-        self.symbol = target
-        self.num_of_accesses = num_of_accesses
-
-        # TODO: why do this?
-        try:
-            self.symbol.parent = self
-        except AttributeError:
-            pass
+        self.symbol = symbol
 
         self.expr = expr
         if self.expr is not None:
@@ -652,10 +686,11 @@ class AssignStat(Stat):
         self.offset = offset
         if self.offset is not None:
             self.offset.parent = self
-            self.type = type
+
+        self.type = type
 
     def lower(self):
-        dst = self.symbol
+        dest = self.symbol
 
         # XXX: self.expr coud be a temporary
         try:
@@ -668,34 +703,12 @@ class AssignStat(Stat):
             else:
                 raise e
 
-        if not dst.is_string() and not (self.offset is not None and src.is_string()):
-            if self.offset:  # TODO: this is the same as ArrayElement, but with a store instead of a load, merge the two
+        if not dest.is_string() and not (self.offset is not None and src.is_string()):
+            if self.offset:
+                dest = self.offset.destination()
                 instrs += [self.offset]
 
-                off = self.offset.destination()
-                desttype = dst.type
-                if isinstance(desttype, ir.ArrayType):  # this is always true at the moment
-                    desttype = desttype.basetype
-
-                if self.symbol.alloct == 'param' or self.symbol.is_string():
-                    # pass by reference, we have to deallocate the pointer twice
-                    parameter = ir.new_temporary(self.symtab, ir.PointerType(ir.PointerType(self.symbol.type.basetype)))
-                    loadparameter = ir.LoadPointerInstruction(dest=parameter, symbol=self.symbol, symtab=self.symtab)
-
-                    array_pointer = ir.new_temporary(self.symtab, ir.PointerType(desttype))
-                    loadptr = ir.LoadInstruction(dest=array_pointer, symbol=parameter, symtab=self.symtab)
-                    instrs += [loadparameter, loadptr]
-                else:
-                    array_pointer = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-                    loadptr = ir.LoadPointerInstruction(dest=array_pointer, symbol=self.symbol, symtab=self.symtab)
-
-                    instrs += [loadptr]
-
-                dst = ir.new_temporary(self.symtab, ir.PointerType(desttype))
-                add = ir.BinaryInstruction(dest=dst, op='plus', srca=array_pointer, srcb=off, symtab=self.symtab)
-                instrs += [add]
-
-            instrs += [ir.StoreInstruction(dest=dst, symbol=src, symtab=self.symtab)]
+            instrs += [ir.StoreInstruction(source=src, dest=dest, symtab=self.symtab)]
 
             return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
 
@@ -706,38 +719,39 @@ class AssignStat(Stat):
         ptrreg_data = src
 
         # load the variable data string address
-        ptrreg_var = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
-        access_var = ir.LoadPointerInstruction(dest=ptrreg_var, symbol=self.symbol, symtab=self.symtab)
-
         if self.offset:
-            instrs += [access_var, self.offset]
-            access_var = ir.BinaryInstruction(dest=ptrreg_var, op='plus', srca=ptrreg_var, srcb=self.offset.destination(), symtab=self.symtab)
+            instrs += [self.offset]
+            ptrreg_var = self.offset.destination()  # string array
+        else:
+            ptrreg_var = ir.new_temporary(self.symtab, ir.PointerType(self.symbol.type.basetype))
+            access_var = ir.LoadPointerInstruction(source=self.symbol, dest=ptrreg_var, symtab=self.symtab)
+            instrs += [access_var]
 
         counter = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        counter_initialize = ir.LoadImmInstruction(dest=counter, val=0, symtab=self.symtab)
+        counter_initialize = ir.LoadImmInstruction(value=0, dest=counter, symtab=self.symtab)
 
         zero = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        zero_initialize = ir.LoadImmInstruction(dest=zero, val=0, symtab=self.symtab)
+        zero_initialize = ir.LoadImmInstruction(value=0, dest=zero, symtab=self.symtab)
 
         one = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        one_initialize = ir.LoadImmInstruction(dest=one, val=1, symtab=self.symtab)
+        one_initialize = ir.LoadImmInstruction(value=1, dest=one, symtab=self.symtab)
 
         # load first char of data
         character = ir.new_temporary(self.symtab, ir.TYPENAMES['char'])
-        load_data_char = ir.LoadInstruction(dest=character, symbol=ptrreg_data, symtab=self.symtab)
+        load_data_char = ir.LoadInstruction(source=ptrreg_data, dest=character, symtab=self.symtab)
 
-        instrs += [access_var, counter_initialize, zero_initialize, one_initialize, load_data_char]
+        instrs += [counter_initialize, zero_initialize, one_initialize, load_data_char]
 
         # while the char loaded from the fixed string is different from 0x0,
         # copy the chars from the fixed string to the variable one
         dest = ir.new_temporary(self.symtab, ir.TYPENAMES['boolean'])
-        cond = ir.BinaryInstruction(dest=dest, op='neq', srca=character, srcb=zero, symtab=self.symtab)
+        cond = ir.BinaryInstruction(operator='neq', srca=character, srcb=zero, dest=dest, symtab=self.symtab)
 
-        store_var_char = ir.StoreInstruction(dest=ptrreg_var, symbol=character, symtab=self.symtab)
+        store_var_char = ir.StoreInstruction(source=character, dest=ptrreg_var, symtab=self.symtab)
 
-        increment_data = ir.BinaryInstruction(dest=ptrreg_data, op='plus', srca=ptrreg_data, srcb=one, symtab=self.symtab)
-        increment_var = ir.BinaryInstruction(dest=ptrreg_var, op='plus', srca=ptrreg_var, srcb=one, symtab=self.symtab)
-        increment_counter = ir.BinaryInstruction(dest=counter, op='plus', srca=counter, srcb=one, symtab=self.symtab)
+        increment_data = ir.BinaryInstruction(operator='plus', srca=ptrreg_data, srcb=one, dest=ptrreg_data, symtab=self.symtab)
+        increment_var = ir.BinaryInstruction(operator='plus', srca=ptrreg_var, srcb=one, dest=ptrreg_var, symtab=self.symtab)
+        increment_counter = ir.BinaryInstruction(operator='plus', srca=counter, srcb=one, dest=counter, symtab=self.symtab)
 
         loop_body = ir.InstructionList(children=[store_var_char, increment_data, increment_var, increment_counter, load_data_char], symtab=self.symtab)
         while_loop = WhileStat(cond=cond, body=loop_body, symtab=self.symtab)
@@ -748,7 +762,7 @@ class AssignStat(Stat):
         instrs += while_statements.children
 
         # put a terminator 0x0 byte in the variable string
-        end_zero_string = ir.StoreInstruction(dest=ptrreg_var, symbol=zero, symtab=self.symtab)
+        end_zero_string = ir.StoreInstruction(source=zero, dest=ptrreg_var, symtab=self.symtab)
         instrs += [end_zero_string]
 
         return self.parent.replace(self, ir.InstructionList(children=instrs, symtab=self.symtab))
@@ -756,7 +770,7 @@ class AssignStat(Stat):
     def __deepcopy__(self, memo):
         new_expr = deepcopy(self.expr, memo)
         new_offset = deepcopy(self.offset, memo)
-        return AssignStat(parent=self.parent, target=self.symbol, offset=new_offset, expr=new_expr, num_of_accesses=self.num_of_accesses, type=self.type, symtab=self.symtab)
+        return AssignStat(parent=self.parent, symbol=self.symbol, offset=new_offset, expr=new_expr, type=self.type, symtab=self.symtab)
 
 
 class PrintStat(Stat):
@@ -772,7 +786,7 @@ class PrintStat(Stat):
     def lower(self):
         print_type = self.print_type  # set during type checking
 
-        pc = ir.PrintInstruction(src=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
+        pc = ir.PrintInstruction(symbol=self.children[0].destination(), print_type=print_type, newline=self.newline, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[self.children[0], pc], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
@@ -791,7 +805,7 @@ class ReadStat(Stat):
 
     def lower(self):
         tmp = ir.new_temporary(self.symtab, ir.TYPENAMES['int'])
-        read = ir.ReadInstruction(dest=tmp, symtab=self.symtab)
+        read = ir.ReadInstruction(symbol=tmp, symtab=self.symtab)
         return self.parent.replace(self, ir.InstructionList(children=[read], symtab=self.symtab))
 
     def __deepcopy__(self, memo):
@@ -804,7 +818,7 @@ class ReturnStat(Stat):
         super().__init__(parent, children, symtab)
         for child in self.children:
             child.parent = self
-            self.type = type
+        self.type = type
 
     def apply_masks(self, returns):
         masks = []
@@ -814,7 +828,7 @@ class ReturnStat(Stat):
         return masks
 
     def lower(self):
-        instrs = self.children
+        instrs = self.children[:]
 
         function_definition = self.get_function()
         if function_definition.parent is None:
@@ -853,22 +867,6 @@ class StatList(Stat):
         elem.parent = self
         log_indentation(f"Appending statement {id(elem)} of type {elem.type_repr()} to StatList {id(self)}")
         self.children.append(elem)
-
-    def replace(self, old, new):
-        new.parent = self
-        if 'children' in dir(self) and len(self.children) and old in self.children:
-            self.children[self.children.index(old)] = new
-            return True
-        attrs = {'body', 'cond', 'value', 'thenpart', 'elifspart', 'elsepart', 'symbol', 'call', 'init', 'step', 'expr', 'target', 'defs', 'global_symtab', 'local_symtab', 'offset', 'epilogue'} & set(dir(self))
-
-        for d in attrs:
-            try:
-                if getattr(self, d) == old:
-                    setattr(self, d, new)
-                    return True
-            except AttributeError:
-                pass
-        return False
 
     def get_content(self):
         content = f"Recap StatList {id(self)}: [\n"

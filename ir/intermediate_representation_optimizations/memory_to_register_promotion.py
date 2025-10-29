@@ -10,7 +10,7 @@ from logger import red, green, blue
 # Remove the symbol from the symbol table and convert it to a register
 def promote_symbol(symbol, root):
     root.body.symtab.remove(symbol)
-    symbol.alloct = 'reg'
+    symbol.alloc_class = 'reg'
 
 
 # A variable can be promoted from being stored in memory to being stored in a register if
@@ -24,7 +24,7 @@ def memory_to_register_promotion(root):
         if symbol.type.size <= 0:
             continue
 
-        if symbol.alloct not in ['auto', 'global']:
+        if symbol.alloc_class not in ['auto', 'global']:
             continue
 
         try:
