@@ -22,7 +22,7 @@ def convert_type_to_llvm_type(type):
             return ir.IntType(8)
         case ArrayType():
             llvm_type = convert_type_to_llvm_type(type.basetype)
-            for dim in type.dims:
+            for dim in list(reversed(type.dims)):
                 llvm_type = ir.ArrayType(llvm_type, dim)
             return llvm_type
         case None:
@@ -56,22 +56,30 @@ Const.llvm_codegen = const_llvm_codegen
 
 
 def var_llvm_codegen(self, variable_state):
-    if self.symbol.is_string():
-        return variable_state[self.symbol]
-    return builder.load(variable_state[self.symbol])
+    if self.offset is None:
+        if self.symbol.is_string():
+            return variable_state[self.symbol]
+        return builder.load(variable_state[self.symbol])
+
+    # get a pointer to the array element
+    indexes = self.offset.llvm_codegen(variable_state)
+    ptr = builder.gep(variable_state[self.symbol], [ir.Constant(ir.IntType(32), 0)] + indexes)
+    if self.symbol.type.basetype == TYPENAMES['char']:  # string array
+        return ptr
+    return builder.load(ptr)
 
 
 Var.llvm_codegen = var_llvm_codegen
 
 
+# XXX: normally this returns an element of the array, but for
+#      LLVM it's easier to return a list of indexes
 def array_element_llvm_codegen(self, variable_state):
-    # TODO: to support multidimensional arrays, we need to delay the offset calculation to the IR (which makes more sense anyways)
-    #       also it will remove this awful size division stuff
-    offset = self.offset.llvm_codegen(variable_state)
-    size = ir.Constant(ir.IntType(32), self.symbol.type.basetype.size // 8)
-    off = builder.sdiv(offset, size)
-    ptr = builder.gep(variable_state[self.symbol], [ir.Constant(ir.IntType(32), 0), off])
-    return builder.load(ptr)
+    indexes = []
+    for index in self.children:
+        indexes.append(index.llvm_codegen(variable_state))
+
+    return indexes
 
 
 ArrayElement.llvm_codegen = array_element_llvm_codegen
@@ -94,17 +102,17 @@ String.llvm_codegen = string_llvm_codegen
 
 
 def binary_expr_llvm_codegen(self, variable_state):
-    op_a = self.children[1].llvm_codegen(variable_state)
-    op_b = self.children[2].llvm_codegen(variable_state)
+    op_a = self.children[0].llvm_codegen(variable_state)
+    op_b = self.children[1].llvm_codegen(variable_state)
 
-    smallest_operand = op_a if self.children[1].type.size < self.children[2].type.size else op_b
+    smallest_operand = op_a if self.children[0].type.size < self.children[1].type.size else op_b
 
     if op_a == smallest_operand:
         op_a = mask_number_to_its_type(op_a, op_b.type)
     else:
         op_b = mask_number_to_its_type(op_b, op_a.type)
 
-    match self.children[0]:
+    match self.operator:
         case 'plus':
             return builder.add(op_a, op_b)
         case 'minus':
@@ -160,23 +168,23 @@ BinaryExpr.llvm_codegen = binary_expr_llvm_codegen
 
 
 def unary_expr_llvm_codegen(self, variable_state):
-    op = self.children[1].llvm_codegen(variable_state)
+    operand = self.children[0].llvm_codegen(variable_state)
 
-    match self.children[0]:
+    match self.operator:
         case 'plus':
-            return op
+            return operand
         case 'minus':
-            return builder.neg(op)
+            return builder.neg(operand)
 
         case 'odd':
-            two = mask_number_to_its_type(ir.Constant(ir.IntType(32), 2), op.type)
-            if 'unsigned' in self.children[1].type.qualifiers:
-                return builder.trunc(builder.urem(op, two), ir.IntType(1))
-            return builder.trunc(builder.srem(op, two), ir.IntType(1))
+            two = mask_number_to_its_type(ir.Constant(ir.IntType(32), 2), operand.type)
+            if 'unsigned' in self.children[0].type.qualifiers:
+                return builder.trunc(builder.urem(operand, two), ir.IntType(1))
+            return builder.trunc(builder.srem(operand, two), ir.IntType(1))
         case 'not':
             true = ir.Constant(ir.IntType(1), 1)
             false = ir.Constant(ir.IntType(1), 0)
-            cond = builder.icmp_unsigned("==", op, false)
+            cond = builder.icmp_unsigned("==", operand, false)
             return builder.select(cond, true, false)
 
 
@@ -209,7 +217,7 @@ def call_stat_llvm_codegen(self, variable_state):
 
     j = 0  # skip dontcares
     for i in range(len(self.returns)):
-        if self.returns[i][0] != '_':
+        if self.returns[i] != '_':
             ptr = builder.gep(return_pointer, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), i)])
             if self.returns_storage[j].type.is_string():
                 variable_state[self.returns_storage[j]] = ptr
@@ -342,7 +350,7 @@ def assign_stat_llvm_codegen(self, variable_state):
         else:
             raise e
 
-    if self.expr.type.is_string():
+    if self.symbol.type.is_string():
         # XXX: the bitcast is needed since we can put a smaller array into a bigger one
         builder.store(builder.load(expr), builder.bitcast(variable_state[self.symbol], expr.type))
     elif self.offset is None:
@@ -350,13 +358,14 @@ def assign_stat_llvm_codegen(self, variable_state):
         masked_expr = mask_number_to_its_type(expr, variable_state[self.symbol].type.pointee)
         builder.store(masked_expr, variable_state[self.symbol])
     else:
-        # TODO: to support multidimensional arrays, we need to delay the offset calculation to the IR (which makes more sense anyways)
-        #       also it will remove this awful size division stuff
-        offset = self.offset.llvm_codegen(variable_state)
-        size = ir.Constant(ir.IntType(32), self.symbol.type.basetype.size // 8)
-        off = builder.sdiv(offset, size)
-        ptr = builder.gep(variable_state[self.symbol], [ir.Constant(ir.IntType(32), 0), off])
-        builder.store(mask_number_to_its_type(expr, ptr.type.pointee), ptr)
+        indexes = self.offset.llvm_codegen(variable_state)
+        ptr = builder.gep(variable_state[self.symbol], [ir.Constant(ir.IntType(32), 0)] + indexes)
+
+        if self.expr.type.is_string():
+            # XXX: the bitcast is needed since we can put a smaller array into a bigger one
+            builder.store(builder.load(expr), builder.bitcast(ptr, expr.type))
+        else:
+            builder.store(mask_number_to_its_type(expr, ptr.type.pointee), ptr)
 
     # to avoid polluting the variable state, remove the Symbol
     # used only for this assignment
