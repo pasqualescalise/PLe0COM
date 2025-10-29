@@ -24,10 +24,13 @@ from logger import log_indentation, ii, li, red, green, yellow, blue, magenta, c
 temporary_count = 0
 
 
-def new_temporary(symtab, type):
-    global temporary_count
-    temp = Symbol(name=f"t{temporary_count}", type=type, alloc_class='reg', is_temporary=True)
-    temporary_count += 1
+def new_temporary(symtab, type, name=''):
+    if name == '':
+        global temporary_count
+        name = f"t{temporary_count}"
+        temporary_count += 1
+
+    temp = Symbol(name=name, type=type, alloc_class='reg', is_temporary=True)
     return temp
 
 
@@ -91,6 +94,12 @@ class Type:
         """A type is string if it's char[] or &char"""
         return (isinstance(self, ArrayType) and self.basetype.basetype == "Char" and len(self.dims) == 1) or (isinstance(self, PointerType) and self.pointstotype.basetype == "Char")
 
+    def is_array(self):
+        return False
+
+    def is_pointer(self):
+        return False
+
 
 class ArrayType(Type):
     def __init__(self, name, dims, basetype):
@@ -108,6 +117,9 @@ class ArrayType(Type):
 
     def is_printable(self):
         return self.is_string()
+
+    def is_array(self):
+        return True
 
     def __repr__(self):
         return self.name
@@ -136,11 +148,14 @@ class PointerType(Type):  # can't define a variable as type PointerType, it's us
         if self.is_printable():
             self.qualifiers += ['printable']
 
-    def __repr__(self):
-        return f"&{self.pointstotype.name}"
-
     def is_printable(self):
         return self.is_string()
+
+    def is_pointer(self):
+        return True
+
+    def __repr__(self):
+        return f"&{self.pointstotype.name}"
 
 
 TYPENAMES = {

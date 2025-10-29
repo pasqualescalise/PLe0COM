@@ -36,7 +36,7 @@ def add_return_assignments(self):
         if function_returns[i].is_array():
             type = PointerType(type.basetype)
 
-        temp = new_temporary(self.symtab, type)
+        temp = new_temporary(self.symtab, type, name=function_returns[i].name)
         assign_stat = AssignStat(parent=self.parent, symbol=self.returns[i].symbol, offset=self.returns[i].offset, expr=temp, symtab=self.symtab)
         assign_stats.append(assign_stat)
 

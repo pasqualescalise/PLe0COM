@@ -7,7 +7,7 @@ print printable stuff, call with the right arguments, ...)"""
 
 from frontend.ast import Const, Var, ArrayElement, String, StaticArray, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList, UNARY_CONDITIONALS, BINARY_CONDITIONALS, UNARY_BOOLEANS, BINARY_BOOLEANS
 from ir.function_tree import FunctionTree
-from ir.ir import ArrayType, TYPENAMES
+from ir.ir import FunctionDef, ArrayType, TYPENAMES
 from logger import log_indentation, green, underline
 
 
@@ -22,7 +22,7 @@ def non_strict_type_equivalence(type_a, type_b):
         if type_a.size > type_b.size:  # we can always put a smaller string in a bigger one
             return True
 
-    elif isinstance(type_a, ArrayType) and isinstance(type_b, ArrayType):
+    elif type_a.is_array() and type_b.is_array():
         if type_a.basetype != type_b.basetype:
             return False
 
@@ -302,6 +302,11 @@ def return_stat_type_checking(self):
         raise TypeError(f"Trying to return too many values from function {self.get_function().symbol.name}")
 
     for i in range(len(self.children)):
+        if returns_types[i].is_array() and not returns_types[i].is_string():
+            raise TypeError(f"Can't return an array value from function {self.get_function().symbol}")
+        elif returns_types[i].is_pointer() and not returns_types[i].is_string():
+            raise TypeError(f"Can't return a pointer value from function {self.get_function().symbol}")
+
         if non_strict_type_equivalence(function_returns_types[i], returns_types[i]):
             if returns_types[i] != function_returns_types[i]:
                 if returns_types[i].is_numeric() and function_returns_types[i].is_numeric():
@@ -312,12 +317,6 @@ def return_stat_type_checking(self):
                     self.masks.append(i)
 
         continue
-
-        # TODO:
-        # # check if we're returning a pointer when we were expecting an array, it's good since we only return references
-        # # TODO: check that we are not returning local references
-        # if returns[i].is_pointer() and function_returns[i].is_array() and (returns[i].type.pointstotype.name == function_returns[i].type.basetype.name):
-        #     continue
 
         raise TypeError(f"Trying to return a value of type {returns_types[i]} instead of {function_returns_types[i]}")
 
@@ -334,6 +333,19 @@ def stat_list_type_checking(self):
 
 
 StatList.type_checking = stat_list_type_checking
+
+
+def functiondef_type_checking(self):
+    for ret in self.returns:
+        # we can't return arrays or pointers since there is no way yet to allocate them not on the stack
+        # XXX: we can return strings since they are allocated globaly
+        if ret.is_array() and not ret.is_string():
+            raise TypeError(f"Can't return {ret} from function {self.symbol} since it's an array")
+        elif ret.is_pointer() and not ret.is_string():
+            raise TypeError(f"Can't return {ret} from function {self.symbol} since it's a pointer")
+
+
+FunctionDef.type_checking = functiondef_type_checking
 
 
 def type_checking(node, quiet=False):
