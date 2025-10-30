@@ -1,44 +1,20 @@
+#!/usr/bin/env python3
+
 """
 LLVM integration: lower the AST to LLVM IR using llvmlite
+
+It uses a different ABI than the one used in the "normal" compiler:
+    * nested symbols are passed not using a static chain, but by lambda lifting,
+      which means that they are passed as parameters after the "normal" parameters
+    * since we can only return one value, in r0, in case of multiple returns we
+      return a pointer to a struct containing all the values  TODO: this is still not respected
 """
 
 from llvmlite import ir
 
 from frontend.ast import Const, Var, ArrayElement, String, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList
 from ir.ir import FunctionDef, ArrayType, TYPENAMES
-
-
-def convert_type_to_llvm_type(type):
-    match type:
-        case x if x == TYPENAMES['int'] or x == TYPENAMES['uint']:  # no distinction
-            return ir.IntType(32)
-        case x if x == TYPENAMES['short'] or x == TYPENAMES['ushort']:  # TODO: distinction?
-            return ir.IntType(16)
-        case x if x == TYPENAMES['byte'] or x == TYPENAMES['ubyte']:  # TODO: distinction?
-            return ir.IntType(8)
-        case x if x == TYPENAMES['boolean']:
-            return ir.IntType(1)
-        case x if x == TYPENAMES['char']:
-            return ir.IntType(8)
-        case ArrayType():
-            llvm_type = convert_type_to_llvm_type(type.basetype)
-            for dim in list(reversed(type.dims)):
-                llvm_type = ir.ArrayType(llvm_type, dim)
-            return llvm_type
-        case None:
-            return ir.VoidType()
-        case _:
-            raise NotImplementedError
-
-
-# Truncate or extend number types to match the asked type
-def mask_number_to_its_type(value, type):
-    if value.type == type:
-        return value
-    elif value.type.width > type.width:
-        return builder.trunc(value, type)
-    else:
-        return builder.zext(value, type)
+from llvm.llvm_helpers import convert_type_to_llvm_type, mask_number_to_its_type, get_lambda_lifting, get_symbol_reference, add_extern_functions
 
 
 def const_llvm_codegen(self, variable_state):
@@ -56,14 +32,16 @@ Const.llvm_codegen = const_llvm_codegen
 
 
 def var_llvm_codegen(self, variable_state):
+    symbol = get_symbol_reference(builder, self.symbol, variable_state)
+
     if self.offset is None:
         if self.symbol.is_string():
-            return variable_state[self.symbol]
-        return builder.load(variable_state[self.symbol])
+            return symbol
+        return builder.load(symbol)
 
     # get a pointer to the array element
     indexes = self.offset.llvm_codegen(variable_state)
-    ptr = builder.gep(variable_state[self.symbol], [ir.Constant(ir.IntType(32), 0)] + indexes)
+    ptr = builder.gep(symbol, [ir.Constant(ir.IntType(32), 0)] + indexes)
     if self.symbol.type.basetype == TYPENAMES['char']:  # string array
         return ptr
     return builder.load(ptr)
@@ -108,9 +86,9 @@ def binary_expr_llvm_codegen(self, variable_state):
     smallest_operand = op_a if self.children[0].type.size < self.children[1].type.size else op_b
 
     if op_a == smallest_operand:
-        op_a = mask_number_to_its_type(op_a, op_b.type)
+        op_a = mask_number_to_its_type(builder, op_a, op_b.type)
     else:
-        op_b = mask_number_to_its_type(op_b, op_a.type)
+        op_b = mask_number_to_its_type(builder, op_b, op_a.type)
 
     match self.operator:
         case 'plus':
@@ -177,7 +155,7 @@ def unary_expr_llvm_codegen(self, variable_state):
             return builder.neg(operand)
 
         case 'odd':
-            two = mask_number_to_its_type(ir.Constant(ir.IntType(32), 2), operand.type)
+            two = mask_number_to_its_type(builder, ir.Constant(ir.IntType(32), 2), operand.type)
             if 'unsigned' in self.children[0].type.qualifiers:
                 return builder.trunc(builder.urem(operand, two), ir.IntType(1))
             return builder.trunc(builder.srem(operand, two), ir.IntType(1))
@@ -201,12 +179,17 @@ def call_stat_llvm_codegen(self, variable_state):
 
         if parameter.type.is_numeric():
             type = called_function.args[i].type
-            parameters += [mask_number_to_its_type(parameter.llvm_codegen(variable_state), type)]
+            parameters += [mask_number_to_its_type(builder, parameter.llvm_codegen(variable_state), type)]
         elif parameter.type.is_string():
             type = called_function.args[i].type
             parameters += [builder.load(parameter.llvm_codegen(variable_state))]
         else:
             parameters += [parameter.llvm_codegen(variable_state)]
+
+    # if there are any, add lambda lifted parameters
+    lambda_lifted_symbols = get_lambda_lifting(self.function_symbol, self.symtab)
+    for lambda_lifted_symbol in lambda_lifted_symbols:
+        parameters += [get_symbol_reference(builder, lambda_lifted_symbol, variable_state)]
 
     if len(self.returns) > 0:  # add a return pointer as the last parameter  TODO: expecially this
         type = called_function.args[-1].type
@@ -350,22 +333,24 @@ def assign_stat_llvm_codegen(self, variable_state):
         else:
             raise e
 
+    symbol = get_symbol_reference(builder, self.symbol, variable_state)
+
     if self.symbol.type.is_string():
         # XXX: the bitcast is needed since we can put a smaller array into a bigger one
-        builder.store(builder.load(expr), builder.bitcast(variable_state[self.symbol], expr.type))
+        builder.store(builder.load(expr), builder.bitcast(symbol, expr.type))
     elif self.offset is None:
         # mask
-        masked_expr = mask_number_to_its_type(expr, variable_state[self.symbol].type.pointee)
-        builder.store(masked_expr, variable_state[self.symbol])
+        masked_expr = mask_number_to_its_type(builder, expr, symbol.type.pointee)
+        builder.store(masked_expr, symbol)
     else:
         indexes = self.offset.llvm_codegen(variable_state)
-        ptr = builder.gep(variable_state[self.symbol], [ir.Constant(ir.IntType(32), 0)] + indexes)
+        ptr = builder.gep(symbol, [ir.Constant(ir.IntType(32), 0)] + indexes)
 
         if self.expr.type.is_string():
             # XXX: the bitcast is needed since we can put a smaller array into a bigger one
             builder.store(builder.load(expr), builder.bitcast(ptr, expr.type))
         else:
-            builder.store(mask_number_to_its_type(expr, ptr.type.pointee), ptr)
+            builder.store(mask_number_to_its_type(builder, expr, ptr.type.pointee), ptr)
 
     # to avoid polluting the variable state, remove the Symbol
     # used only for this assignment
@@ -426,7 +411,7 @@ def return_stat_llvm_codegen(self, variable_state):
         for i in range(len(returns)):
             ptr = builder.gep(pointer, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), i)])
             if self.children[i].type.is_numeric():
-                builder.store(mask_number_to_its_type(returns[i], ptr.type.pointee), ptr)
+                builder.store(mask_number_to_its_type(builder, returns[i], ptr.type.pointee), ptr)
             elif self.children[i].type.is_string():
                 # XXX: the bitcast is needed since we can put a smaller array into a bigger one
                 builder.store(builder.load(returns[i]), builder.bitcast(ptr, returns[i].type))
@@ -449,6 +434,15 @@ StatList.llvm_codegen = stat_list_llvm_codegen
 
 def functiondef_llvm_codegen(self, variable_state):
     parameters_type = [convert_type_to_llvm_type(x.type) for x in self.parameters]
+
+    # dictionary containing a mapping from symbol to parameter index
+    # used to resolve lambda lifted symbols to their pointers
+    nested_symbols = {}
+    lambda_lifted_symbols = get_lambda_lifting(self.symbol, self.body.symtab)
+    for lambda_lifted_symbol in lambda_lifted_symbols:
+        parameters_type += [ir.PointerType(convert_type_to_llvm_type(lambda_lifted_symbol.type))]
+        nested_symbols[lambda_lifted_symbol] = len(parameters_type) - 1
+
     if self.parent is None:  # main
         return_type = ir.IntType(32)
 
@@ -460,15 +454,19 @@ def functiondef_llvm_codegen(self, variable_state):
 
     else:
         return_type = ir.VoidType()
+
     func_type = ir.FunctionType(return_type, tuple(parameters_type))
 
     func = ir.Function(module, func_type, name=self.symbol.name)
     block = func.append_basic_block(name="entry")
+    func.nested_symbols = nested_symbols
 
     builder.position_at_start(block)
 
     for symbol in self.body.symtab:  # TODO: do we have to initialize variables?
-        if symbol.function_symbol != self.symbol:
+        if symbol.type.size == 0:
+            continue
+        elif symbol.function_symbol != self.symbol:
             continue
         elif 'assignable' not in symbol.type.qualifiers and not symbol.is_array():
             continue
@@ -498,42 +496,12 @@ def functiondef_llvm_codegen(self, variable_state):
 FunctionDef.llvm_codegen = functiondef_llvm_codegen
 
 
-# We need to define as extern all the functions defined in runtime.c
-def add_extern_functions():
-    void = ir.VoidType()
-
-    parameters_type = (ir.IntType(32), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_integer")
-
-    parameters_type = (ir.IntType(16), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_short")
-    ir.Function(module, func_type, name="__pl0_print_unsigned_short")
-
-    parameters_type = (ir.IntType(8), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_byte")
-    ir.Function(module, func_type, name="__pl0_print_unsigned_byte")
-
-    parameters_type = (ir.IntType(32), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_string")
-
-    parameters_type = (ir.IntType(32), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_boolean")
-
-    func_type = ir.FunctionType(ir.IntType(32), ())
-    ir.Function(module, func_type, name="__pl0_read")
-
-
 def llvm_codegen(ast):
     global module, builder
     module = ir.Module()
     builder = ir.IRBuilder()
 
-    add_extern_functions()
+    add_extern_functions(module)
 
     variable_state = {}
     ast.llvm_codegen(variable_state)

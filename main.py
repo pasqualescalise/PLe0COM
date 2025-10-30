@@ -16,7 +16,7 @@ from ir.support import get_node_list, lowering, flattening
 from ir.intermediate_representation_optimizations import perform_intermediate_representation_optimizations
 from ir.function_tree import FunctionTree
 
-from llvm.llvm import llvm_codegen
+from llvm.llvm_codegen import llvm_codegen
 
 from cfg.cfg import ControlFlowGraph
 from cfg.control_flow_graph_optimizations import perform_control_flow_graph_optimizations

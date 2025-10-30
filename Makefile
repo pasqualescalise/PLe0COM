@@ -68,6 +68,10 @@ interpret:
 
 compile-llvm:
 	python3 main.py -i $(input) -o $(LLVM_IR) -O$(OPTIMIZATION_LEVEL) -L;\
+	if [ ! $$? -eq 0 ]; then\
+		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
+		exit 1;\
+	fi;\
 	llc --march arm $(LLVM_IR) -o $(ASSEMBLY);\
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't llvm compile successfully\e[0m\n";\
@@ -75,7 +79,7 @@ compile-llvm:
 	fi;\
 	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE);\
 	if [ ! $$? -eq 0 ]; then\
-		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
+		printf "\n\e[31mThe program didn't eventually compile successfully\e[0m\n";\
 		exit 1;\
 	fi;
 
