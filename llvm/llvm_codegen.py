@@ -7,14 +7,18 @@ It uses a different ABI than the one used in the "normal" compiler:
     * nested symbols are passed not using a static chain, but by lambda lifting,
       which means that they are passed as parameters after the "normal" parameters
     * since we can only return one value, in r0, in case of multiple returns we
-      return a pointer to a struct containing all the values  TODO: this is still not respected
+      return a struct containing all the values, otherwise return the value in r0
 """
 
 from llvmlite import ir
 
 from frontend.ast import Const, Var, ArrayElement, String, BinaryExpr, UnaryExpr, CallStat, IfStat, WhileStat, ForStat, AssignStat, PrintStat, ReadStat, ReturnStat, StatList
 from ir.ir import FunctionDef, ArrayType, TYPENAMES
-from llvm.llvm_helpers import convert_type_to_llvm_type, mask_number_to_its_type, get_lambda_lifting, get_symbol_reference, add_extern_functions
+from llvm.llvm_helpers import get_llvm_type_for_return, convert_type_to_llvm_type, mask_number_to_its_type, get_lambda_lifting, get_symbol_reference, add_extern_functions
+
+
+# if true, stop the codegen of the current StatList
+STOP_FLAG = False
 
 
 def const_llvm_codegen(self, variable_state):
@@ -169,7 +173,6 @@ def unary_expr_llvm_codegen(self, variable_state):
 UnaryExpr.llvm_codegen = unary_expr_llvm_codegen
 
 
-# TODO: change this to respect the ARM ABI
 def call_stat_llvm_codegen(self, variable_state):
     called_function = module.get_global(self.function_symbol.name)
 
@@ -191,22 +194,23 @@ def call_stat_llvm_codegen(self, variable_state):
     for lambda_lifted_symbol in lambda_lifted_symbols:
         parameters += [get_symbol_reference(builder, lambda_lifted_symbol, variable_state)]
 
-    if len(self.returns) > 0:  # add a return pointer as the last parameter  TODO: expecially this
-        type = called_function.args[-1].type
-        return_pointer = builder.alloca(type.pointee, name="return")
-        parameters.append(return_pointer)
+    return_value = builder.call(called_function, tuple(parameters))
 
-    builder.call(called_function, tuple(parameters))  # XXX: all functions basically return Void
+    match len(self.returns):
+        case 0:
+            return
 
-    j = 0  # skip dontcares
-    for i in range(len(self.returns)):
-        if self.returns[i] != '_':
-            ptr = builder.gep(return_pointer, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), i)])
-            if self.returns_storage[j].type.is_string():
-                variable_state[self.returns_storage[j]] = ptr
-            else:
-                variable_state[self.returns_storage[j]] = builder.load(ptr)
-            j += 1
+        case 1:
+            if self.returns[0] != '_':
+                variable_state[self.returns_storage[0]] = return_value
+
+        case _:  # multiple return values, we got them in a struct
+            j = 0  # skip dontcares
+            for i in range(len(self.returns)):
+                if self.returns[i] != '_':
+                    element = builder.extract_value(return_value, [i])
+                    variable_state[self.returns_storage[j]] = element
+                    j += 1
 
 
 CallStat.llvm_codegen = call_stat_llvm_codegen
@@ -225,6 +229,7 @@ def if_stat_llvm_codegen(self, variable_state):
     if self.elsepart is not None:
         else_block = builder.append_basic_block(name="else")
     endif_block = builder.append_basic_block(name="endif")
+    no_endif_block = True  # decides whether or not to put the endif basic block at the end
 
     # where to go instead of the if
     if len(self.children) > 0:
@@ -232,6 +237,7 @@ def if_stat_llvm_codegen(self, variable_state):
     elif self.elsepart is not None:
         next_block = else_block
     else:
+        no_endif_block = False
         next_block = endif_block
 
     # if
@@ -242,12 +248,16 @@ def if_stat_llvm_codegen(self, variable_state):
     self.thenpart.llvm_codegen(variable_state)
     if not builder.block.is_terminated:
         builder.branch(endif_block)
+        no_endif_block = False
+    else:
+        no_endif_block |= False
 
     # where to go after the last elif
     if self.elsepart is not None:
         last_block = else_block
     else:
         last_block = endif_block
+        no_endif_block = False
 
     # elifs
     for i in range(0, len(self.children) * 2, 2):  # XXX: conditions and bodies are in two different blocks
@@ -263,6 +273,9 @@ def if_stat_llvm_codegen(self, variable_state):
         self.elifspart.children[i // 2].llvm_codegen(variable_state)
         if not builder.block.is_terminated:
             builder.branch(endif_block)
+            no_endif_block = False
+        else:
+            no_endif_block |= False
 
     # else
     if self.elsepart is not None:
@@ -270,8 +283,18 @@ def if_stat_llvm_codegen(self, variable_state):
         self.elsepart.llvm_codegen(variable_state)
         if not builder.block.is_terminated:
             builder.branch(endif_block)
+            no_endif_block = False
+        else:
+            no_endif_block |= False
 
-    builder.position_at_start(endif_block)
+    if no_endif_block:
+        builder.function.basic_blocks.remove(endif_block)
+        # there is no reason to continue the codegen after this if, since
+        # all branches of the if terminate with a return
+        global STOP_FLAG
+        STOP_FLAG = True
+    else:
+        builder.position_at_start(endif_block)
 
 
 IfStat.llvm_codegen = if_stat_llvm_codegen
@@ -287,8 +310,9 @@ def while_stat_llvm_codegen(self, variable_state):
     builder.position_at_start(loop_block)
     self.body.llvm_codegen(variable_state)
 
-    loop_condition = self.cond.llvm_codegen(variable_state)
-    builder.cbranch(loop_condition, loop_block, exit_block)
+    if not loop_block.is_terminated:  # there is a return in the body
+        loop_condition = self.cond.llvm_codegen(variable_state)
+        builder.cbranch(loop_condition, loop_block, exit_block)
 
     builder.position_at_start(exit_block)
 
@@ -405,20 +429,36 @@ ReadStat.llvm_codegen = read_stat_llvm_codegen
 def return_stat_llvm_codegen(self, variable_state):
     returns = [x.llvm_codegen(variable_state) for x in self.children]
 
-    if len(returns) > 0:
-        pointer = builder.function.args[-1]  # the return values are in the last parameter
+    match len(returns):
+        case 0:
+            builder.ret_void()
 
-        for i in range(len(returns)):
-            ptr = builder.gep(pointer, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), i)])
-            if self.children[i].type.is_numeric():
-                builder.store(mask_number_to_its_type(builder, returns[i], ptr.type.pointee), ptr)
-            elif self.children[i].type.is_string():
+        case 1:
+            return_value_type = builder.function.return_value.type
+
+            if self.children[0].type.is_numeric():
+                builder.ret(mask_number_to_its_type(builder, returns[0], return_value_type))
+            elif self.children[0].type.is_string():
                 # XXX: the bitcast is needed since we can put a smaller array into a bigger one
-                builder.store(builder.load(returns[i]), builder.bitcast(ptr, returns[i].type))
+                builder.ret(builder.bitcast(returns[0], return_value_type))
             else:
-                builder.store(returns[i], ptr)
+                builder.ret(returns[0])
 
-    builder.ret_void()  # XXX: all functions basically return Void
+        case _:  # multiple return values, allocate a struct and return it
+            return_value_type = builder.function.return_value.type
+            return_value = builder.alloca(return_value_type, name="return")
+
+            for i in range(len(returns)):
+                ptr = builder.gep(return_value, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), i)])
+                if self.children[i].type.is_numeric():
+                    builder.store(mask_number_to_its_type(builder, returns[i], ptr.type.pointee), ptr)
+                elif self.children[i].type.is_string():
+                    # XXX: the bitcast is needed since we can put a smaller array into a bigger one
+                    builder.store(returns[i], builder.bitcast(ptr, ir.PointerType(returns[i].type)))
+                else:
+                    builder.store(returns[i], ptr)
+
+            builder.ret(builder.load(return_value))
 
 
 ReturnStat.llvm_codegen = return_stat_llvm_codegen
@@ -427,6 +467,10 @@ ReturnStat.llvm_codegen = return_stat_llvm_codegen
 def stat_list_llvm_codegen(self, variable_state):
     for statement in self.children:
         statement.llvm_codegen(variable_state)
+        global STOP_FLAG
+        if STOP_FLAG:
+            STOP_FLAG = False
+            return
 
 
 StatList.llvm_codegen = stat_list_llvm_codegen
@@ -443,17 +487,19 @@ def functiondef_llvm_codegen(self, variable_state):
         parameters_type += [ir.PointerType(convert_type_to_llvm_type(lambda_lifted_symbol.type))]
         nested_symbols[lambda_lifted_symbol] = len(parameters_type) - 1
 
-    if self.parent is None:  # main
-        return_type = ir.IntType(32)
+    match len(self.returns):
+        case 0:
+            if self.parent is None:  # main
+                return_type = ir.IntType(32)
+            else:
+                return_type = ir.VoidType()
 
-    elif len(self.returns) > 0:  # return void and pass the return pointer as the last parameter
-        return_types = [convert_type_to_llvm_type(x.type) for x in self.returns]
-        return_type = ir.PointerType(ir.LiteralStructType(return_types))
-        parameters_type = parameters_type + [return_type]
-        return_type = ir.VoidType()
+        case 1:
+            return_type = get_llvm_type_for_return(self.returns[0].type)
 
-    else:
-        return_type = ir.VoidType()
+        case _:  # multiple return values, use a struct
+            return_types = [get_llvm_type_for_return(x.type) for x in self.returns]
+            return_type = ir.LiteralStructType(return_types)
 
     func_type = ir.FunctionType(return_type, tuple(parameters_type))
 
@@ -490,7 +536,10 @@ def functiondef_llvm_codegen(self, variable_state):
         builder.ret(ir.Constant(ir.IntType(32), 0))
     else:
         if not builder.block.is_terminated:  # XXX: could happen
-            builder.ret_void()
+            if return_type == ir.VoidType():
+                builder.ret_void()
+            else:
+                raise RuntimeError(f"At least one path of the function '{self.symbol.name}' doesn't end with a return, even if one is needed")
 
 
 FunctionDef.llvm_codegen = functiondef_llvm_codegen

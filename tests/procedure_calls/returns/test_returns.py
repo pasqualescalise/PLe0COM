@@ -18,7 +18,6 @@ class TestReturns():
         check_expected_output(output, "tests/procedure_calls/returns/02.last_instruction_optimization/expected")
 
     @pytest.mark.not_interpreter
-    @pytest.mark.not_llvm
     def test_procedure_that_doesnt_return(self, optimization_level, interpreter, llvm, debug_executable):
         with pytest.raises(RuntimeError) as e:
             compile("tests/procedure_calls/returns/03.procedure_that_doesnt_return/code.pl0", int(optimization_level), interpreter, llvm)

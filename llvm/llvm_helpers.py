@@ -30,6 +30,17 @@ def convert_type_to_llvm_type(type):
             raise NotImplementedError
 
 
+# Convert the given type to a LLVM type, but also convert strings (and
+# eventually arrays) to pointers
+def get_llvm_type_for_return(type):
+    llvm_type = convert_type_to_llvm_type(type)
+
+    if type.is_string():
+        llvm_type = ir.PointerType(llvm_type)
+
+    return llvm_type
+
+
 # Truncate or extend number types to match the asked type
 def mask_number_to_its_type(builder, value, type):
     if value.type == type:
