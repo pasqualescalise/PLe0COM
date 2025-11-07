@@ -751,6 +751,37 @@ class StoreInstruction(IRInstruction):
         return StoreInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
 
 
+# TODO: remove symtab, NO ONE is using it
+class CastInstruction(IRInstruction):
+    """
+    Cast a symbol of type source to one of type dest
+    """
+    def __init__(self, parent=None, source=None, dest=None, symtab=None):
+        log_indentation(bold(f"New CastInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.source = source
+        self.dest = dest
+        # TODO: checks like StoreInstruction?
+
+    def used_variables(self):
+        return [self.source]
+
+    def killed_variables(self):
+        return [self.dest]
+
+    def destination(self):
+        return self.dest
+
+    def __repr__(self):
+        return f"{self.dest} {bold('<-')} ({bold(f'{self.dest.type}')}) {self.source}"
+
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
+
+    def __deepcopy__(self, memo):
+        return CastInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
+
+
 class PrintInstruction(IRInstruction):
     def __init__(self, parent=None, symbol=None, print_type=None, newline=True, symtab=None):
         log_indentation(bold(f"New PrintInstruction Node (id: {id(self)})"))

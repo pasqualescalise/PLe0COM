@@ -28,13 +28,21 @@ UNARY_BOOLEANS = ['not']
 BINARY_BOOLEANS = ['and', 'or']
 
 
-# Returns instructions that mask shorts and bytes, to eliminate sign extension
-def mask_numeric(operand, symtab):
-    mask = [int(0x000000ff), int(0x0000ffff)][operand.type.size // 8 - 1]  # either byte or short
-    mask_temp = ir.new_temporary(symtab, ir.TYPENAMES['int'])
-    load_mask = ir.LoadImmInstruction(value=mask, dest=mask_temp, symtab=symtab)
-    apply_mask = ir.BinaryInstruction(operator="and", srca=operand, srcb=load_mask.destination(), dest=operand, symtab=symtab)
-    return [load_mask, apply_mask]
+# Returns a CastInstruction from operand to type; if type is None,
+# this is an autocast
+#
+# XXX: autocasts are useful because numbers in the CPU are represented
+#      as 32-bit, so in case we just need a 8 or 16-bit number we need
+#      to and it with a mask, which is what the CastInstruction does
+def cast_numeric_to_type(operand, symtab, type=None):
+    if type is None:
+        type = operand.type
+
+    if operand.type == type:
+        return ir.CastInstruction(source=operand, dest=operand, symtab=symtab)
+
+    cast_temp = ir.new_temporary(symtab, type)
+    return ir.CastInstruction(source=operand, dest=cast_temp, symtab=symtab)
 
 
 # ASTNODE
@@ -356,9 +364,9 @@ class BinaryExpr(Expr):
         srca = self.children[0].destination()
         srcb = self.children[1].destination()
 
-        if self.mask:  # set during type checking
+        if self.cast:  # set during type checking
             smallest_operand = srca if srca.type.size < srcb.type.size else srcb
-            instrs += mask_numeric(smallest_operand, self.symtab)
+            instrs += [cast_numeric_to_type(smallest_operand, self.symtab)]
 
         dest = ir.new_temporary(self.symtab, self.type)
 
@@ -820,22 +828,29 @@ class ReturnStat(Stat):
             child.parent = self
         self.type = type
 
-    def apply_masks(self, returns):
-        masks = []
-        for index in self.masks:  # set during type checking
-            masks += mask_numeric(returns[index], self.symtab)
+    def apply_casts(self, returns):
+        casts = []
+        for index, type in self.casts:  # set during type checking
+            cast = cast_numeric_to_type(returns[index], self.symtab, type=type)
 
-        return masks
+            if cast.source in returns:  # the actual return destination is the cast
+                ind = returns.index(cast.source)
+                returns.remove(cast.source)
+                returns.insert(ind, cast.dest)
+
+            casts += [cast]
+
+        return casts
 
     def lower(self):
         instrs = self.children[:]
 
         function_definition = self.get_function()
-        if function_definition.parent is None:
+        if function_definition.parent is None:  # TODO: move to type checking
             raise RuntimeError("The main function should not have return statements")
 
         returns = [x.destination() for x in self.children]
-        instrs += self.apply_masks(returns)
+        instrs += self.apply_casts(returns)
 
         return_branch = ir.BranchInstruction(parent=self, target=None, parameters=function_definition.parameters, returns=returns, symtab=self.symtab)
         instrs += [return_branch]
