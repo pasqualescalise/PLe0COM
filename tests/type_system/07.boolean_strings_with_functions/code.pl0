@@ -1,5 +1,5 @@
 VAR result : boolean;
-VAR result_string : char[30];
+VAR result_string, other_result_string : char[30];
 
 PROCEDURE is_true(condition : boolean) -> (boolean);
 	BEGIN
@@ -27,6 +27,15 @@ PROCEDURE even_or_odd(number : short, invert : boolean) -> (char[5]);
 		end;
 	END;
 
+PROCEDURE is_it_even_multiple_returns(number : int) -> (char[20], char[20], boolean);
+	BEGIN
+		if odd number then begin
+			return ("No", "Odd", False);
+		end else begin
+			return ("Yes", "Even", True);
+		end;
+	END;
+
 BEGIN
 	CALL is_true(True) -> (result);
 	print result;
@@ -51,4 +60,12 @@ BEGIN
 	CALL print_string(result_string);
 	CALL even_or_odd(3, 3 > 2) -> (result_string);
 	CALL print_string(result_string);
+	CALL is_it_even_multiple_returns(2) -> (result_string, other_result_string, result);
+	CALL print_string(result_string);
+	CALL print_string(other_result_string);
+	print result;
+	CALL is_it_even_multiple_returns(3) -> (result_string, other_result_string, result);
+	CALL print_string(result_string);
+	CALL print_string(other_result_string);
+	print result;
 END

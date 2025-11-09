@@ -346,7 +346,7 @@ LoadInstruction.codegen = load_codegen
 def store_codegen(self, regalloc):
     res = []
 
-    if self.dest.alloc_class == 'reg' and self.source.alloc_class == 'reg' and not self.dest.is_pointer():
+    if self.is_move():
         res += regalloc.gen_spill_load_if_necessary(self.source)
         res += [ASMInstruction('mov', args=[regalloc.get_register_for_variable(self.dest), regalloc.get_register_for_variable(self.source)])]
         res += regalloc.gen_spill_store_if_necessary(self.dest)

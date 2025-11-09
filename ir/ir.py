@@ -731,18 +731,28 @@ class StoreInstruction(IRInstruction):
         if self.dest.alloc_class != 'reg':  # putting a value in a symbol
             return [self.dest]
 
-        if self.source.alloc_class == 'reg' and not self.dest.is_pointer():  # mov between registers
+        elif self.is_move():
             return [self.dest]
-        else:
-            return []
+
+        return []
 
     def destination(self):
         return self.dest
 
+    # return True if this StoreInstruction moves data between two registers
+    def is_move(self):
+        if self.dest.alloc_class == 'reg' and self.source.alloc_class == 'reg' and not self.dest.is_pointer():
+            return True
+
+        elif self.source.is_pointer() and self.dest.is_pointer() and self.source.type.pointstotype == self.dest.type.pointstotype:
+            return True
+
+        return False
+
     def __repr__(self):
-        if self.dest.is_pointer():
-            return f"[{self.dest}] {bold('<-')} {self.source}"
-        return f"{self.dest} {bold('<-')} {self.source}"
+        if self.is_move():
+            return f"{self.dest} {bold('<-')} {self.source}"
+        return f"[{self.dest}] {bold('<-')} {self.source}"
 
     def replace_temporaries(self, mapping, create_new=True):
         replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
