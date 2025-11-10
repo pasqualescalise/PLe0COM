@@ -1,20 +1,22 @@
-VAR result : int;
+VAR result : boolean;
 
-PROCEDURE choose(x, y : int) -> (int);
+PROCEDURE is_product_negative(x, y : int) -> (boolean);
 	VAR result : int;
 
 	BEGIN
 		result = x * y;
 		if result > 0 then begin
-			return (0);
+			return (False);
 		end else begin
-			return (-1);
+			return (True);
 		end;
 
-		return (-1);
+		return (False);
 	END;
 
 BEGIN
-	CALL choose(-3, 4) -> (result);
+	CALL is_product_negative(-3, 4) -> (result);
+	print result;
+	CALL is_product_negative(3, 4) -> (result);
 	print result;
 END

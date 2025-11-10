@@ -4,12 +4,12 @@
 ControlFlowGraph of all the BasicBlocks that allows further
 analyses and optimizations"""
 
-from ir.ir import BranchInstruction, InstructionList, LabelInstruction, FunctionDef
+from ir.ir import BranchInstruction, InstructionList, LabelInstruction
 from ir.support import get_node_list
 from logger import ii, di, remove_formatting, yellow, blue
 
 
-class BasicBlock(object):
+class BasicBlock():
     def __init__(self, next=None, instrs=None, labels=None):
         """Structure:
         Zero, one (next) or two (next, target_bb) successors
@@ -59,6 +59,9 @@ class BasicBlock(object):
 
         # total number of registers needed
         self.total_vars_used = len(self.gen.union(self.kill))
+
+        # wheter or not this BasicBlock is the entry block of a function
+        self.entry = False
 
     def __repr__(self):
         res = f"{yellow('Basic Block')} {id(self)} " + "{\n"
@@ -143,7 +146,7 @@ def instruction_list_to_bb(instruction_list):
 
         instructions.append(instruction)
 
-        # if this BranchInstruction is a function call, it marks the end of a BasicBlock
+        # if this BranchInstruction is not a function call, it marks the end of a BasicBlock
         if isinstance(instruction, BranchInstruction) and not instruction.is_call():
             bb = BasicBlock(instrs=instructions, labels=labels)
             instructions = []
@@ -161,6 +164,9 @@ def instruction_list_to_bb(instruction_list):
             bbs[-1].next = bb
         bbs.append(bb)
 
+    # the first block is the function entry block
+    bbs[0].entry = True
+
     return bbs
 
 
@@ -177,28 +183,10 @@ class ControlFlowGraph(list):
                 bb.target_bb = self.find_target_bb(bb.target)
             bb.remove_useless_next()
 
+    # return a dictionary of {FunctionDef: entry Basic Block}
     def heads(self):
-        """Get a dictionary of BasicBlocks that are only reached via function
-        call or global entry point"""
-        defs = []
-        for bb1 in self:
-            head = True
-            for bb2 in self:
-                if bb2.next == bb1 or bb2.target_bb == bb1:
-                    head = False
-                    break
-            if head:
-                defs.append(bb1)
-
-        res = {}
-        for bb in defs:
-            first = bb.instrs[0]
-            parent = first.parent
-            while parent and not isinstance(parent, FunctionDef):
-                parent = parent.parent
-
-            res[parent] = bb
-        return res
+        bbs = {bb.get_function(): bb for bb in self if bb.entry}
+        return bbs
 
     def tails(self):
         """Return a list of all the basic block that do not have successors"""
