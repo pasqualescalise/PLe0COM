@@ -14,8 +14,10 @@ class TestLoopUnrolling():
         check_expected_output(output, "tests/optimizations/loop_unrolling/00.loop_unrolling/expected")
 
         # check that the loop is actually unrolled
-        pre_opts_for = debug_info['pre_opts_ast'].body.body.children[0]
-        post_opts_for = debug_info['post_opts_ast'].body.body.children[0]
+        assert len(debug_info['loop_unrolling']) == 1
+
+        pre_opts_for = debug_info['loop_unrolling'][0][0]
+        post_opts_for = debug_info['loop_unrolling'][0][1]
 
         assert pre_opts_for.epilogue is None
         assert post_opts_for.epilogue is not None
