@@ -573,7 +573,7 @@ class IfStat(Stat):
 
         # else
         if self.elsepart:
-            last_else_instruction = self.elsepart.children[0].children[-1]
+            last_else_instruction = self.elsepart.children[-1].children[-1]
             if isinstance(last_else_instruction, ir.BranchInstruction) and last_else_instruction.is_return():
                 instrs += [self.elsepart]
                 no_exit_label = True

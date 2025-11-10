@@ -211,6 +211,8 @@ IfStat.interpret = if_stat_interpret
 def while_stat_interpret(self, variable_state):
     while self.cond.interpret(variable_state):
         self.body.interpret(variable_state)
+        if RETURN_FLAG:
+            return
 
 
 WhileStat.interpret = while_stat_interpret
@@ -222,6 +224,8 @@ def for_stat_interpret(self, variable_state):
     while self.cond.interpret(variable_state):
         self.body.interpret(variable_state)
         self.step.interpret(variable_state)
+        if RETURN_FLAG:
+            return
 
     if self.epilogue is not None:
         self.epilogue.interpret(variable_state)

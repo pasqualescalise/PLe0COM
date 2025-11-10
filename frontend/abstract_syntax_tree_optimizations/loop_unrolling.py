@@ -45,7 +45,7 @@ For now, the LOOP_UNROLLING_FACTOR can only be a power of 2
 from copy import deepcopy
 from math import log
 
-from frontend.ast import ForStat, Const, BinaryExpr, UnaryExpr, IfStat, AssignStat, Var, StatList
+from frontend.ast import ForStat, Const, BinaryExpr, UnaryExpr, IfStat, AssignStat, Var, StatList, ReturnStat
 from ir.function_tree import FunctionTree
 from logger import red, green, yellow, magenta, cyan
 
@@ -56,6 +56,10 @@ LOOP_UNROLLING_FACTOR = 2
 def unroll(self):
     if not check_if_for_loop_is_normalized(self):
         print(yellow(f"For loop {id(self)} can't be unrolled since it's not normalized"))
+        return
+
+    if isinstance(self.body.children[-1], ReturnStat):
+        print(yellow(f"For loop {id(self)} doesn't have to be unrolled since it performs a return"))
         return
 
     original_cond_copy = deepcopy(self.cond)

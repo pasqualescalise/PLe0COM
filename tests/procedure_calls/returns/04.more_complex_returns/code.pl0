@@ -68,6 +68,29 @@ PROCEDURE function_that_just_returns(x, y : int);
 		end;
 	END;
 
+PROCEDURE function_with_while_loop() -> (int);
+	BEGIN
+		while True do begin
+			return (2);
+		end;
+
+		return (-1);  // unreachable
+	END;
+
+PROCEDURE function_with_for_loop() -> (int);
+	VAR i : int;
+
+	BEGIN
+		for i = 0; i < 1; i++ do begin
+			if i == 1 then begin
+				return (3);  // unreachable
+			end;
+			return (2);
+		end;
+
+		return (-1);  // unreachable
+	END;
+
 BEGIN
 	CALL function_simple_return() -> (result1);
 	print result1;
@@ -89,5 +112,9 @@ BEGIN
 	CALL function_with_if_and_dangling_return(1, 2) -> (result1);
 	print result1;
 	CALL function_that_just_returns(1, 2);
+	print result1;
+	CALL function_with_while_loop() -> (result1);
+	print result1;
+	CALL function_with_for_loop() -> (result1);
 	print result1;
 END
