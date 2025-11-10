@@ -841,13 +841,10 @@ class ReturnStat(Stat):
     def lower(self):
         instrs = self.children[:]
 
-        function_definition = self.get_function()
-        if function_definition.parent is None:  # TODO: move to type checking
-            raise RuntimeError("The main function should not have return statements")
-
         returns = [x.destination() for x in self.children]
         instrs += self.apply_casts(returns)
 
+        function_definition = self.get_function()
         return_branch = ir.BranchInstruction(parent=self, target=None, parameters=function_definition.parameters, returns=returns, symtab=self.symtab)
         instrs += [return_branch]
 

@@ -292,6 +292,9 @@ ReadStat.type_checking = read_stat_type_checking
 def return_stat_type_checking(self):
     self.type = TYPENAMES['statement']
 
+    if self.get_function().parent is None:
+        raise RuntimeError("The main function should not have return statements")
+
     function_returns_types = [x.type for x in self.get_function().returns]
     returns_types = [x.type for x in self.children]
     self.casts = []  # list of casts to apply to return values
@@ -312,7 +315,7 @@ def return_stat_type_checking(self):
                 if returns_types[i].is_numeric() and function_returns_types[i].is_numeric():
                     self.casts.append((i, function_returns_types[i]))
 
-        continue
+            continue
 
         raise TypeError(f"Trying to return a value of type {returns_types[i]} instead of {function_returns_types[i]}")
 
