@@ -107,12 +107,12 @@ def inline(self, debug_info):
 
     target_definition = FunctionTree.get_function_definition(self.target)
     if len(target_definition.body.body.children) >= MAX_INSTRUCTION_TO_INLINE:
-        debug_info['function_inlining'] += [(self.target, "Too many instructions")]
+        debug_info['function_inlining'] += [(deepcopy(target_definition), "Too many instructions")]
         return
 
     # avoid inlining recursive functions
     if self.target == self.get_function().symbol:
-        debug_info['function_inlining'] += [(self.target, "Recursive function")]
+        debug_info['function_inlining'] += [(deepcopy(target_definition), "Recursive function")]
         return
 
     target_definition_copy = deepcopy(target_definition)
@@ -151,7 +151,7 @@ def inline(self, debug_info):
     target_definition.called_by_counter -= 1
 
     print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
-    debug_info['function_inlining'] += [(target_definition_copy, self.get_function().symbol)]
+    debug_info['function_inlining'] += [(deepcopy(target_definition), self.get_function().symbol)]
 
 
 BranchInstruction.inline = inline
