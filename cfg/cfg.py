@@ -5,7 +5,7 @@ ControlFlowGraph of all the BasicBlocks that allows further
 analyses and optimizations"""
 
 from ir.ir import BranchInstruction, InstructionList, LabelInstruction
-from ir.support import get_node_list
+from ir.function_tree import FunctionTree
 from logger import ii, di, remove_formatting, yellow, blue
 
 
@@ -121,62 +121,12 @@ class BasicBlock():
             raise RuntimeError(f"Can't find instruction '{instruction}' to remove in BasicBlock {id(self)}")
 
 
-def instruction_list_to_bb(instruction_list):
-    bbs = []
-    # accumulator for instructions to be inserted in the next BasicBlock
-    instructions = []
-    # accumulator for the labels that refer to this BasicBlock
-    labels = []
-
-    for instruction in instruction_list.children:
-        if isinstance(instruction, LabelInstruction):
-            label = instruction.label
-            if len(instructions) > 0:
-                bb = BasicBlock(instrs=instructions, labels=labels)
-                instructions = []
-
-                if len(bbs) > 0:
-                    bbs[-1].next = bb
-                bbs.append(bb)
-
-                labels = [label]
-            else:
-                # empty instruction, keep just the label
-                labels.append(label)
-
-        instructions.append(instruction)
-
-        # if this BranchInstruction is not a function call, it marks the end of a BasicBlock
-        if isinstance(instruction, BranchInstruction) and not instruction.is_call():
-            bb = BasicBlock(instrs=instructions, labels=labels)
-            instructions = []
-
-            if len(bbs):
-                bbs[-1].next = bb
-            bbs.append(bb)
-
-            labels = []
-
-    if len(instructions) > 0 or len(labels) > 0:
-        bb = BasicBlock(instrs=instructions, labels=labels)
-
-        if len(bbs):
-            bbs[-1].next = bb
-        bbs.append(bb)
-
-    # the first block is the function entry block
-    bbs[0].entry = True
-
-    return bbs
-
-
 class ControlFlowGraph(list):
     """Control Flow Graph representation"""
 
     def __init__(self, root):
         super().__init__()
-        instruction_lists = [n for n in get_node_list(root, quiet=True) if isinstance(n, InstructionList)]
-        self += sum([instruction_list_to_bb(sl) for sl in instruction_lists], [])
+        FunctionTree.navigate(create_basic_blocks, self, quiet=True)
 
         for bb in self:
             if bb.target:
@@ -221,3 +171,68 @@ class ControlFlowGraph(list):
             if label in bb.labels:
                 return bb
         raise RuntimeError(f"Label {label} not found in any Basic Block")
+
+
+def convert_instruction_list_to_bbs(self, basic_blocks):
+    bbs = []
+    # accumulator for instructions to be inserted in the next BasicBlock
+    instructions = []
+    # accumulator for the labels that refer to this BasicBlock
+    labels = []
+
+    for instruction in self.children:
+        if isinstance(instruction, LabelInstruction):
+            label = instruction.label
+            if len(instructions) > 0:
+                bb = BasicBlock(instrs=instructions, labels=labels)
+                instructions = []
+
+                if len(bbs) > 0:
+                    bbs[-1].next = bb
+                bbs.append(bb)
+
+                labels = [label]
+            else:
+                # empty instruction, keep just the label
+                labels.append(label)
+
+        instructions.append(instruction)
+
+        # if this BranchInstruction is not a function call, it marks the end of a BasicBlock
+        if isinstance(instruction, BranchInstruction) and not instruction.is_call():
+            bb = BasicBlock(instrs=instructions, labels=labels)
+            instructions = []
+
+            if len(bbs):
+                bbs[-1].next = bb
+            bbs.append(bb)
+
+            labels = []
+
+    if len(instructions) > 0 or len(labels) > 0:
+        bb = BasicBlock(instrs=instructions, labels=labels)
+
+        if len(bbs):
+            bbs[-1].next = bb
+        bbs.append(bb)
+
+    # the first block is the function entry block
+    bbs[0].entry = True
+
+    basic_blocks += bbs
+
+
+InstructionList.convert_to_basic_blocks = convert_instruction_list_to_bbs
+
+
+# Create a list of BasicBlocks (the ControlFlowGraph) by grouping together
+# instructions
+#
+# XXX: since this happens after the lowering, the only InstructionLists that
+#      will be converted are function bodies
+def create_basic_blocks(node, basic_blocks):
+    try:
+        node.convert_to_basic_blocks(basic_blocks)
+    except AttributeError as e:
+        if e.name != "convert_to_basic_blocks":
+            raise RuntimeError(f"Raised AttributeError {e}")
