@@ -344,15 +344,13 @@ def functiondef_type_checking(self):
 FunctionDef.type_checking = functiondef_type_checking
 
 
-def type_checking(node, quiet=False):
+def type_checking(node):
     try:
         node.type_checking()
-        if not quiet:
-            log_indentation(green(f"Type checked {node.type_repr()}, {id(node)}: {node.type}"))
+        log_indentation(green(f"Type checked {node.type_repr()}, {id(node)}: {node.type}"))
     except AttributeError as e:
         if e.name == "type_checking":
-            if not quiet:
-                log_indentation(underline(f"Type checking not yet implemented for type {node.type_repr()}"))
+            log_indentation(underline(f"Type checking not yet implemented for type {node.type_repr()}"))
         else:
             raise RuntimeError(e)
 

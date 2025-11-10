@@ -104,7 +104,7 @@ class ASTNode:  # abstract
             for node in self.children:
                 try:
                     logger.indentation += 1
-                    node.navigate(action, *args, quiet=quiet)
+                    node.navigate(action, *args)
                     logger.indentation -= 1
                 except AttributeError:
                     logger.indentation -= 1
@@ -115,18 +115,14 @@ class ASTNode:  # abstract
                     log_indentation(f"Navigating to attribute {cyan(attr)} of {cyan(self.type_repr())}, {id(self)}")
                 logger.indentation += 1
                 node = getattr(self, attr)
-                node.navigate(action, *args, quiet=quiet)
+                node.navigate(action, *args)
                 logger.indentation -= 1
             except AttributeError:
                 logger.indentation -= 1
         if not quiet:
             log_indentation(f"Navigating to {cyan(self.type_repr())}, {id(self)}")
 
-        # XXX: shitty solution
-        try:
-            action(self, *args, quiet=quiet)
-        except TypeError:
-            action(self)
+        action(self, *args)
 
     def replace(self, old, new):
         new.parent = self

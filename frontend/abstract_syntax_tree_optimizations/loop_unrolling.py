@@ -53,17 +53,18 @@ from logger import red, green, yellow, magenta, cyan
 LOOP_UNROLLING_FACTOR = 2
 
 
-def unroll(self):
+def unroll(self, debug_info):
     if not check_if_for_loop_is_normalized(self):
         print(yellow(f"For loop {id(self)} can't be unrolled since it's not normalized"))
+        debug_info['loop_unrolling'] += [(deepcopy(self), "Not normalized")]
         return
 
     if isinstance(self.body.children[-1], ReturnStat):
         print(yellow(f"For loop {id(self)} doesn't have to be unrolled since it performs a return"))
+        debug_info['loop_unrolling'] += [(deepcopy(self), "Performs a return")]
         return
 
-    original_cond_copy = deepcopy(self.cond)
-    original_body_copy = deepcopy(self.body)
+    original_loop_copy = deepcopy(self)
 
     # subtract one to the actual loop condition
     loop_end = self.cond.children[-1]
@@ -77,7 +78,7 @@ def unroll(self):
     # append all the variable updates and bodies to the body of the loop
     for i in range(LOOP_UNROLLING_FACTOR - 1):
         step_copy = deepcopy(self.step)
-        body_copy = deepcopy(original_body_copy)
+        body_copy = deepcopy(original_loop_copy.body)
 
         self.body.append(step_copy)
         self.body.append(body_copy)
@@ -87,7 +88,7 @@ def unroll(self):
         # just check if the loop condition is odd or not; if it is, execute the remaining loop body
         loop_end_copy = deepcopy(loop_end)
         odd_cond = UnaryExpr(operator='odd', operand=loop_end_copy, symtab=self.symtab)
-        then = deepcopy(original_body_copy)
+        then = deepcopy(original_loop_copy.body)
         check = IfStat(cond=odd_cond, thenpart=then, elifspart=StatList(), elsepart=None, symtab=self.symtab)
         check.parent = self
         self.epilogue = check
@@ -96,7 +97,7 @@ def unroll(self):
         loop_end_copy = deepcopy(loop_end)
 
         init = AssignStat(target=self.init.symbol, expr=Var(var=self.init.symbol), symtab=self.symtab)
-        loop_cond = original_cond_copy
+        loop_cond = original_loop_copy.cond
         step = deepcopy(self.step)
         loop_body = deepcopy(body_copy)
 
@@ -113,20 +114,21 @@ def unroll(self):
         self.epilogue = check
 
     print(green(f"Unrolling loop {magenta(f'{id(self)}')} {green('with an unrolling factor of')} {cyan(f'{LOOP_UNROLLING_FACTOR}')}\n"))
+    debug_info['loop_unrolling'] += [(original_loop_copy, deepcopy(self))]
 
 
 ForStat.unroll = unroll
 
 
-def loop_unrolling(node):
+def loop_unrolling(node, debug_info):
     try:
-        node.unroll()
+        node.unroll(debug_info)
     except AttributeError as e:
         if e.name != "unroll":
             raise RuntimeError(f"Raised AttributeError {e}")
 
 
-def perform_loop_unrolling(program):
+def perform_loop_unrolling(program, debug_info):
     if not log(LOOP_UNROLLING_FACTOR, 2).is_integer():
         raise RuntimeError("Loop Unrolling factor must be a power of 2")
 
@@ -134,7 +136,8 @@ def perform_loop_unrolling(program):
         print(red(f"Skipping Loop Unrolling because the LOOP_UNROLLING_FACTOR is {LOOP_UNROLLING_FACTOR}"))
         return
 
-    FunctionTree.navigate(loop_unrolling, quiet=True)
+    debug_info['loop_unrolling'] = []
+    FunctionTree.navigate(loop_unrolling, debug_info, quiet=True)
 
 
 # Returns True only if the loop is "normalized" -> Es. for var := 0; var < [number]; var := var + 1

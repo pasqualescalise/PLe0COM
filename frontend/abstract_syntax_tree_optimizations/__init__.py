@@ -8,10 +8,10 @@ from frontend.abstract_syntax_tree_optimizations.loop_unrolling import perform_l
 from logger import h3
 
 
-def perform_abstract_syntax_tree_optimizations(program, optimization_level):
+def perform_abstract_syntax_tree_optimizations(program, optimization_level, debug_info):
     print(h3("NODE EXPANSION"))
     perform_node_expansion(program)
 
     if optimization_level > 1:
         print(h3("LOOP UNROLLING"))
-        perform_loop_unrolling(program)
+        perform_loop_unrolling(program, debug_info)

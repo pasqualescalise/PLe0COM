@@ -101,16 +101,18 @@ def change_loads(instructions, destinations):
 # apply transformations to them (substituting returns with branches to exit, ...),
 # get all the instructions before and after the call, apply transformations to them
 # (change store of parameters to store in registers, ...), then put everything together
-def inline(self):
+def inline(self, debug_info):
     if not self.is_call():
         return
 
     target_definition = FunctionTree.get_function_definition(self.target)
     if len(target_definition.body.body.children) >= MAX_INSTRUCTION_TO_INLINE:
+        debug_info['function_inlining'] += [(self.target, "Too many instructions")]
         return
 
     # avoid inlining recursive functions
     if self.target == self.get_function().symbol:
+        debug_info['function_inlining'] += [(self.target, "Recursive function")]
         return
 
     target_definition_copy = deepcopy(target_definition)
@@ -149,14 +151,15 @@ def inline(self):
     target_definition.called_by_counter -= 1
 
     print(green(f"Inlining function {magenta(f'{self.target.name}')} {green('inside function')} {magenta(f'{self.get_function().symbol.name}')}\n"))
+    debug_info['function_inlining'] += [(target_definition_copy, self.get_function().symbol)]
 
 
 BranchInstruction.inline = inline
 
 
-def function_inlining(node):
+def function_inlining(node, debug_info):
     try:
-        node.inline()
+        node.inline(debug_info)
     except AttributeError as e:
         if e.name != "inline":
             raise RuntimeError(f"Raised AttributeError {e}")

@@ -3,6 +3,8 @@
 """It's faster to access the registers than the stack: move allowed
 variables in registers instead of the stack"""
 
+from copy import deepcopy
+
 from backend.codegenhelp import REGISTER_SIZE
 from logger import red, green, blue
 
@@ -17,7 +19,7 @@ def promote_symbol(symbol, root):
 #   - the variable is not used in any nested procedure
 #   - the variable address is needed for something (example -> ArrayType, PointerType)
 #   - the symbol type is not the same size as the registers
-def memory_to_register_promotion(root):
+def memory_to_register_promotion(root, debug_info):
     to_promote = []
 
     for symbol in root.body.symtab:
@@ -51,7 +53,9 @@ def memory_to_register_promotion(root):
         to_promote.append(symbol)
 
     for symbol in to_promote:
+        old_symbol = deepcopy(symbol)
         promote_symbol(symbol, root)
+        debug_info['memory_to_register_promotion'] += [(old_symbol, (deepcopy(symbol)))]
 
     for function_definition in root.body.defs.children:
-        memory_to_register_promotion(function_definition)
+        memory_to_register_promotion(function_definition, debug_info)
