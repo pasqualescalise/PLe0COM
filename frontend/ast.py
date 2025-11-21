@@ -820,8 +820,6 @@ class ReturnStat(Stat):
     def __init__(self, parent=None, children=[], type=None, symtab=None):
         log_indentation(bold(f"New ReturnStat Node (id: {id(self)})"))
         super().__init__(parent, children, symtab)
-        for child in self.children:
-            child.parent = self
         self.type = type
 
     def apply_casts(self, returns):
