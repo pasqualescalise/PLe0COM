@@ -1,5 +1,9 @@
 .data
 overflow: .ascii "-2147483648"
+true: .ascii "True"
+false: .ascii "False"
+true_newline: .ascii "True\n"
+false_newline: .ascii "False\n"
 
 .text
 .arch armv6
@@ -118,15 +122,15 @@ store_digit:
 exit: 
 	and     r12, r10, #1
 	cmp     r12, #0
-	beq     write
+	beq     write_integer
 	mov     r8, #'\n'           @ add the newline if we need to
 	strb    r8, [r4], #1
 
-write:
+write_integer:
 	mov     r1, sp              @ the buffer is at the top of the stack
 	sub     r2, r4, sp          @ the length of the buffer is r4 - sp
 	write_to_stdout r1, r2
-	b return
+	b return_integer
 
 write_zero:
 	sub     sp, sp, #4
@@ -136,17 +140,17 @@ write_zero:
 	strb    r12, [r4], #1
 
 	cmp     r10, #0
-	beq     write
+	beq     write_integer
 	mov     r9, #'\n'           @ add the newline if we need to
 	strb    r9, [r4], #1
-	b       write
+	b       write_integer
 
 write_overflow:
 	sub     sp, sp, #12
 	mov     r4, sp
 	ldr     r12, =overflow
 
-	loop:
+	loop_integer:
 	cmp     r8, #11
 	bge     newline
 
@@ -154,16 +158,125 @@ write_overflow:
 	strb    r9, [r4], #1
 
 	add     r8, r8, #1
-	b       loop
+	b       loop_integer
 
 	newline:                    @ TODO: test printing overflow without newline
 	cmp     r10, #0
-	beq     write
+	beq     write_integer
 	mov     r9, #'\n'           @ add the newline if we need to
 	strb    r9, [r4], #1
-	b       write
+	b       write_integer
 
-return:
+return_integer:
 	mov sp, r11
 	pop {r4, r5, r6, r7, r8, r9, r10, r11, lr}
 	bx lr
+
+
+
+.global __pl0_print_string
+
+@ Write the string given to r0 to stdout
+@
+@ Registers:     
+@  r8:  loop counter, counts the size of the string to print
+@
+@ Parameters:
+@  r0: string to print
+@  r1: either 0 or 1, wheter to add a newline at the end or not
+@ 
+@ Returns:
+@  nothing
+__pl0_print_string: 
+	push    {r8, r11, lr}
+	mov     r11, sp
+
+	mov     r8, #0
+
+@ count up until we find a 0x0 byte, then we know the string is finished
+loop_string:
+	add     r12, r0, r8
+	ldrb    r12, [r12]
+	cmp     r12, #0
+	beq     write_string
+	add     r8, #1
+	b       loop_string
+
+write_string:
+	write_to_stdout r0, r8      @ actually write the string
+
+	cmp     r1, #0
+	beq     return_string
+
+	mov     r12, #'\n'          @ if we need to print a newline, put it on the stack
+	push    {r12}               @ then write it
+	mov     r12, sp             @ TODO: this uses two different writes, we should
+	mov     r8, #1              @       really buffer them
+	write_to_stdout r12, r8
+
+return_string:
+	mov     sp, r11
+	pop     {r8, r11, lr}
+	bx      lr
+
+
+
+.global __pl0_print_boolean
+
+@ Write the boolean given to r0 to stdout, converting it to string
+@
+@ Registers:     
+@  r8:  loop counter, counts the size of the string to print
+@
+@ Parameters:
+@  r0: boolean to print
+@  r1: either 0 or 1, wheter to add a newline at the end or not
+@ 
+@ Returns:
+@  nothing
+__pl0_print_boolean: 
+	push    {r11, lr}
+	mov     r11, sp
+
+	cmp r0, #0
+	beq write_false
+	bne write_true
+
+write_false:
+	cmp r1, #0
+	beq write_false_no_newline
+	bne write_false_newline
+
+write_false_no_newline:
+	ldr     r12, =false
+	mov     r1, #5
+	write_to_stdout r12, r1
+	b return_boolean
+
+write_false_newline:
+	ldr     r12, =false_newline
+	mov     r1, #6
+	write_to_stdout r12, r1
+	b return_boolean
+
+write_true:
+	cmp r1, #0
+	beq write_true_no_newline
+	bne write_true_newline
+
+write_true_no_newline:
+	ldr     r12, =true
+	mov     r1, #5
+	write_to_stdout r12, r1
+	b return_boolean
+
+write_true_newline:
+	ldr     r12, =true_newline
+	mov     r1, #6
+	write_to_stdout r12, r1
+	b return_boolean
+
+return_boolean:
+	mov     sp, r11
+	pop     {r11, lr}
+	bx      lr

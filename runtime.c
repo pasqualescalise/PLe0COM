@@ -46,16 +46,6 @@ void __pl0_print_unsigned_byte(unsigned char param, int newline)
 }
 
 
-void __pl0_print_string(int param, int newline)
-{
-  if (newline) {
-  	printf("%s\n", param);
-  } else {
-  	printf("%s", param);
-  }
-}
-
-
 void __pl0_print_boolean(int param, int newline)
 {
   if (param) {
