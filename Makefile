@@ -6,6 +6,7 @@ CFLAGS := -g -static -march=armv6 -z noexecstack
 
 ASSEMBLY := out.s
 EXECUTABLE := out
+STDLIB = $(wildcard stdlib/*.s)
 OPTIMIZATION_LEVEL := 2
 RUN_COMMAND := qemu-arm -cpu arm1136 
 DEBUGGER := pwndbg
@@ -35,7 +36,7 @@ compile:
 	else\
 		printf "\n\e[31mPlease specify input file\e[0m\n";\
 	fi;
-	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE)
+	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c $(STDLIB) -o $(EXECUTABLE)
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
 	fi;

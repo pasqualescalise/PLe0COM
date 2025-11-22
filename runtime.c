@@ -6,16 +6,6 @@
  * C compiler targeting ARM. */
 
 
-void __pl0_print_integer(int param, int newline)
-{
-  if (newline) {
-  	printf("%d\n", param);
-  } else {
-  	printf("%d", param);
-  }
-}
-
-
 void __pl0_print_short(short param, int newline)
 {
   if (newline) {

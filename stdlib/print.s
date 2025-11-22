@@ -1,0 +1,169 @@
+.data
+overflow: .ascii "-2147483648"
+
+.text
+.arch armv6
+.syntax unified
+
+.include "stdlib/macros.s"
+
+
+.global __pl0_print_integer
+
+@ Write the integer given to r0 to stdout, converting it to string;
+@ numbers can be 10 digits long max
+@
+@ Hugely inspired by <https://armasm.com/docs/arithmetic/itoa/>
+@
+@ Registers:     
+@  r4:  address of the next place to write to
+@  r5:  number to write
+@  r6:  current 10^x
+@  r7:  current power (x from above) 
+@  r8:  loop counter
+@  r9:  size of the buffer allocated on the stack
+@  r10: if lsb is 1, print a newline; if second lsb is 1, the given number is negative
+@
+@ Parameters:
+@  r0: number to process
+@  r1: either 0 or 1, wheter to add a newline at the end or not
+@ 
+@ Returns:
+@  nothing
+__pl0_print_integer: 
+	push    {r4, r5, r6, r7, r8, r9, r10, r11, lr}
+	mov     r11, sp
+
+	mov     r5, r0              @ load number to process
+	mov     r10, r1             @ if we need to print a newline, set the r10 lsb to 1
+	mov     r7, #9              @ max size is 10
+	mov     r8, #0              @ init loop counter 
+
+	cmp     r5, #0
+	bge     special_case_zero
+
+	cmp     r5, #2147483648     @ special case: if we want to print the biggest number,
+	beq     write_overflow      @ 0x80000000, just print it directly
+
+	orr     r10, #2             @ if the number is negative, turn it to positive
+	sub     r5, r5, #1          @ and set the r10 second lsb to 1
+	mvn     r5, r5
+
+@ if the number is 0, we don't need to calculate the power, we can write it directly
+special_case_zero:
+	cmp     r5, #0
+	bne     find_start
+	b       write_zero
+
+@ find first power of ten to use
+find_start:
+	pow     #10, r7             @ get cur power of ten 
+	mov     r6, r0              @ move pow result to r6 
+	cmp     r6, r5              @ compare 10^x to number to print 
+	ble     allocate_outs       @ if less than number, continue
+	sub     r7, #1              @ if still bigger than num to print, 
+	                            @ decrement pow and try again 
+	b       find_start   
+
+@ allocate on the stack a buffer big enough for the number 
+allocate_outs:
+	add     r9, r7, #1          @ we always need to add one since the power is one less than the
+	                            @ number of digits we need
+
+	cmp     r10, #2             @ add one also if we need to print the minus
+	blt     align_outs
+	add     r9, r9, #1
+
+@ in order to keep the stack aligned, make sure to always multiply by a multiple of 4
+align_outs:
+	add     r12, r9, #4
+	and     r12, r12, #3        @ r12 is r9 % 4
+
+	push    {r10}               @ spill r10 to use it for this calculation
+	mov     r10, #4
+	sub     r12, r10, r12
+	pop     {r10}
+
+	add     r9, r9, r12
+
+	sub sp, sp, r9              @ do the actual stack allocation
+	mov r4, sp
+
+	cmp r10, #2
+	blt find_digit
+	mov r12, #'-'               @ add the minus if needed
+	strb r12, [r4], #1
+
+@ process number and print 
+find_digit:
+	cmp     r5, r6              @ compare remaining number to 10^x 
+	blt     store_digit         @ if less than, store digit 
+	add     r8, r8, #1          @ increment counter 
+	sub     r5, r5, r6          @ subtract 10^x from remaining and go again 
+	b       find_digit 
+
+store_digit:
+	add     r8, #'0'            @ add counter to ASCII zero to get ASCII number 
+	strb    r8, [r4], #1        @ store in the buffer and increment 
+
+	@ prepare next loop 
+	sub     r7, #1              @ subtract one from the counter
+	cmp     r7, #0              @ compare exp to 0 
+	blt     exit                @ if exp is < zero, leave loop 
+	pow     #10, r7             @ get next power of ten 
+	mov     r6, r0              @ move 10^x into r6 
+	mov     r8, #0              @ reset loop counter 
+	b       find_digit 
+
+exit: 
+	and     r12, r10, #1
+	cmp     r12, #0
+	beq     write
+	mov     r8, #'\n'           @ add the newline if we need to
+	strb    r8, [r4], #1
+
+write:
+	mov     r1, sp              @ the buffer is at the top of the stack
+	sub     r2, r4, sp          @ the length of the buffer is r4 - sp
+	write_to_stdout r1, r2
+	b return
+
+write_zero:
+	sub     sp, sp, #4
+	mov     r4, sp
+
+	mov     r12, #'0'
+	strb    r12, [r4], #1
+
+	cmp     r10, #0
+	beq     write
+	mov     r9, #'\n'           @ add the newline if we need to
+	strb    r9, [r4], #1
+	b       write
+
+write_overflow:
+	sub     sp, sp, #12
+	mov     r4, sp
+	ldr     r12, =overflow
+
+	loop:
+	cmp     r8, #11
+	bge     newline
+
+	ldrb    r9, [r12], #1
+	strb    r9, [r4], #1
+
+	add     r8, r8, #1
+	b       loop
+
+	newline:                    @ TODO: test printing overflow without newline
+	cmp     r10, #0
+	beq     write
+	mov     r9, #'\n'           @ add the newline if we need to
+	strb    r9, [r4], #1
+	b       write
+
+return:
+	mov sp, r11
+	pop {r4, r5, r6, r7, r8, r9, r10, r11, lr}
+	bx lr

@@ -23,7 +23,8 @@ def compile(in_file, optimization_level, interpreted):
 
 # Assemble and execute the compiled code, return the stdout of the asembled program
 def execute(out_file, executable_file, debug):
-    assemble_command = f"arm-linux-gnueabi-gcc -g -static -march=armv6 -z noexecstack {out_file.name} runtime.c -o {executable_file.name}"
+    # TODO: make this more like the Makefile one
+    assemble_command = f"arm-linux-gnueabi-gcc -g -static -march=armv6 -z noexecstack {out_file.name} runtime.c stdlib/print.s -o {executable_file.name}"
     run(assemble_command.split(' '))
 
     execute_command = f"qemu-arm -cpu arm1136 {executable_file.name}"
