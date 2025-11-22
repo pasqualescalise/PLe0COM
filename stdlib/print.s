@@ -1,7 +1,7 @@
 .data
 overflow: .ascii "-2147483648"
-true: .ascii "True"
-false: .ascii "False"
+true_no_newline: .ascii "True"
+false_no_newline: .ascii "False"
 true_newline: .ascii "True\n"
 false_newline: .ascii "False\n"
 
@@ -225,9 +225,6 @@ return_string:
 
 @ Write the boolean given to r0 to stdout, converting it to string
 @
-@ Registers:     
-@  r8:  loop counter, counts the size of the string to print
-@
 @ Parameters:
 @  r0: boolean to print
 @  r1: either 0 or 1, wheter to add a newline at the end or not
@@ -238,43 +235,43 @@ __pl0_print_boolean:
 	push    {r11, lr}
 	mov     r11, sp
 
-	cmp r0, #0
-	beq write_false
-	bne write_true
+	cmp     r0, #0
+	beq     write_false
+	bne     write_true
 
 write_false:
-	cmp r1, #0
-	beq write_false_no_newline
-	bne write_false_newline
+	cmp     r1, #0
+	beq     write_false_no_newline
+	bne     write_false_newline
 
 write_false_no_newline:
-	ldr     r12, =false
-	mov     r1, #5
-	write_to_stdout r12, r1
-	b return_boolean
+	ldr     r12, =false_no_newline
+	mov     r0, #5
+	write_to_stdout r12, r0
+	b       return_boolean
 
 write_false_newline:
 	ldr     r12, =false_newline
-	mov     r1, #6
-	write_to_stdout r12, r1
-	b return_boolean
+	mov     r0, #6
+	write_to_stdout r12, r0
+	b       return_boolean
 
 write_true:
-	cmp r1, #0
-	beq write_true_no_newline
-	bne write_true_newline
+	cmp     r1, #0
+	beq     write_true_no_newline
+	bne     write_true_newline
 
 write_true_no_newline:
-	ldr     r12, =true
-	mov     r1, #5
-	write_to_stdout r12, r1
-	b return_boolean
+	ldr     r12, =true_no_newline
+	mov     r0, #4
+	write_to_stdout r12, r0
+	b       return_boolean
 
 write_true_newline:
 	ldr     r12, =true_newline
-	mov     r1, #6
-	write_to_stdout r12, r1
-	b return_boolean
+	mov     r0, #5
+	write_to_stdout r12, r0
+	b       return_boolean
 
 return_boolean:
 	mov     sp, r11
