@@ -12,9 +12,9 @@ false_newline: .ascii "False\n"
 .include "stdlib/macros.s"
 
 
-.global __pl0_print_integer
+.global __pl0_print_numeric
 
-@ Write the integer given to r0 to stdout, converting it to string;
+@ Write the number given to r0 to stdout, converting it to string;
 @ numbers can be 10 digits long max
 @
 @ Hugely inspired by <https://armasm.com/docs/arithmetic/itoa/>
@@ -34,7 +34,7 @@ false_newline: .ascii "False\n"
 @ 
 @ Returns:
 @  nothing
-__pl0_print_integer: 
+__pl0_print_numeric: 
 	push    {r4, r5, r6, r7, r8, r9, r10, r11, lr}
 	mov     r11, sp
 
@@ -122,15 +122,15 @@ store_digit:
 exit: 
 	and     r12, r10, #1
 	cmp     r12, #0
-	beq     write_integer
+	beq     write_numeric
 	mov     r8, #'\n'           @ add the newline if we need to
 	strb    r8, [r4], #1
 
-write_integer:
+write_numeric:
 	mov     r1, sp              @ the buffer is at the top of the stack
 	sub     r2, r4, sp          @ the length of the buffer is r4 - sp
 	write_to_stdout r1, r2
-	b return_integer
+	b return_numeric
 
 write_zero:
 	sub     sp, sp, #4
@@ -140,17 +140,17 @@ write_zero:
 	strb    r12, [r4], #1
 
 	cmp     r10, #0
-	beq     write_integer
+	beq     write_numeric
 	mov     r9, #'\n'           @ add the newline if we need to
 	strb    r9, [r4], #1
-	b       write_integer
+	b       write_numeric
 
 write_overflow:
 	sub     sp, sp, #12
 	mov     r4, sp
 	ldr     r12, =overflow
 
-	loop_integer:
+	loop_numeric:
 	cmp     r8, #11
 	bge     newline
 
@@ -158,16 +158,16 @@ write_overflow:
 	strb    r9, [r4], #1
 
 	add     r8, r8, #1
-	b       loop_integer
+	b       loop_numeric
 
 	newline:                    @ TODO: test printing overflow without newline
 	cmp     r10, #0
-	beq     write_integer
+	beq     write_numeric
 	mov     r9, #'\n'           @ add the newline if we need to
 	strb    r9, [r4], #1
-	b       write_integer
+	b       write_numeric
 
-return_integer:
+return_numeric:
 	mov sp, r11
 	pop {r4, r5, r6, r7, r8, r9, r10, r11, lr}
 	bx lr

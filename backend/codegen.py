@@ -425,16 +425,8 @@ def print_codegen(self, regalloc):
         res += [ASMInstruction('bl', args=[magenta('__pl0_print_string')])]
     elif self.print_type == TYPENAMES['boolean']:
         res += [ASMInstruction('bl', args=[magenta('__pl0_print_boolean')])]
-    elif self.print_type == TYPENAMES['ubyte']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_unsigned_byte')])]
-    elif self.print_type == TYPENAMES['ushort']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_unsigned_short')])]
-    elif self.print_type == TYPENAMES['byte']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_byte')])]
-    elif self.print_type == TYPENAMES['short']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_short')])]
     else:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_integer')])]
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_numeric')])]
     res += restore_regs(REGS_CALLERSAVE)
     return res
 
