@@ -24,10 +24,13 @@ I'm using it to experiment and have fun with compiler stuff
 + PEP8 compliant (except E501)
 + ARM ABI compliant (circa, since we can return multiple values)
 + An AST interpreter
++ No C runtime: entry/print/read are all custom implemented in assembly
 
 ## Dependencies
 
 The code generated should work on CPU that supports ARMv6, like any Raspberry PI
+
+NOTE: we don't actually use `gcc` to compile, we just use `as` to assemble the assembly files and `ld` to link them
 
 ### On non-ARM Linux machines
 
@@ -41,7 +44,7 @@ sudo apt install qemu-user gcc-arm-linux-gnueabi
 sudo apt install gcc
 ```
 
-To use the Makefile on ARM, the variables `$(CC)` and `$(RUN_COMMAND)` must be changed
+To use the Makefile on ARM, the variables `$(AS)`, `$(LD)` and `$(RUN_COMMAND)` must be changed
 
 ### Python version
 
