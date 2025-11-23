@@ -4,11 +4,3 @@
  *   cc runtime.c out.s -o out
  * where out.s is the assembly output of the PL/0 compiler, and cc is a
  * C compiler targeting ARM. */
-
-
-int __pl0_read(void)
-{
-  int tmp;
-  scanf("%d", &tmp);
-  return tmp;
-}

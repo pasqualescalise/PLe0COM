@@ -55,4 +55,25 @@
 	pop     {r0, r1, r2, r7}
 .endm 
 
+
+@ read_from stdin
+@ 
+@ Read from stdin to the passed buffer for the given length
+@
+@ This macro saves and restores all the registers except r0
+@ 
+@ Returns:
+@  r0: how many bytes have been read
+.macro      read_from_stdin     buffer, length
+	push    {r1, r2, r7}
+	push    {\buffer}       @ put buffer in r1
+	pop     {r1}
+	push    {\length}       @ put length in r2
+	pop     {r2}
+    mov     r7, #3          @ 3 = read
+    mov     r0, #0          @ 0 = stdin
+    svc     0 
+	pop     {r1, r2, r7}
+.endm 
+
 .endif
