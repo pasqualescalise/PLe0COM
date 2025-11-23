@@ -1,10 +1,13 @@
 SHELL := /bin/bash
 STDOUT := /dev/stdout
 
-CC := arm-linux-gnueabi-gcc
-CFLAGS := -g -static -march=armv6 -z noexecstack
+AS := arm-linux-gnueabi-as
+ASFLAGS := -g -march=armv6
+LD := arm-linux-gnueabi-ld
+LDFLAGS :=
 
 ASSEMBLY := out.s
+OBJECT := out.o
 EXECUTABLE := out
 STDLIB = $(wildcard stdlib/*.s)
 OPTIMIZATION_LEVEL := 2
@@ -36,7 +39,8 @@ compile:
 	else\
 		printf "\n\e[31mPlease specify input file\e[0m\n";\
 	fi;
-	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c $(STDLIB) -o $(EXECUTABLE)
+	$(AS) $(ASFLAGS) $(ASSEMBLY) $(STDLIB) -o $(OBJECT);\
+	$(LD) -o $(EXECUTABLE) $(OBJECT);\
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
 	fi;
@@ -71,7 +75,7 @@ testallall:
 	$(TEST_COMMAND) $(TEST_FILE) -A
 
 clean:
-	rm $(ASSEMBLY) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
+	rm $(ASSEMBLY) $(OBJECT) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
 
 dbg:
 	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b main" --eval-command="c"

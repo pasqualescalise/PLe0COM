@@ -1,5 +1,5 @@
 .ifndef PLe0_MACROS
-	.global PLe0_MACROS
+PLe0_MACROS:
 
 @ pow
 @

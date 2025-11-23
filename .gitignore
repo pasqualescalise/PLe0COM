@@ -9,6 +9,7 @@ tests/examples
 
 out
 out.s
+out.o
 
 .gdb_history
 .editorconfig
