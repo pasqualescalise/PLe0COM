@@ -40,7 +40,7 @@ compile:
 		printf "\n\e[31mPlease specify input file\e[0m\n";\
 	fi;
 	$(AS) $(ASFLAGS) $(ASSEMBLY) $(STDLIB) -o $(OBJECT);\
-	$(LD) -o $(EXECUTABLE) $(OBJECT);\
+	$(LD) $(OBJECT) -o $(EXECUTABLE);\
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
 	fi;

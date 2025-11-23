@@ -1,3 +1,4 @@
+from glob import glob
 from subprocess import run
 from tempfile import NamedTemporaryFile
 
@@ -21,11 +22,17 @@ def compile(in_file, optimization_level, interpreted):
     return debug_info
 
 
-# Assemble and execute the compiled code, return the stdout of the asembled program
-def execute(out_file, executable_file, debug):
-    # TODO: make this more like the Makefile one
-    assemble_command = f"arm-linux-gnueabi-gcc -g -static -march=armv6 -z noexecstack {out_file.name} runtime.c stdlib/print.s -o {executable_file.name}"
+# Assemble, link and execute the compiled code, return the stdout of the asembled program
+def execute(out_file, object_file, executable_file, debug):
+    assemble_bin = "arm-linux-gnueabi-as"
+    assemble_flags = "-g -march=armv6"
+    stdlib_files = ' '.join(glob("stdlib/*.s"))
+    assemble_command = f"{assemble_bin} {assemble_flags} {out_file.name} {stdlib_files} -o {object_file.name}"
     run(assemble_command.split(' '))
+
+    linker_bin = "arm-linux-gnueabi-ld"
+    linker_command = f"{linker_bin} {object_file.name} -o {executable_file.name}"
+    run(linker_command.split(' '))
 
     execute_command = f"qemu-arm -cpu arm1136 {executable_file.name}"
     if debug:  # open gdb port 7777
@@ -34,7 +41,6 @@ def execute(out_file, executable_file, debug):
     execute = run(execute_command.split(' '), capture_output=True)
 
     output = execute.stdout.decode('utf-8')
-
     return output
 
 
@@ -47,6 +53,7 @@ def run_test(in_file, optimization_level, interpreted, debug):
     else:
         out_temp_file = NamedTemporaryFile(mode="w+", suffix=".s")
         executable_temp_file = NamedTemporaryFile(mode="w+")
+        object_temp_file = NamedTemporaryFile(mode="w+")
 
         code = debug_info['code']
         printable_code = '\n'.join([repr(x) for x in code]) + '\n'
@@ -54,9 +61,10 @@ def run_test(in_file, optimization_level, interpreted, debug):
         out_temp_file.write(remove_formatting(printable_code))
         out_temp_file.seek(0)
 
-        output = execute(out_temp_file, executable_temp_file, debug)
+        output = execute(out_temp_file, object_temp_file, executable_temp_file, debug)
 
         out_temp_file.close()
+        object_temp_file.close()
         executable_temp_file.close()
 
         print("\n\033[36mOUTPUT\033[0m\n")
