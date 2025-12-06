@@ -56,6 +56,8 @@ so any version 3.10+ should work
 
 For LLVM, this project uses [llvmlite](https://pypi.org/project/llvmlite/), please [follow their instructions to install it](https://llvmlite.readthedocs.io/en/latest/admin-guide/install.html)
 
+For compiling and linking, this project uses LLVM 14
+
 ### Test suite
 
 The only dependency is [pytest](https://docs.pytest.org/en/stable/index.html), [follow their instruction to install it](https://docs.pytest.org/en/stable/getting-started.html#get-started)
