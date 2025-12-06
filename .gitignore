@@ -3,13 +3,14 @@
 
 *.pdf
 *.png
-*.s
-*.ll
 
 tests/output
 tests/examples
 
 out
+out.s
+out.o
+out.ll
 
 .gdb_history
 .editorconfig

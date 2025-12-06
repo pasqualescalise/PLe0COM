@@ -85,17 +85,7 @@ def add_extern_functions(module):
 
     parameters_type = (ir.IntType(32), ir.IntType(32))
     func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_integer")
-
-    parameters_type = (ir.IntType(16), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_short")
-    ir.Function(module, func_type, name="__pl0_print_unsigned_short")
-
-    parameters_type = (ir.IntType(8), ir.IntType(32))
-    func_type = ir.FunctionType(void, parameters_type)
-    ir.Function(module, func_type, name="__pl0_print_byte")
-    ir.Function(module, func_type, name="__pl0_print_unsigned_byte")
+    ir.Function(module, func_type, name="__pl0_print_numeric")
 
     parameters_type = (ir.IntType(32), ir.IntType(32))
     func_type = ir.FunctionType(void, parameters_type)

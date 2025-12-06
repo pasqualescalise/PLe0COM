@@ -32,7 +32,7 @@ from logger import initialize_logger, h1, h2, remove_formatting, green, yellow, 
 
 # These can be specified from the command line to get the corresponding
 # debug information printed to file
-debug_info_choices = ["pre_opts_ast", "ast_ftree", "post_opts_ast", "interpreter_output", "pre_opts_ir", "post_opts_ir", "dead_variable_elimination", "chain_load_store_elimination", "post_cfg_ir", "cfg", "cfg_dot", "ftree", "pre_opts_code", "code"]
+debug_info_choices = ["pre_opts_ast", "ast_ftree", "loop_unrolling", "post_opts_ast", "interpreter_output", "pre_opts_ir", "memory_to_register_promotion", "function_inlining", "post_opts_ir", "dead_variable_elimination", "chain_load_store_elimination", "post_cfg_ir", "cfg", "cfg_dot", "ftree", "pre_opts_code", "code"]
 
 
 # Returns a dictionary with all the debug informations, like the AST,
@@ -57,7 +57,7 @@ def compile_program(text, optimization_level, interpret, llvm):
 
     # XXX: SOME OPTIMIZATIONS GO HERE
     print(h2("ABSTRACT SYNTAX TREE OPTIMIZATIONS"))
-    perform_abstract_syntax_tree_optimizations(program, optimization_level)
+    perform_abstract_syntax_tree_optimizations(program, optimization_level, debug_info)
 
     print(f"\n{green('Optimized Abstract Syntax Tree:')}\n{program}")
 
@@ -112,7 +112,7 @@ def compile_program(text, optimization_level, interpret, llvm):
 
     # XXX: OTHER OPTIMIZATIONS GO HERE
     print(h2("INTERMEDIATE REPRESENTATION OPTIMIZATIONS"))
-    perform_intermediate_representation_optimizations(program, optimization_level)
+    perform_intermediate_representation_optimizations(program, optimization_level, debug_info)
 
     print(f"\n{green('Optimized program:')}\n{program}")
     debug_info["post_opts_ir"] = deepcopy(program)
@@ -187,7 +187,7 @@ def put_debug_info_in_file(debug_info, print_debug, debug_directory):
             case "interpreter_output":
                 output = debug_info[info]
 
-            case "dead_variable_elimination" | "chain_load_store_elimination" | "cfg":
+            case "loop_unrolling" | "memory_to_register_promotion" | "function_inlining" | "dead_variable_elimination" | "chain_load_store_elimination" | "cfg":
                 # print list using newlines
                 output = remove_formatting('\n'.join([repr(x) for x in debug_info[info]]))
 

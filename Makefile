@@ -1,12 +1,21 @@
 SHELL := /bin/bash
 STDOUT := /dev/stdout
 
-CC := arm-linux-gnueabi-gcc
-CFLAGS := -g -static -march=armv6 -z noexecstack
+AS := arm-linux-gnueabi-as
+ASFLAGS := -g -march=armv6
+
+LD := arm-linux-gnueabi-ld
+LLVM_LD := ld.lld
+LDFLAGS := 
+
+LLVM_CC := llc
+LLVMCCFLAGS := --march arm --exception-model=sjlj
 
 LLVM_IR := out.ll
 ASSEMBLY := out.s
+OBJECT := out.o
 EXECUTABLE := out
+STDLIB = $(wildcard stdlib/*.s)
 OPTIMIZATION_LEVEL := 2
 RUN_COMMAND := qemu-arm -cpu arm1136 
 DEBUGGER := pwndbg
@@ -42,7 +51,8 @@ compile:
 	else\
 		printf "\n\e[31mPlease specify input file\e[0m\n";\
 	fi;
-	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE)
+	$(AS) $(ASFLAGS) $(ASSEMBLY) $(STDLIB) -o $(OBJECT);\
+	$(LD) $(LDFLAGS) $(OBJECT) -o $(EXECUTABLE);\
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
 	fi;
@@ -72,12 +82,13 @@ compile-llvm:
 		printf "\n\e[31mThe program didn't compile successfully\e[0m\n";\
 		exit 1;\
 	fi;\
-	llc --march arm $(LLVM_IR) -o $(ASSEMBLY);\
+	$(LLVM_CC) $(LLVMCCFLAGS) $(LLVM_IR) -o $(ASSEMBLY);\
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't llvm compile successfully\e[0m\n";\
 		exit 1;\
 	fi;\
-	$(CC) $(CFLAGS) $(ASSEMBLY) runtime.c -o $(EXECUTABLE);\
+	$(AS) $(ASFLAGS) $(ASSEMBLY) $(STDLIB) -o $(OBJECT);\
+	$(LLVM_LD) $(LDFLAGS) $(OBJECT) -o $(EXECUTABLE);\
 	if [ ! $$? -eq 0 ]; then\
 		printf "\n\e[31mThe program didn't eventually compile successfully\e[0m\n";\
 		exit 1;\
@@ -98,7 +109,7 @@ testallall:
 	$(TEST_COMMAND) $(TEST_FILE) -A
 
 clean:
-	rm $(ASSEMBLY) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
+	rm $(ASSEMBLY) $(OBJECT) $(EXECUTABLE) $(CFG_DOT_FILE) $(CFG_PDF_FILE) $(CFG_PNG_FILE)
 
 dbg:
 	$(DEBUGGER) --eval-command="file $(EXECUTABLE)" --eval-command="target remote :7777" --eval-command="b main" --eval-command="c"

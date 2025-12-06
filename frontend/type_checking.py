@@ -125,14 +125,14 @@ def binary_expr_type_checking(self):
     type_a = self.children[0].type
     type_b = self.children[1].type
 
-    self.mask = False  # wheter to apply a mask to one operand
+    self.cast = False  # wheter to apply a cast to a operand
 
     if type_a == type_b:
         self.type = TYPENAMES[type_a.name]
 
-    elif type_a.is_numeric() and type_b.is_numeric():  # apply a mask to the smallest operand
+    elif type_a.is_numeric() and type_b.is_numeric():  # apply a cast to the smallest operand
         biggest_type = type_a if type_a.size > type_b.size else type_b
-        self.mask = True
+        self.cast = True
         self.type = TYPENAMES[biggest_type.name]
 
     else:
@@ -292,9 +292,12 @@ ReadStat.type_checking = read_stat_type_checking
 def return_stat_type_checking(self):
     self.type = TYPENAMES['statement']
 
+    if self.get_function().parent is None:
+        raise RuntimeError("The main function should not have return statements")
+
     function_returns_types = [x.type for x in self.get_function().returns]
     returns_types = [x.type for x in self.children]
-    self.masks = []  # wheter to apply a mask to one operand
+    self.casts = []  # list of casts to apply to return values
 
     if len(function_returns_types) > len(returns_types):
         raise TypeError(f"Trying to return too few values from function {self.get_function().symbol.name}")
@@ -310,13 +313,9 @@ def return_stat_type_checking(self):
         if non_strict_type_equivalence(function_returns_types[i], returns_types[i]):
             if returns_types[i] != function_returns_types[i]:
                 if returns_types[i].is_numeric() and function_returns_types[i].is_numeric():
-                    if returns_types[i].size > function_returns_types[i].size:
-                        continue  # we can return, for example, a byte as an int
+                    self.casts.append((i, function_returns_types[i]))
 
-                    # mask numeric types if the one we are returning is bigger than the one the caller expects
-                    self.masks.append(i)
-
-        continue
+            continue
 
         raise TypeError(f"Trying to return a value of type {returns_types[i]} instead of {function_returns_types[i]}")
 
@@ -348,15 +347,13 @@ def functiondef_type_checking(self):
 FunctionDef.type_checking = functiondef_type_checking
 
 
-def type_checking(node, quiet=False):
+def type_checking(node):
     try:
         node.type_checking()
-        if not quiet:
-            log_indentation(green(f"Type checked {node.type_repr()}, {id(node)}: {node.type}"))
+        log_indentation(green(f"Type checked {node.type_repr()}, {id(node)}: {node.type}"))
     except AttributeError as e:
         if e.name == "type_checking":
-            if not quiet:
-                log_indentation(underline(f"Type checking not yet implemented for type {node.type_repr()}"))
+            log_indentation(underline(f"Type checking not yet implemented for type {node.type_repr()}"))
         else:
             raise RuntimeError(e)
 

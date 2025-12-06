@@ -134,13 +134,13 @@ class FunctionTree:
             else:
                 if not quiet:
                     log_indentation(f"Performing action {magenta(action.__name__)} on child {cyan(child.type_repr())}, {id(child)}")
-                action(child)
+                action(child, *args)
 
         logger.indentation -= 1
         if not quiet:
             log_indentation(f"Performing action {magenta(action.__name__)} on {cyan(body.type_repr())}, {id(body)}")
 
-        action(body)
+        action(body, *args)
         logger.indentation -= 1
         if not quiet:
             log_indentation(f"Navigated function {magenta(root.symbol.name)}, {id(root.definition)}")

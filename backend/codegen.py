@@ -3,7 +3,7 @@
 """Code generation methods for all low-level nodes in the IR.
 Codegen functions return an array of ASMInstructions"""
 
-from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, LabelInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, TYPENAMES
+from ir.ir import IRInstruction, Symbol, InstructionList, Block, BranchInstruction, DefinitionList, FunctionDef, BinaryInstruction, PrintInstruction, ReadInstruction, LabelInstruction, LoadPointerInstruction, PointerType, StoreInstruction, LoadInstruction, LoadImmInstruction, UnaryInstruction, DataSymbolTable, CastInstruction, TYPENAMES
 from backend.codegenhelp import ASMInstruction, get_register_string, save_regs, restore_regs, REGS_CALLEESAVE, REGS_CALLERSAVE, REG_SP, REG_FP, REG_LR, REG_SCRATCH, CALL_OFFSET, access_static_chain_pointer, load_static_chain_pointer
 from backend.datalayout import LocalSymbolLayout
 from logger import red, green, magenta, italic, remove_formatting
@@ -346,7 +346,7 @@ LoadInstruction.codegen = load_codegen
 def store_codegen(self, regalloc):
     res = []
 
-    if self.dest.alloc_class == 'reg' and self.source.alloc_class == 'reg' and not self.dest.is_pointer():
+    if self.is_move():
         res += regalloc.gen_spill_load_if_necessary(self.source)
         res += [ASMInstruction('mov', args=[regalloc.get_register_for_variable(self.dest), regalloc.get_register_for_variable(self.source)])]
         res += regalloc.gen_spill_store_if_necessary(self.dest)
@@ -391,6 +391,26 @@ def store_codegen(self, regalloc):
 StoreInstruction.codegen = store_codegen
 
 
+def cast_codegen(self, regalloc):
+    res = []
+    res += regalloc.gen_spill_load_if_necessary(self.source)
+
+    if self.source.type.size < self.dest.type.size:
+        # we want a bigger type, so sign extend
+        res += [ASMInstruction('uxtb', args=[regalloc.get_register_for_variable(self.dest), regalloc.get_register_for_variable(self.source)])]
+    else:
+        # we want a smaller type, so and with a mask
+        mask = [int(0x000000ff), int(0x0000ffff)][self.dest.type.size // 8 - 1]  # either byte or short
+        res += [ASMInstruction("ldr", args=[get_register_string(REG_SCRATCH), f"=#{italic(f'{mask}')}"])]
+        res += [ASMInstruction("and", args=[regalloc.get_register_for_variable(self.dest), regalloc.get_register_for_variable(self.source), get_register_string(REG_SCRATCH)])]
+
+    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    return res
+
+
+CastInstruction.codegen = cast_codegen
+
+
 def print_codegen(self, regalloc):
     res = regalloc.gen_spill_load_if_necessary(self.symbol)
     rp = regalloc.get_register_for_variable(self.symbol)
@@ -405,16 +425,8 @@ def print_codegen(self, regalloc):
         res += [ASMInstruction('bl', args=[magenta('__pl0_print_string')])]
     elif self.print_type == TYPENAMES['boolean']:
         res += [ASMInstruction('bl', args=[magenta('__pl0_print_boolean')])]
-    elif self.print_type == TYPENAMES['ubyte']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_unsigned_byte')])]
-    elif self.print_type == TYPENAMES['ushort']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_unsigned_short')])]
-    elif self.print_type == TYPENAMES['byte']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_byte')])]
-    elif self.print_type == TYPENAMES['short']:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_short')])]
     else:
-        res += [ASMInstruction('bl', args=[magenta('__pl0_print_integer')])]
+        res += [ASMInstruction('bl', args=[magenta('__pl0_print_numeric')])]
     res += restore_regs(REGS_CALLERSAVE)
     return res
 

@@ -321,20 +321,31 @@ WhileStat.llvm_codegen = while_stat_llvm_codegen
 
 
 def for_stat_llvm_codegen(self, variable_state):
-    loop_block = builder.append_basic_block(name="loop")
-    exit_block = builder.append_basic_block(name="exit")
+    entry_block = builder.basic_block
 
     self.init.llvm_codegen(variable_state)
+    first_loop_condition = self.cond.llvm_codegen(variable_state)
+    # XXX: the branch to exit is inserted later
 
-    loop_condition = self.cond.llvm_codegen(variable_state)
-    builder.cbranch(loop_condition, loop_block, exit_block)
-
-    builder.position_at_start(loop_block)
+    start_loop_body_block = builder.append_basic_block(name="start_loop_body")
+    builder.position_at_start(start_loop_body_block)
     self.body.llvm_codegen(variable_state)
-    self.step.llvm_codegen(variable_state)
 
-    loop_condition = self.cond.llvm_codegen(variable_state)
-    builder.cbranch(loop_condition, loop_block, exit_block)
+    end_loop_body_block = builder.basic_block
+    if end_loop_body_block.is_terminated:
+        end_loop_body_block = builder.append_basic_block(name="end_loop_body")
+    builder.position_at_end(end_loop_body_block)
+
+    self.step.llvm_codegen(variable_state)
+    recurring_loop_condition = self.cond.llvm_codegen(variable_state)
+    # XXX: the branch to exit is inserted later
+
+    exit_block = builder.append_basic_block(name="exit")
+
+    builder.position_at_end(entry_block)
+    builder.cbranch(first_loop_condition, start_loop_body_block, exit_block)
+    builder.position_at_end(end_loop_body_block)
+    builder.cbranch(recurring_loop_condition, start_loop_body_block, exit_block)
 
     builder.position_at_start(exit_block)
 
@@ -393,16 +404,12 @@ def print_stat_llvm_codegen(self, variable_state):
     parameters += [ir.Constant(ir.IntType(32), 1) if self.newline else ir.Constant(ir.IntType(32), 0)]
 
     match self.print_type:
-        case x if x == TYPENAMES['int'] or x == TYPENAMES['uint']:  # no distinction
-            func = module.get_global("__pl0_print_integer")
-        case x if x == TYPENAMES['short']:
-            func = module.get_global("__pl0_print_short")
-        case x if x == TYPENAMES['ushort']:
-            func = module.get_global("__pl0_print_unsigned_short")
-        case x if x == TYPENAMES['byte']:
-            func = module.get_global("__pl0_print_byte")
-        case x if x == TYPENAMES['ubyte']:
-            func = module.get_global("__pl0_print_unsigned_byte")
+        case x if x.is_numeric():
+            if 'unsigned' in self.print_type.qualifiers:
+                parameters[0] = builder.zext(parameters[0], ir.IntType(32))
+            else:
+                parameters[0] = builder.sext(parameters[0], ir.IntType(32))
+            func = module.get_global("__pl0_print_numeric")
         case x if x == TYPENAMES['boolean']:
             parameters[0] = builder.zext(parameters[0], ir.IntType(32))
             func = module.get_global("__pl0_print_boolean")

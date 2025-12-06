@@ -9,11 +9,13 @@ from ir.intermediate_representation_optimizations.function_inlining import funct
 from logger import h3
 
 
-def perform_intermediate_representation_optimizations(program, optimization_level):
+def perform_intermediate_representation_optimizations(program, optimization_level, debug_info):
     if optimization_level > 0:
         print(h3("MEMORY-TO-REGISTER PROMOTION"))
-        memory_to_register_promotion(program)
+        debug_info['memory_to_register_promotion'] = []
+        memory_to_register_promotion(program, debug_info)
 
     if optimization_level > 1:
         print(h3("FUNCTION INLINING"))
-        FunctionTree.navigate(function_inlining, quiet=True)
+        debug_info['function_inlining'] = []
+        FunctionTree.navigate(function_inlining, debug_info, quiet=True)

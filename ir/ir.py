@@ -731,24 +731,65 @@ class StoreInstruction(IRInstruction):
         if self.dest.alloc_class != 'reg':  # putting a value in a symbol
             return [self.dest]
 
-        if self.source.alloc_class == 'reg' and not self.dest.is_pointer():  # mov between registers
+        elif self.is_move():
             return [self.dest]
-        else:
-            return []
+
+        return []
 
     def destination(self):
         return self.dest
 
+    # return True if this StoreInstruction moves data between two registers
+    def is_move(self):
+        if self.dest.alloc_class == 'reg' and self.source.alloc_class == 'reg' and not self.dest.is_pointer():
+            return True
+
+        elif self.source.is_pointer() and self.dest.is_pointer() and self.source.type.pointstotype == self.dest.type.pointstotype:
+            return True
+
+        return False
+
     def __repr__(self):
-        if self.dest.is_pointer():
-            return f"[{self.dest}] {bold('<-')} {self.source}"
-        return f"{self.dest} {bold('<-')} {self.source}"
+        if self.is_move():
+            return f"{self.dest} {bold('<-')} {self.source}"
+        return f"[{self.dest}] {bold('<-')} {self.source}"
 
     def replace_temporaries(self, mapping, create_new=True):
         replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
 
     def __deepcopy__(self, memo):
         return StoreInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
+
+
+# TODO: remove symtab, NO ONE is using it
+class CastInstruction(IRInstruction):
+    """
+    Cast a symbol of type source to one of type dest
+    """
+    def __init__(self, parent=None, source=None, dest=None, symtab=None):
+        log_indentation(bold(f"New CastInstruction Node (id: {id(self)})"))
+        super().__init__(parent, symtab)
+        self.source = source
+        self.dest = dest
+        # TODO: checks like StoreInstruction?
+
+    def used_variables(self):
+        return [self.source]
+
+    def killed_variables(self):
+        return [self.dest]
+
+    def destination(self):
+        return self.dest
+
+    def __repr__(self):
+        return f"{self.dest} {bold('<-')} ({bold(f'{self.dest.type}')}) {self.source}"
+
+    def replace_temporaries(self, mapping, create_new=True):
+        replace_temporary_attributes(self, ['source', 'dest'], mapping, create_new=create_new)
+
+    def __deepcopy__(self, memo):
+        return CastInstruction(parent=self.parent, source=self.source, dest=self.dest, symtab=self.symtab)
 
 
 class PrintInstruction(IRInstruction):
